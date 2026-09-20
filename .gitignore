@@ -50,6 +50,5 @@ backups/
 
 # Local project metadata
 .backup-current-dir
-.lovable/
 
 *.temp
