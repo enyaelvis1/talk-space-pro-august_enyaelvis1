@@ -282,6 +282,12 @@ test("admin mobile shell preserves loading, empty, and form states", () => {
   assert.match(forms, /No pending intake submissions/);
   assert.match(forms, /Save templates/);
   assert.match(forms, /<Textarea|<Input/);
+  assert.match(forms, /Add question/);
+  assert.match(forms, /Remove \$\{field\.label\}/);
+  assert.match(forms, /Field type/);
+  assert.match(forms, /Options/);
+  assert.match(forms, /One option per line/);
+  assert.match(forms, /updateField\(templateIndex, fieldIndex, \{ fieldKey: value \}\)/);
 });
 
 test("admin therapist route avoids Radix chunks that can break split-route loading", () => {
