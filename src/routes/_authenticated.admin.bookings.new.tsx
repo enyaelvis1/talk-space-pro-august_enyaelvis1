@@ -20,7 +20,7 @@ import {
 } from "@/lib/booking.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/bookings/new")({
-  loader: async () => getAdminBookingFormData(),
+  loader: () => null,
   head: () => ({
     meta: [
       { title: "Create booking | Talk Space Admin" },
@@ -28,24 +28,6 @@ export const Route = createFileRoute("/_authenticated/admin/bookings/new")({
     ],
     links: [{ rel: "canonical", href: canonicalUrl("/admin/bookings/new") }],
   }),
-  pendingComponent: () => (
-    <AdminWorkspaceShell>
-      <AdminPageSkeleton columns={2} rows={10} />
-    </AdminWorkspaceShell>
-  ),
-  errorComponent: ({ error }) => (
-    <AdminWorkspaceShell>
-      <main className="mx-auto w-full max-w-3xl px-4 py-16 text-center sm:px-6 lg:px-8">
-        <h1 className="text-2xl font-semibold text-brand-deep">Create booking is unavailable</h1>
-        <p className="mt-3 text-sm text-muted-foreground">
-          {error instanceof Error ? error.message : "The booking form could not be loaded."}
-        </p>
-        <Button asChild className="mt-6">
-          <Link to="/admin/bookings">Return to bookings</Link>
-        </Button>
-      </main>
-    </AdminWorkspaceShell>
-  ),
   component: CreateAdminBookingRoute,
 });
 
@@ -78,8 +60,49 @@ function formatNaira(amount: number) {
 }
 
 function CreateAdminBookingRoute() {
-  const data = Route.useLoaderData();
   const navigate = useNavigate();
+  const [data, setData] = useState<AdminBookingFormData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void getAdminBookingFormData()
+      .then((result) => {
+        if (active) setData(result);
+      })
+      .catch((reason) => {
+        if (active)
+          setError(
+            reason instanceof Error ? reason.message : "The booking form could not be loaded.",
+          );
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (error) {
+    return (
+      <AdminWorkspaceShell>
+        <main className="mx-auto w-full max-w-3xl px-4 py-16 text-center sm:px-6 lg:px-8">
+          <h1 className="text-2xl font-semibold text-brand-deep">Create booking is unavailable</h1>
+          <p className="mt-3 text-sm text-muted-foreground">{error}</p>
+          <Button asChild className="mt-6">
+            <Link to="/admin/bookings">Return to bookings</Link>
+          </Button>
+        </main>
+      </AdminWorkspaceShell>
+    );
+  }
+
+  if (!data) {
+    return (
+      <AdminWorkspaceShell>
+        <AdminPageSkeleton columns={2} rows={10} />
+      </AdminWorkspaceShell>
+    );
+  }
+
   return (
     <CreateBookingForm data={data} onCreated={() => void navigate({ to: "/admin/bookings" })} />
   );

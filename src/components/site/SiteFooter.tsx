@@ -1,13 +1,7 @@
-import { useEffect, useState } from "react";
 import { Link, useMatch } from "@tanstack/react-router";
 import { Facebook, Instagram, Linkedin, Mail, MapPin, Phone, Twitter, Youtube } from "lucide-react";
 import { TS, WHATSAPP_HREF } from "@/lib/talkspace";
-import {
-  DEFAULT_FOOTER_SETTINGS,
-  DEFAULT_SITE_DETAILS,
-  getPublicFooterSettings,
-  type PublicFooterSettings,
-} from "@/lib/content.functions";
+import { DEFAULT_FOOTER_SETTINGS, DEFAULT_SITE_DETAILS } from "@/lib/content.functions";
 import { BrandWordmark } from "@/components/site/BrandWordmark";
 import { WhatsAppIcon } from "@/components/icons/WhatsAppIcon";
 
@@ -21,19 +15,13 @@ function isInternalHref(href: string) {
 
 export function SiteFooter() {
   const year = new Date().getFullYear();
-  const details =
-    useMatch({
-      from: "__root__",
-      shouldThrow: false,
-      select: (match) => match.loaderData,
-    }) ?? DEFAULT_SITE_DETAILS;
-  const [footer, setFooter] = useState<PublicFooterSettings>(DEFAULT_FOOTER_SETTINGS);
-
-  useEffect(() => {
-    void getPublicFooterSettings()
-      .then(setFooter)
-      .catch(() => undefined);
-  }, []);
+  const shell = useMatch({
+    from: "__root__",
+    shouldThrow: false,
+    select: (match) => match.loaderData,
+  });
+  const details = shell?.details ?? DEFAULT_SITE_DETAILS;
+  const footer = shell?.footer ?? DEFAULT_FOOTER_SETTINGS;
 
   const socials = [
     { href: details.facebook, label: "Facebook", icon: Facebook },

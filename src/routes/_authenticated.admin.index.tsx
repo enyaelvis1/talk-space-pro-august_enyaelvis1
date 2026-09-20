@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { AdminOverview, AdminOverviewSkeleton } from "@/components/progress/AdminOverview";
-import { getVerifiedBrowserSession, hasBrowserRole } from "@/lib/auth";
+import { getVerifiedBrowserSession } from "@/lib/auth";
 import {
   listTodayAppointmentsForAdmin,
   listUpcomingAppointmentsForAdmin,
@@ -77,35 +77,17 @@ export const Route = createFileRoute("/_authenticated/admin/")({
 function AdminPage() {
   const { snapshot, summary, failureQueues, todayAppointments, upcomingAppointments } =
     Route.useLoaderData();
-  const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [canViewProgress, setCanViewProgress] = useState(false);
 
   useEffect(() => {
     let active = true;
-    Promise.all([hasBrowserRole("admin"), getVerifiedBrowserSession()]).then(
-      ([isAdmin, session]) => {
-        if (active) {
-          setAuthorized(isAdmin);
-          setCanViewProgress(hasProgressAccess(isAdmin ? "admin" : null, session?.user.email));
-        }
-      },
-    );
+    void getVerifiedBrowserSession().then((session) => {
+      if (active) setCanViewProgress(hasProgressAccess("admin", session?.user.email));
+    });
     return () => {
       active = false;
     };
   }, []);
-
-  if (authorized === null) return <AdminOverviewSkeleton />;
-  if (!authorized) {
-    return (
-      <main id="main" className="mx-auto max-w-2xl px-4 py-24 text-center">
-        <h1 className="display-1 text-brand-deep">Permission required</h1>
-        <p className="mt-4 text-muted-foreground">
-          You do not have permission to view the admin dashboard.
-        </p>
-      </main>
-    );
-  }
 
   return (
     <AdminOverview

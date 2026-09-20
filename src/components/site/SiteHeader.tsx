@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { Link, useMatch, useRouterState } from "@tanstack/react-router";
-import type { Session } from "@supabase/supabase-js";
 import { Menu, X } from "lucide-react";
 
 import { WhatsAppIcon } from "@/components/icons/WhatsAppIcon";
@@ -13,8 +12,8 @@ const WHATSAPP_HREF = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponen
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useBrowserAuthState } from "@/hooks/use-browser-auth-state";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
-import { getSessionExpiryState, getVerifiedBrowserSession, hasBrowserRole } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { DEFAULT_SITE_DETAILS } from "@/lib/content.functions";
 
@@ -31,17 +30,20 @@ const MOBILE_NAV = [{ to: "/", label: "Home" }, ...NAV] as const;
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
-  const [session, setSession] = useState<Session | null>(null);
-  const [sessionLoading, setSessionLoading] = useState(true);
-  const [sessionExpiryWarning, setSessionExpiryWarning] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isTherapist, setIsTherapist] = useState(false);
+  const {
+    session,
+    isAdmin,
+    isTherapist,
+    status: authStatus,
+    sessionExpiryWarning,
+  } = useBrowserAuthState();
+  const sessionLoading = authStatus === "loading";
   const details =
     useMatch({
       from: "__root__",
       shouldThrow: false,
       select: (match) => match.loaderData,
-    }) ?? DEFAULT_SITE_DETAILS;
+    })?.details ?? DEFAULT_SITE_DETAILS;
   const { logoPath, brandName } = details;
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const mobileDialogRef = useRef<HTMLDivElement>(null);
@@ -49,92 +51,10 @@ export function SiteHeader() {
   const accountHref = isTherapist ? "/therapist" : "/account";
   const accountLabel = isTherapist ? "Dashboard" : "Account";
 
-  // Keep the header in sync with sign-in, sign-out, token refresh, and expired sessions.
-  useEffect(() => {
-    const supabase = getSupabaseBrowserClient();
-    if (!supabase) {
-      setSessionLoading(false);
-      return;
-    }
-
-    let mounted = true;
-    const syncAuthState = async () => {
-      const verifiedSession = await getVerifiedBrowserSession();
-      if (!mounted) return;
-
-      if (!verifiedSession) {
-        setSession(null);
-        setIsAdmin(false);
-        setIsTherapist(false);
-        setSessionExpiryWarning(null);
-        setSessionLoading(false);
-        return;
-      }
-
-      const expiryState = getSessionExpiryState(verifiedSession);
-      if (expiryState.isWarning && expiryState.expiresInMs !== null) {
-        const remainingMinutes = Math.max(1, Math.ceil(expiryState.expiresInMs / 60000));
-        setSessionExpiryWarning(`Session expires in ${remainingMinutes} min`);
-      } else {
-        setSessionExpiryWarning(null);
-      }
-
-      const [adminRole, therapistRole] = await Promise.all([
-        hasBrowserRole("admin"),
-        hasBrowserRole("therapist"),
-      ]);
-
-      if (!mounted) return;
-      setSession(verifiedSession);
-      setIsAdmin(adminRole);
-      setIsTherapist(therapistRole);
-      setSessionLoading(false);
-    };
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (!nextSession) {
-        if (mounted) {
-          setSession(null);
-          setIsAdmin(false);
-          setIsTherapist(false);
-          setSessionLoading(false);
-        }
-        return;
-      }
-      void syncAuthState();
-    });
-
-    void syncAuthState();
-
-    const onFocusOrVisible = () => {
-      if (!document.hidden) void syncAuthState();
-    };
-    const intervalId = window.setInterval(() => {
-      onFocusOrVisible();
-    }, 30000);
-    window.addEventListener("focus", onFocusOrVisible);
-    document.addEventListener("visibilitychange", onFocusOrVisible);
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-      window.clearInterval(intervalId);
-      window.removeEventListener("focus", onFocusOrVisible);
-      document.removeEventListener("visibilitychange", onFocusOrVisible);
-    };
-  }, []);
-
   async function handleSignOut() {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) return;
 
-    setSession(null);
-    setIsAdmin(false);
-    setIsTherapist(false);
-    setSessionExpiryWarning(null);
-    setSessionLoading(false);
     setOpen(false);
     await supabase.auth.signOut();
   }

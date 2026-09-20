@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { ExternalLink, Loader2, Pencil, Plus, Search } from "lucide-react";
 
@@ -8,13 +8,11 @@ import { AdminBulkActionBar } from "@/components/admin/BulkActionBar";
 import { InlineEditable } from "@/components/admin/InlineEditable";
 import { LifecycleMenu, LifecyclePill } from "@/components/admin/ContentLifecycleControls";
 import { PaginationBar, usePagination } from "@/components/admin/Pagination";
-import { AdminPageSkeleton } from "@/components/admin/AdminSkeletons";
 
 import { AdminWorkspaceShell } from "@/components/progress/AdminSidebar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { hasBrowserRole } from "@/lib/auth";
 import { canonicalUrl } from "@/lib/seo";
 import {
   bulkDeleteContent,
@@ -64,21 +62,12 @@ function fmtDate(iso: string | null) {
 
 function JournalAdminRoute() {
   const initial = Route.useLoaderData();
-  const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [rows, setRows] = useState<AdminContentRow[]>(initial);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "publish" | "draft">("all");
   const [savingId, setSavingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkPending, setBulkPending] = useState<"publish" | "unpublish" | "delete" | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    void hasBrowserRole("admin").then((ok) => active && setAuthorized(ok));
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -243,25 +232,6 @@ function JournalAdminRoute() {
       setBulkPending(null);
     }
   };
-
-  if (authorized === null) {
-    return (
-      <AdminWorkspaceShell>
-        <AdminPageSkeleton columns={6} rows={10} />
-      </AdminWorkspaceShell>
-    );
-  }
-
-  if (!authorized) {
-    return (
-      <AdminWorkspaceShell>
-        <main className="mx-auto max-w-2xl px-4 py-24 text-center">
-          <h1 className="display-1 text-brand-deep">Permission required</h1>
-          <p className="mt-4 text-muted-foreground">Admin access is required.</p>
-        </main>
-      </AdminWorkspaceShell>
-    );
-  }
 
   return (
     <AdminWorkspaceShell>
