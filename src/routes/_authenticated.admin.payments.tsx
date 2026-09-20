@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import {
   Loader2,
@@ -38,7 +38,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useSensitiveActionGate } from "@/hooks/useSensitiveActionGate";
-import { hasBrowserRole } from "@/lib/auth";
 import { canonicalUrl } from "@/lib/seo";
 import {
   clearPaystackSecret,
@@ -111,39 +110,6 @@ export const Route = createFileRoute("/_authenticated/admin/payments")({
 
 function PaymentsAdminRoute() {
   const loaderData = Route.useLoaderData();
-  const [authorized, setAuthorized] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    void hasBrowserRole("admin").then((ok) => {
-      if (active) setAuthorized(ok);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  if (authorized === null) {
-    return (
-      <AdminWorkspaceShell>
-        <AdminPageSkeleton columns={5} rows={8} />
-      </AdminWorkspaceShell>
-    );
-  }
-
-  if (!authorized) {
-    return (
-      <AdminWorkspaceShell>
-        <main className="mx-auto max-w-2xl px-4 py-24 text-center">
-          <h1 className="display-1 text-brand-deep">Permission required</h1>
-          <p className="mt-4 text-muted-foreground">
-            You do not have permission to manage payment settings.
-          </p>
-        </main>
-      </AdminWorkspaceShell>
-    );
-  }
-
   return (
     <AdminWorkspaceShell>
       <PaymentsAdminScreen

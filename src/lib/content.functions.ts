@@ -1017,11 +1017,50 @@ export function parseFooterSettings(value: unknown): PublicFooterSettings {
 
 const publicSiteDetailsCache = createPublicReadCache<PublicSiteDetails>(60_000);
 const publicFooterSettingsCache = createPublicReadCache<PublicFooterSettings>(60_000);
+const publicShellCache = createPublicReadCache<PublicShellData>(60_000);
+
+export type PublicShellData = {
+  details: PublicSiteDetails;
+  footer: PublicFooterSettings;
+};
+
+export const DEFAULT_PUBLIC_SHELL_DATA: PublicShellData = {
+  details: DEFAULT_SITE_DETAILS,
+  footer: DEFAULT_FOOTER_SETTINGS,
+};
 
 export function clearPublicSiteSettingsCache() {
   publicSiteDetailsCache.clear();
   publicFooterSettingsCache.clear();
+  publicShellCache.clear();
 }
+
+export const getPublicShellData = createServerFn({ method: "GET" }).handler(
+  async (): Promise<PublicShellData> => {
+    setResponseHeader("Cache-Control", "no-store");
+    try {
+      const config = await getPublicClient();
+      if (!config) return DEFAULT_PUBLIC_SHELL_DATA;
+
+      return await publicShellCache.get(async () => {
+        const { data, error } = await config.client
+          .from("site_settings")
+          .select("key, value")
+          .in("key", ["site_details", "footer_settings"]);
+        if (error) throw error;
+
+        const values = new Map((data ?? []).map((row) => [row.key, row.value] as const));
+        return {
+          details: parseSiteDetails(values.get("site_details")),
+          footer: parseFooterSettings(values.get("footer_settings")),
+        };
+      });
+    } catch (error) {
+      console.error("Unable to reach public shell settings; using defaults.", error);
+      return DEFAULT_PUBLIC_SHELL_DATA;
+    }
+  },
+);
 
 export const getPublicSiteDetails = createServerFn({ method: "GET" }).handler(
   async (): Promise<PublicSiteDetails> => {

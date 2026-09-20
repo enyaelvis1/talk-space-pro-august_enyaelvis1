@@ -11,19 +11,19 @@ node_modules
 dist
 dist-ssr
 .output
-output/
-screenshots/
-backups/
-coverage/
 .cache/
 .parcel-cache/
 .turbo/
+coverage/
+output/
+screenshots/
+backups/
 .vinxi
+.tanstack/**
 .nitro
 .vercel/
 .netlify/
 .playwright-cli/
-.tanstack/
 *.local
 
 # Wrangler / Cloudflare
@@ -50,6 +50,5 @@ coverage/
 
 # Local project metadata
 .backup-current-dir
-.lovable/
 
 *.temp

@@ -108,7 +108,7 @@ test("new therapist invitations land on one-time password setup", () => {
 });
 
 test("therapist users get a first-class dashboard link after sign-in", () => {
-  assert.match(siteHeader, /hasBrowserRole\("therapist"\)/);
+  assert.match(siteHeader, /useBrowserAuthState/);
   assert.match(siteHeader, /accountHref = isTherapist \? "\/therapist" : "\/account"/);
   assert.match(siteHeader, /accountLabel = isTherapist \? "Dashboard" : "Account"/);
   assert.match(siteHeader, /to="\/therapist"/);

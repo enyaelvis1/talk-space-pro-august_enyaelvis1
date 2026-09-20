@@ -6,6 +6,10 @@ const sidebar = await readFile(
   new URL("../src/components/progress/AdminSidebar.tsx", import.meta.url),
   "utf8",
 );
+const adminRoot = await readFile(
+  new URL("../src/routes/_authenticated.admin.tsx", import.meta.url),
+  "utf8",
+);
 const dashboard = await readFile(
   new URL("../src/routes/_authenticated.admin.index.tsx", import.meta.url),
   "utf8",
@@ -113,6 +117,10 @@ const appointmentTimelineMigration = await readFile(
   "utf8",
 );
 const auth = await readFile(new URL("../src/lib/auth.ts", import.meta.url), "utf8");
+const browserAuth = await readFile(
+  new URL("../src/lib/browser-auth-state.ts", import.meta.url),
+  "utf8",
+);
 
 const adminRoutes = [
   "index",
@@ -141,6 +149,20 @@ const adminRoutes = [
   "availability",
 ];
 
+const protectedAdminChildRoutes = [
+  "availability",
+  "clients.index",
+  "clients.$clientId",
+  "emails",
+  "journal",
+  "media",
+  "messages",
+  "pages",
+  "payments",
+  "services",
+  "therapists",
+];
+
 test("admin sidebar has a route for each primary CMS and operations tab", async () => {
   for (const route of adminRoutes) {
     await access(new URL(`../src/routes/_authenticated.admin.${route}.tsx`, import.meta.url));
@@ -154,19 +176,33 @@ test("admin sidebar has a route for each primary CMS and operations tab", async 
 });
 
 test("admin dashboard and client records retain their permission guards", () => {
-  assert.match(dashboard, /hasBrowserRole\("admin"\)/);
+  assert.doesNotMatch(dashboard, /hasBrowserRole\("admin"\)/);
   assert.match(dashboard, /getVerifiedBrowserSession\(\)/);
-  assert.match(progress, /getVerifiedBrowserSession\(\)/);
-  assert.match(sidebar, /getVerifiedBrowserSession\(\)/);
+  assert.doesNotMatch(progress, /getVerifiedBrowserSession\(\)/);
+  assert.match(sidebar, /useBrowserAuthState/);
+  assert.match(browserAuth, /hasBrowserRoleForSession/);
+  assert.match(browserAuth, /window\.setInterval\(refreshWhenVisible, 60_000\)/);
+  assert.doesNotMatch(sidebar, /window\.setInterval/);
   assert.match(dashboard, /pendingComponent: AdminOverviewSkeleton/);
   assert.match(dashboard, /pendingMs: 0/);
-  assert.match(dashboard, /You do not have permission to view the admin dashboard/);
   assert.match(adminOverview, /Operations shortcuts/);
   assert.match(adminOverview, /\/admin\/bookings/);
   assert.match(adminOverview, /\/admin\/payments/);
   assert.match(adminOverview, /\/admin\/clients/);
   assert.match(clients, /getAdminClients\(\)/);
-  assert.match(clients, /You do not have permission to view client records/);
+  assert.doesNotMatch(clients, /hasBrowserRole\("admin"\)/);
+});
+
+test("admin parent route owns permission checks without child role polling", async () => {
+  assert.match(adminRoot, /requireBrowserAdmin/);
+  assert.match(sidebar, /useBrowserAuthState/);
+  for (const route of protectedAdminChildRoutes) {
+    const source = await readFile(
+      new URL(`../src/routes/_authenticated.admin.${route}.tsx`, import.meta.url),
+      "utf8",
+    );
+    assert.doesNotMatch(source, /hasBrowserRole\("admin"\)/, route);
+  }
 });
 
 test("contact messages have a dedicated protected admin workspace", () => {
@@ -174,7 +210,7 @@ test("contact messages have a dedicated protected admin workspace", () => {
   assert.match(messages, /listContactSubmissions/);
   assert.match(messages, /deleteContactSubmission/);
   assert.match(messages, /Contact messages/);
-  assert.match(messages, /hasBrowserRole\("admin"\)/);
+  assert.doesNotMatch(messages, /hasBrowserRole\("admin"\)/);
   assert.match(adminOverview, /Contact messages awaiting acknowledgement/);
 });
 
@@ -206,6 +242,7 @@ test("browser auth helpers reject stale cached sessions after inactivity", () =>
   assert.match(auth, /if \(userError && !userData\.user\) \{\s*return session;/s);
   assert.match(auth, /const session = await getVerifiedBrowserSession\(\)/);
   assert.match(auth, /if \(await getVerifiedBrowserSession\(\)\) return/);
+  assert.match(auth, /export async function hasBrowserRoleForSession/);
 });
 
 test("mobile admin navigation identifies content and operations routes", () => {
@@ -291,9 +328,10 @@ test("admin dashboard exposes unresolved notification and Meet queues", () => {
   assert.match(adminOverview, /\/admin\/google/);
 });
 
-test("progress route imports the owner-access helper it executes", () => {
-  assert.match(progress, /import \{ hasProgressAccess \} from "@\/lib\/progress-access"/);
-  assert.match(progress, /setAuthorized\(hasProgressAccess/);
+test("progress route enforces owner access before loading its dashboard", () => {
+  assert.match(progress, /requireBrowserProgressAccess/);
+  assert.match(progress, /getRestrictedProgressSnapshot/);
+  assert.doesNotMatch(progress, /setAuthorized|hasBrowserRole\("admin"\)/);
 });
 
 test("booking operations exposes a consolidated appointment timeline", () => {
@@ -368,7 +406,8 @@ test("admins can edit footer content from workspace settings", () => {
   assert.match(adminFunctions, /DEFAULT_FOOTER_SETTINGS/);
   assert.match(contentFunctions, /getPublicFooterSettings/);
   assert.match(contentFunctions, /parseFooterSettings/);
-  assert.match(siteFooter, /getPublicFooterSettings/);
+  assert.match(siteFooter, /useMatch\([\s\S]*loaderData/);
+  assert.match(siteFooter, /shell\?\.footer/);
   assert.match(siteFooter, /footer\.sections\.map/);
   assert.match(siteFooter, /footerOffices\.map/);
   assert.match(siteFooter, /formatFooterText/);

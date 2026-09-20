@@ -14,7 +14,6 @@ import {
 import { toast } from "sonner";
 
 import { AdminWorkspaceShell } from "@/components/progress/AdminSidebar";
-import { AdminCardGridSkeleton } from "@/components/admin/AdminSkeletons";
 import { SensitiveActionDialog } from "@/components/admin/SensitiveActionDialog";
 import { MediaUploadInput } from "@/components/admin/MediaUploadInput";
 import { Button } from "@/components/ui/button";
@@ -29,7 +28,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { hasBrowserRole } from "@/lib/auth";
 import { canonicalUrl } from "@/lib/seo";
 import { useSensitiveActionGate } from "@/hooks/useSensitiveActionGate";
 import {
@@ -120,7 +118,6 @@ function NativeSwitch({
 
 function TherapistsAdminRoute() {
   const initial = Route.useLoaderData();
-  const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [rows, setRows] = useState<AdminTherapistRow[]>(initial);
   const [query, setQuery] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -134,14 +131,6 @@ function TherapistsAdminRoute() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const stepUp = useSensitiveActionGate();
   const router = useRouter();
-
-  useEffect(() => {
-    let active = true;
-    void hasBrowserRole("admin").then((ok) => active && setAuthorized(ok));
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -218,25 +207,6 @@ function TherapistsAdminRoute() {
 
   const applyPatch = (id: string, patch: Partial<AdminTherapistRow>) =>
     setRows((all) => all.map((r) => (r.id === id ? { ...r, ...patch } : r)));
-
-  if (authorized === null)
-    return (
-      <AdminWorkspaceShell>
-        <main className="min-h-screen bg-surface-page py-8 sm:py-10">
-          <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-            <AdminCardGridSkeleton count={6} />
-          </div>
-        </main>
-      </AdminWorkspaceShell>
-    );
-  if (!authorized)
-    return (
-      <AdminWorkspaceShell>
-        <main className="mx-auto max-w-2xl px-4 py-24 text-center">
-          <h1 className="display-1 text-brand-deep">Permission required</h1>
-        </main>
-      </AdminWorkspaceShell>
-    );
 
   const sortedRows = [...filtered].sort(
     (a, b) => a.displayOrder - b.displayOrder || a.fullName.localeCompare(b.fullName),
