@@ -2,6 +2,8 @@ import { useCallback, useState } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import {
   BookOpenCheck,
+  ChevronLeft,
+  ChevronRight,
   Eye,
   Loader2,
   Mail,
@@ -20,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -118,6 +121,14 @@ function EmailAdminScreen({
   const [previewLoadingKey, setPreviewLoadingKey] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [templatePage, setTemplatePage] = useState(1);
+  const templatesPerPage = 4;
+  const templatePageCount = Math.max(1, Math.ceil(templates.length / templatesPerPage));
+  const currentTemplatePage = Math.min(templatePage, templatePageCount);
+  const visibleTemplates = templates.slice(
+    (currentTemplatePage - 1) * templatesPerPage,
+    currentTemplatePage * templatesPerPage,
+  );
   const senderMatchesInbox =
     (settings.fromEmail ?? "").trim().toLowerCase() !== "" &&
     settings.fromEmail?.trim().toLowerCase() === settings.contactInbox?.trim().toLowerCase();
@@ -585,10 +596,10 @@ function EmailAdminScreen({
         <section className="rounded-2xl border border-border/70 bg-card p-6 sm:p-8">
           <h2 className="text-lg font-semibold text-brand-deep">Templates</h2>
           <p className="mt-1 text-sm text-muted-foreground" data-anchor="templates-desc">
-            Turn individual emails on or off, or override the subject line.
+            Edit the subject or body, turn individual emails on or off, and preview the result.
           </p>
           <div className="mt-4 space-y-3">
-            {templates.map((t) => (
+            {visibleTemplates.map((t) => (
               <div
                 key={t.templateKey}
                 className="grid gap-3 rounded-xl border border-border/70 p-4 sm:grid-cols-[1fr_auto] sm:items-start"
@@ -645,10 +656,72 @@ function EmailAdminScreen({
                       className="mt-1"
                     />
                   </div>
+                  <div className="mt-3">
+                    <Label htmlFor={`b-${t.templateKey}`} className="text-xs text-muted-foreground">
+                      Body override (optional)
+                    </Label>
+                    <Textarea
+                      id={`b-${t.templateKey}`}
+                      value={t.bodyOverride ?? ""}
+                      onChange={(e) =>
+                        setTemplates((all) =>
+                          all.map((r) =>
+                            r.templateKey === t.templateKey
+                              ? { ...r, bodyOverride: e.target.value }
+                              : r,
+                          ),
+                        )
+                      }
+                      onBlur={(e) =>
+                        void onTemplateChange(t, { bodyOverride: e.target.value.trim() || null })
+                      }
+                      placeholder="Leave blank to use the built-in email body. Use {{clientName}} or {{reference}} for values."
+                      rows={5}
+                      className="mt-1"
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Plain text only. Values in double braces are replaced in previews and sent
+                      emails.
+                    </p>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
+          {templates.length > 0 ? (
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-4">
+              <p className="text-xs text-muted-foreground">
+                Showing {(currentTemplatePage - 1) * templatesPerPage + 1}–
+                {Math.min(currentTemplatePage * templatesPerPage, templates.length)} of{" "}
+                {templates.length} templates
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  aria-label="Previous template page"
+                  onClick={() => setTemplatePage((page) => Math.max(1, page - 1))}
+                  disabled={currentTemplatePage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  Page {currentTemplatePage} of {templatePageCount}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  aria-label="Next template page"
+                  onClick={() => setTemplatePage((page) => Math.min(templatePageCount, page + 1))}
+                  disabled={currentTemplatePage === templatePageCount}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </section>
 
         <section className="rounded-2xl border border-border/70 bg-card p-6 sm:p-8">

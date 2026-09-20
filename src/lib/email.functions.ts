@@ -43,6 +43,7 @@ export type EmailTemplateDTO = {
   description: string | null;
   isEnabled: boolean;
   subjectOverride: string | null;
+  bodyOverride: string | null;
 };
 
 export const getEmailAdminData = createServerFn({ method: "GET" }).handler(async () => {
@@ -135,6 +136,7 @@ const templateInput = z.object({
   templateKey: z.string().min(1).max(64),
   isEnabled: z.boolean(),
   subjectOverride: z.string().trim().max(200).nullable().optional(),
+  bodyOverride: z.string().trim().max(12000).nullable().optional(),
 });
 
 export const updateEmailTemplate = createServerFn({ method: "POST" })
@@ -147,6 +149,7 @@ export const updateEmailTemplate = createServerFn({ method: "POST" })
       .update({
         is_enabled: data.isEnabled,
         subject_override: data.subjectOverride?.trim() || null,
+        body_override: data.bodyOverride?.trim() || null,
       })
       .eq("template_key", data.templateKey);
     if (error) throw error;
@@ -330,18 +333,27 @@ export const previewEmailTemplate = createServerFn({ method: "POST" })
   .validator((data: z.infer<typeof previewInput>) => previewInput.parse(data))
   .handler(async ({ data }) => {
     await requireAdmin();
-    const { renderEmailTemplate } = await import("@/lib/email-templates.server");
+    const { renderEmailTemplate, renderEmailTemplateWithOverrides } =
+      await import("@/lib/email-templates.server");
     const { loadTemplateSettings } = await import("@/lib/email.server");
     const rendered = renderEmailTemplate(data.templateKey, sampleDataFor(data.templateKey));
     const settings = (await loadTemplateSettings()) as EmailTemplateDTO[];
-    const override = settings.find((s) => s.templateKey === data.templateKey)?.subjectOverride;
+    const override = settings.find((s) => s.templateKey === data.templateKey);
+    const configured = renderEmailTemplateWithOverrides(
+      data.templateKey,
+      sampleDataFor(data.templateKey),
+      {
+        subjectOverride: override?.subjectOverride,
+        bodyOverride: override?.bodyOverride,
+      },
+    );
     noStore();
     return {
       templateKey: data.templateKey,
-      subject: override?.trim() || rendered.subject,
+      subject: configured.subject,
       defaultSubject: rendered.subject,
-      overrideSubject: override?.trim() || null,
-      html: rendered.html,
+      overrideSubject: override?.subjectOverride?.trim() || null,
+      html: configured.html,
     };
   });
 
@@ -350,16 +362,27 @@ export const sendTestEmail = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await requireAdmin();
     const { sendRawEmail } = await import("@/lib/email.server");
-    const { renderEmailTemplate } = await import("@/lib/email-templates.server");
-    const rendered = renderEmailTemplate("booking_confirmation", {
-      clientName: "Talk Space Admin",
-      reference: "TS-TEST-0001",
-      serviceName: "Test service",
-      therapistName: "Talk Space team",
-      startsAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      mode: "online",
-      meetingLink: "https://meet.google.com/abc-defg-hij",
-    });
+    const { renderEmailTemplateWithOverrides } = await import("@/lib/email-templates.server");
+    const { loadTemplateSettings } = await import("@/lib/email.server");
+    const template = (await loadTemplateSettings()).find(
+      (item) => item.templateKey === "booking_confirmation",
+    );
+    const rendered = renderEmailTemplateWithOverrides(
+      "booking_confirmation",
+      {
+        clientName: "Talk Space Admin",
+        reference: "TS-TEST-0001",
+        serviceName: "Test service",
+        therapistName: "Talk Space team",
+        startsAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        mode: "online",
+        meetingLink: "https://meet.google.com/abc-defg-hij",
+      },
+      {
+        subjectOverride: template?.subjectOverride,
+        bodyOverride: template?.bodyOverride,
+      },
+    );
     const result = await sendRawEmail({
       to: data.to,
       subject: `[Test] ${rendered.subject}`,

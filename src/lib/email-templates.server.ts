@@ -1,6 +1,6 @@
 // Server-only email template renderer. Simple HTML string builders keep
 // dependency surface small and are easy to tweak from the admin console
-// (subject overrides live in email_template_settings).
+// (subject and body overrides live in email_template_settings).
 
 import { FIRST_TIME_ASSESSMENT_EMAIL, FIRST_TIME_ASSESSMENTS } from "@/lib/first-time-assessments";
 import { TS } from "@/lib/talkspace";
@@ -25,6 +25,11 @@ export type EmailTemplateKey =
   | "password_reset";
 
 type Rendered = { subject: string; html: string };
+
+export type EmailTemplateOverrides = {
+  subjectOverride?: string | null;
+  bodyOverride?: string | null;
+};
 
 const BRAND = {
   name: "Talk Space Counselling Services",
@@ -512,4 +517,29 @@ export function renderEmailTemplate(key: EmailTemplateKey, data: Data): Rendered
       };
     }
   }
+}
+
+function renderBodyOverride(body: string, data: Data): string {
+  const escaped = esc(body).replace(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g, (_, key: string) =>
+    esc(pick(data, key)),
+  );
+  return shell(
+    escaped
+      .split(/\r?\n/)
+      .map((line) => p(line || "&nbsp;"))
+      .join(""),
+  );
+}
+
+export function renderEmailTemplateWithOverrides(
+  key: EmailTemplateKey,
+  data: Data,
+  overrides: EmailTemplateOverrides = {},
+): Rendered {
+  const builtIn = renderEmailTemplate(key, data);
+  const bodyOverride = overrides.bodyOverride?.trim();
+  return {
+    subject: overrides.subjectOverride?.trim() || builtIn.subject,
+    html: bodyOverride ? renderBodyOverride(bodyOverride, data) : builtIn.html,
+  };
 }

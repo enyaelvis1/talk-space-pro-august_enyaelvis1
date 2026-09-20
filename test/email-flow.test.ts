@@ -253,3 +253,14 @@ test("failed provider deliveries have encrypted bounded retries and admin resend
   assert.match(paymentRecheckRoute, /GET: \(\{ request \}\) => recheckPayments\(request\)/);
   assert.match(adminEmailsRoute, /Resend/);
 });
+
+test("admin email templates support safe body overrides and pagination", () => {
+  assert.match(emailFunctions, /bodyOverride/);
+  assert.match(emailFunctions, /body_override/);
+  assert.match(emailTemplates, /renderEmailTemplateWithOverrides/);
+  assert.match(emailTemplates, /renderBodyOverride/);
+  assert.match(emailServer, /body_override/);
+  assert.match(adminEmailsRoute, /Body override \(optional\)/);
+  assert.match(adminEmailsRoute, /templatePage/);
+  assert.match(adminEmailsRoute, /Next template page/);
+});
