@@ -6,6 +6,11 @@ import { join } from "node:path";
 import test from "node:test";
 import { chromium } from "playwright-core";
 import { createServer } from "vite";
+import {
+  createRequestBudgetReport,
+  findRequestBudgetViolations,
+  type RequestSample,
+} from "../src/lib/request-budget.ts";
 
 const executablePath = [
   process.env.CHROME_PATH,
@@ -21,24 +26,32 @@ test(
   },
   async () => {
     const counts = new Map<string, number>();
+    const fixtureSamples: RequestSample[] = [];
+    const requestSamples: RequestSample[] = [];
     const api = createHttpServer((req, res) => {
       const url = new URL(req.url!, "http://localhost");
       const key = url.searchParams.get("key") ?? "";
       const label = `${url.pathname}:${key}`;
+      const record = (status: number) => {
+        fixtureSamples.push({ url: `http://fixture.local${url.pathname}${url.search}`, status });
+      };
       counts.set(label, (counts.get(label) ?? 0) + 1);
       res.setHeader("access-control-allow-origin", "*");
       res.setHeader("access-control-allow-headers", "*");
       res.setHeader("content-type", "application/json");
       if (req.method === "OPTIONS") {
+        record(204);
         res.end();
         return;
       }
       if (url.pathname.startsWith("/auth/")) {
         res.statusCode = 401;
+        record(401);
         res.end(JSON.stringify({ message: "No test session" }));
         return;
       }
       if (key === "eq.site_details") {
+        record(200);
         res.end(
           JSON.stringify([
             { value: { brandName: "Resource Test Practice", logoPath: "/favicon-32x32.png" } },
@@ -47,9 +60,11 @@ test(
         return;
       }
       if (key === "eq.footer_settings") {
+        record(200);
         res.end(JSON.stringify([{ value: { contactAddress: "Synthetic test address" } }]));
         return;
       }
+      record(200);
       res.end("[]");
     });
     await new Promise<void>((resolve) => api.listen(0, "127.0.0.1", resolve));
@@ -90,6 +105,12 @@ test(
       page.on("request", (request) => {
         if (new URL(request.url()).pathname.startsWith("/_serverFn/")) rpcUrls.add(request.url());
       });
+      page.on("response", (response) => {
+        const url = new URL(response.url());
+        if (![origin, apiUrl].includes(url.origin)) return;
+        const bytes = Number(response.headers()["content-length"] ?? 0);
+        requestSamples.push({ url: response.url(), status: response.status(), bytes });
+      });
       page.on("pageerror", (error) => errors.push(error.message));
       await page.route("**/*", (route) => {
         const url = new URL(route.request().url());
@@ -120,6 +141,22 @@ test(
       assert.deepEqual(Object.fromEntries(counts), before);
       assert.deepEqual(errors, []);
       assert.ok(rpcUrls.size, "Browser must exercise real server functions");
+      const requestBudget = createRequestBudgetReport(requestSamples);
+      const shellSamples = fixtureSamples.filter((sample) => {
+        const url = new URL(sample.url);
+        return (
+          url.pathname === "/rest/v1/site_settings" &&
+          ["eq.site_details", "eq.footer_settings"].includes(url.searchParams.get("key") ?? "")
+        );
+      });
+      const shellBudget = createRequestBudgetReport(shellSamples);
+      const requestBudgetViolations = findRequestBudgetViolations(shellBudget, {
+        auth: { maxRequests: 0 },
+        database: { maxRequests: 2 },
+        storage: { maxRequests: 0 },
+        realtime: { maxRequests: 0 },
+      });
+      assert.deepEqual(requestBudgetViolations, []);
       const rpcUrl = [...rpcUrls][0];
       const csrfResults: Record<string, number> = {};
       for (const [name, headers, expected] of [
@@ -179,6 +216,10 @@ test(
             rejectedCrossOriginPost: forbiddenPost.status,
             unsignedWebhook: webhook.status,
             invalidOAuthCallback: callback.status,
+            fixtureRequestBudget: createRequestBudgetReport(fixtureSamples),
+            requestBudget,
+            shellBudget,
+            requestBudgetViolations,
           },
           null,
           2,

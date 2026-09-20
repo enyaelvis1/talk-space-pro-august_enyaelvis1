@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import {
   BookOpenCheck,
@@ -16,7 +16,6 @@ import {
 import { toast } from "sonner";
 
 import { AdminWorkspaceShell } from "@/components/progress/AdminSidebar";
-import { AdminPageSkeleton } from "@/components/admin/AdminSkeletons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,7 +27,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { hasBrowserRole } from "@/lib/auth";
 import { canonicalUrl } from "@/lib/seo";
 import {
   clearEmailApiKey,
@@ -75,39 +73,6 @@ export const Route = createFileRoute("/_authenticated/admin/emails")({
 
 function EmailsAdminRoute() {
   const loaderData = Route.useLoaderData();
-  const [authorized, setAuthorized] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    void hasBrowserRole("admin").then((ok) => {
-      if (active) setAuthorized(ok);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  if (authorized === null) {
-    return (
-      <AdminWorkspaceShell>
-        <AdminPageSkeleton columns={4} rows={8} />
-      </AdminWorkspaceShell>
-    );
-  }
-
-  if (!authorized) {
-    return (
-      <AdminWorkspaceShell>
-        <main className="mx-auto max-w-2xl px-4 py-24 text-center">
-          <h1 className="display-1 text-brand-deep">Permission required</h1>
-          <p className="mt-4 text-muted-foreground">
-            You do not have permission to manage email settings.
-          </p>
-        </main>
-      </AdminWorkspaceShell>
-    );
-  }
-
   return (
     <AdminWorkspaceShell>
       <EmailAdminScreen

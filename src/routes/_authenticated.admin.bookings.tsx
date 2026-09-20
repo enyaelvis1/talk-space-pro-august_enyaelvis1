@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type DragEvent as ReactDragEvent } from "react";
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, redirect, useLocation } from "@tanstack/react-router";
 import { BookingDaySections } from "@/components/booking/BookingDaySections";
 import { slotKey } from "@/lib/booking-slots";
 import {
@@ -70,6 +70,7 @@ import {
 } from "@/lib/booking-status-colors";
 
 export const Route = createFileRoute("/_authenticated/admin/bookings")({
+  staleTime: 30_000,
   loader: async () => {
     try {
       return await listAppointmentsForAdmin();
@@ -292,6 +293,12 @@ function timelineIcon(category: AppointmentTimelineEntry["category"]) {
 }
 
 function AdminBookingsRoute() {
+  const location = useLocation();
+  if (location.pathname.endsWith("/new")) return <Outlet />;
+  return <AdminBookingsPage />;
+}
+
+function AdminBookingsPage() {
   const initial = Route.useLoaderData();
   const [rows, setRows] = useState<UpcomingAppointmentRow[]>(initial);
   const [refreshing, setRefreshing] = useState(false);

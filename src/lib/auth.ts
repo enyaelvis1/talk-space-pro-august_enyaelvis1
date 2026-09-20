@@ -98,6 +98,16 @@ export async function hasBrowserRole(role: AppRole): Promise<boolean> {
   const session = await getVerifiedBrowserSession();
   if (!supabase || !session) return false;
 
+  return hasBrowserRoleForSession(session, role);
+}
+
+export async function hasBrowserRoleForSession(
+  session: Session | null | undefined,
+  role: AppRole,
+): Promise<boolean> {
+  const supabase = getSupabaseBrowserClient();
+  if (!supabase || !session) return false;
+
   const { data, error } = await supabase.rpc("has_role", {
     _user_id: session.user.id,
     _role: role,

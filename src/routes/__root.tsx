@@ -9,15 +9,16 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import * as Sentry from "@sentry/tanstackstart-react";
-import { type CSSProperties, type ReactNode, useEffect } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 
 import { Toaster } from "@/components/ui/sonner";
 import { FloatingActionDock } from "@/components/site/FloatingActionDock";
 import { BackToTopButton } from "@/components/site/BackToTopButton";
 import { SiteAppearance } from "@/components/site/SiteAppearance";
 import { PublicRouteSkeleton } from "@/components/site/PublicRouteSkeleton";
-import { DEFAULT_SITE_DETAILS, getPublicSiteDetails } from "@/lib/content.functions";
+import { DEFAULT_PUBLIC_SHELL_DATA, getPublicShellData } from "@/lib/content.functions";
 import { reportLovableError } from "@/lib/lovable-error-reporting";
+import { claimAutomaticRouteRetry, routeRecoveryKey } from "@/lib/route-recovery";
 import appCss from "../styles.css?url";
 import { OG_IMAGE_URL, SITE_URL } from "../lib/seo";
 
@@ -50,6 +51,8 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const isPublic = !pathname.startsWith("/admin");
+  const recoveryKey = routeRecoveryKey(pathname, error);
+  const [willAutoRetry] = useState(() => isPublic && claimAutomaticRouteRetry(recoveryKey));
 
   useEffect(() => {
     Sentry.captureException(error, {
@@ -59,16 +62,16 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   }, [error, pathname]);
 
   useEffect(() => {
-    if (!isPublic) return;
+    if (!isPublic || !willAutoRetry) return;
 
     const retryId = window.setTimeout(() => {
       void router.invalidate().then(reset);
     }, 1_500);
 
     return () => window.clearTimeout(retryId);
-  }, [isPublic, reset, router]);
+  }, [isPublic, reset, router, willAutoRetry]);
 
-  if (isPublic) {
+  if (isPublic && willAutoRetry) {
     return (
       <main className="min-h-screen bg-background px-4 py-6 sm:px-6 lg:px-8">
         <PublicRouteSkeleton pathname={pathname} />
@@ -146,7 +149,7 @@ function PublicLoadingIndicator() {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  loader: () => getPublicSiteDetails(),
+  loader: () => getPublicShellData(),
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -222,7 +225,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 function RootShell({ children }: { children: ReactNode }) {
   // shellComponent wraps the route error boundary, so it must remain safe
   // even while root loader data is unavailable during a rebuild or retry.
-  const details = Route.useLoaderData() ?? DEFAULT_SITE_DETAILS;
+  const details = Route.useLoaderData()?.details ?? DEFAULT_PUBLIC_SHELL_DATA.details;
   const appearance = details?.appearance;
   const rootStyle = appearance
     ? ({
@@ -272,7 +275,7 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const details = Route.useLoaderData();
+  const details = Route.useLoaderData()?.details ?? DEFAULT_PUBLIC_SHELL_DATA.details;
 
   return (
     <QueryClientProvider client={queryClient}>

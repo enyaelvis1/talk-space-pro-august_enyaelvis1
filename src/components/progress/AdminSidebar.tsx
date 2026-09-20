@@ -33,7 +33,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
-import { getVerifiedBrowserSession, hasBrowserRole } from "@/lib/auth";
+import { useBrowserAuthState } from "@/hooks/use-browser-auth-state";
 import { hasProgressAccess } from "@/lib/progress-access";
 import { PUBLIC_PAGE_CONFIG } from "@/lib/public-pages";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
@@ -400,46 +400,16 @@ function SidebarContent({
   onNavigate?: () => void;
   collapsed?: boolean;
 }) {
-  const [canViewProgress, setCanViewProgress] = useState(false);
+  const { session, isAdmin } = useBrowserAuthState();
+  const canViewProgress = hasProgressAccess(isAdmin ? "admin" : null, session?.user.email);
 
   const signOut = async () => {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) return;
     onNavigate?.();
-    setCanViewProgress(false);
     await supabase.auth.signOut();
     window.location.assign("/login");
   };
-
-  useEffect(() => {
-    let active = true;
-    const syncAccessState = async () => {
-      const [isAdmin, session] = await Promise.all([
-        hasBrowserRole("admin"),
-        getVerifiedBrowserSession(),
-      ]);
-      if (!active) return;
-      setCanViewProgress(hasProgressAccess(isAdmin ? "admin" : null, session?.user.email));
-    };
-
-    void syncAccessState();
-
-    const onFocusOrVisible = () => {
-      if (!document.hidden) void syncAccessState();
-    };
-    const intervalId = window.setInterval(() => {
-      void syncAccessState();
-    }, 30000);
-    window.addEventListener("focus", onFocusOrVisible);
-    document.addEventListener("visibilitychange", onFocusOrVisible);
-
-    return () => {
-      active = false;
-      window.clearInterval(intervalId);
-      window.removeEventListener("focus", onFocusOrVisible);
-      document.removeEventListener("visibilitychange", onFocusOrVisible);
-    };
-  }, []);
 
   return (
     <div className="flex min-h-full flex-col bg-sidebar text-sidebar-foreground">

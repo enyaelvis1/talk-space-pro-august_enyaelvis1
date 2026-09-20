@@ -59,9 +59,8 @@ test("public navigation exposes tested keyboard and screen-reader behavior", () 
   assert.match(header, /aria-modal="true"/);
   assert.match(header, /event\.key === "Escape"/);
   assert.match(header, /inert=\{!open\}/);
-  assert.match(header, /getVerifiedBrowserSession\(\)/);
-  assert.match(header, /setSession\(null\)/);
-  assert.match(header, /setIsAdmin\(false\)/);
+  assert.match(header, /useBrowserAuthState/);
+  assert.doesNotMatch(header, /window\.setInterval/);
   assert.match(header, /await supabase\.auth\.signOut\(\)/);
   assert.match(audit, /Accessibility\.getFullAXTree/);
   assert.match(audit, /wcag22aa/);

@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { AdminWorkspaceShell } from "@/components/progress/AdminSidebar";
-import { AdminPageSkeleton } from "@/components/admin/AdminSkeletons";
 import { SensitiveActionDialog } from "@/components/admin/SensitiveActionDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +19,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { hasBrowserRole } from "@/lib/auth";
 import { canonicalUrl } from "@/lib/seo";
 import { useSensitiveActionGate } from "@/hooks/useSensitiveActionGate";
 import {
@@ -144,7 +142,6 @@ function parseNairaInput(value: string, label: string) {
 
 function ServicesAdminRoute() {
   const { services: initialServices, therapists } = Route.useLoaderData() as LoaderData;
-  const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [rows, setRows] = useState<AdminServiceRow[]>(initialServices);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -152,14 +149,6 @@ function ServicesAdminRoute() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const stepUp = useSensitiveActionGate();
-
-  useEffect(() => {
-    let active = true;
-    void hasBrowserRole("admin").then((ok) => active && setAuthorized(ok));
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const therapistMap = useMemo(
     () => new Map<string, AdminTherapistRow>(therapists.map((t) => [t.id, t])),
@@ -255,21 +244,6 @@ function ServicesAdminRoute() {
       setSaving(false);
     }
   }
-
-  if (authorized === null)
-    return (
-      <AdminWorkspaceShell>
-        <AdminPageSkeleton columns={4} rows={8} />
-      </AdminWorkspaceShell>
-    );
-  if (!authorized)
-    return (
-      <AdminWorkspaceShell>
-        <main className="mx-auto max-w-2xl px-4 py-24 text-center">
-          <h1 className="display-1 text-brand-deep">Permission required</h1>
-        </main>
-      </AdminWorkspaceShell>
-    );
 
   return (
     <AdminWorkspaceShell>

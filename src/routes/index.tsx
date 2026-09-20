@@ -26,6 +26,7 @@ import {
 import { SiteHeader } from "@/components/site/SiteHeader";
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { PublicRouteSkeleton } from "@/components/site/PublicRouteSkeleton";
+import { claimAutomaticRouteRetry } from "@/lib/route-recovery";
 import { OptimizedImage } from "@/components/site/OptimizedImage";
 import { SectionBadge } from "@/components/site/SectionBadge";
 import { AutoPlayGallery } from "@/components/site/AutoPlayGallery";
@@ -129,16 +130,30 @@ function HomePagePending() {
 
 function HomePageRecovery() {
   const router = useRouter();
+  const [willAutoRetry] = useState(() => claimAutomaticRouteRetry("homepage"));
 
   useEffect(() => {
+    if (!willAutoRetry) return;
     const retryId = window.setTimeout(() => {
       void router.invalidate();
     }, 1_500);
 
     return () => window.clearTimeout(retryId);
-  }, [router]);
+  }, [router, willAutoRetry]);
 
-  return <HomePagePending />;
+  if (willAutoRetry) return <HomePagePending />;
+
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
+      <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 text-center shadow-sm">
+        <h1 className="text-xl font-semibold text-foreground">This page could not load</h1>
+        <p className="mt-2 text-sm text-muted-foreground">Please try again when you are ready.</p>
+        <Button className="mt-5" onClick={() => void router.invalidate()}>
+          Try again
+        </Button>
+      </div>
+    </main>
+  );
 }
 
 function HomePage() {

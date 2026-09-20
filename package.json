@@ -28,7 +28,8 @@
     "db:export-seed": "node scripts/export-database-seed.mjs",
     "qa:a11y": "node scripts/audit-public-accessibility.mjs",
     "qa:cwv": "node scripts/audit-core-web-vitals.mjs",
-    "qa:lighthouse": "node scripts/audit-public-lighthouse.mjs"
+    "qa:lighthouse": "node scripts/audit-public-lighthouse.mjs",
+    "usage:report": "node --experimental-strip-types scripts/report-supabase-usage.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.5.7",

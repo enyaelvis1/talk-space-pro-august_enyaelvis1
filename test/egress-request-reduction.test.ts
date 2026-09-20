@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import { createPublicReadCache } from "../src/lib/public-read-cache.ts";
+import { claimAutomaticRouteRetry, routeRecoveryKey } from "../src/lib/route-recovery.ts";
 import { startVisiblePolling } from "../src/lib/visible-polling.ts";
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -39,6 +40,13 @@ test("failed public reads are not cached and the next request can recover", asyn
   assert.ok(results.every((result) => result.status === "rejected"));
   assert.equal(cache.peek(), undefined);
   assert.equal(await cache.get(async () => "recovered"), "recovered");
+});
+
+test("public route recovery allows one automatic retry per error window", () => {
+  const key = routeRecoveryKey("/", new Error("quota unavailable"));
+  assert.equal(claimAutomaticRouteRetry(key, 0), true);
+  assert.equal(claimAutomaticRouteRetry(key, 1), false);
+  assert.equal(claimAutomaticRouteRetry(key, 30_001), true);
 });
 
 test("publishing during a pending read prevents old data repopulating the cache", async () => {
@@ -188,8 +196,13 @@ test("shell reuses root details and only public reads use the bounded cache", ()
   for (const path of ["src/components/site/SiteHeader.tsx", "src/components/site/SiteFooter.tsx"]) {
     const source = read(path);
     assert.match(source, /from: "__root__"/);
-    assert.doesNotMatch(source, /getPublicSiteDetails/);
+    assert.doesNotMatch(source, /getPublicSiteDetails|getPublicFooterSettings/);
   }
+  const root = read("src/routes/__root.tsx");
+  const content = read("src/lib/content.functions.ts");
+  assert.match(root, /loader: \(\) => getPublicShellData\(\)/);
+  assert.match(content, /\.in\("key", \["site_details", "footer_settings"\]\)/);
+  assert.match(content, /publicShellCache\.clear\(\)/);
   const admin = read("src/lib/admin.functions.ts");
   for (const name of ["updateAdminSiteDetails", "updateAdminFooterSettings"]) {
     const mutation = admin.slice(admin.indexOf(`export const ${name}`)).split("export const ")[1];
@@ -203,4 +216,13 @@ test("shell reuses root details and only public reads use the bounded cache", ()
   ]) {
     assert.doesNotMatch(read(path), /createPublicReadCache/);
   }
+});
+
+test("public route error boundaries use bounded automatic recovery", () => {
+  const root = read("src/routes/__root.tsx");
+  const home = read("src/routes/index.tsx");
+  assert.match(root, /claimAutomaticRouteRetry\(recoveryKey\)/);
+  assert.match(root, /if \(!isPublic \|\| !willAutoRetry\) return/);
+  assert.match(home, /claimAutomaticRouteRetry\("homepage"\)/);
+  assert.match(home, /if \(!willAutoRetry\) return/);
 });

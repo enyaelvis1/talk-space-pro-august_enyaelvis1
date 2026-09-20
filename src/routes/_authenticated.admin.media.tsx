@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 
 import { AdminWorkspaceShell } from "@/components/progress/AdminSidebar";
-import { AdminCardGridSkeleton } from "@/components/admin/AdminSkeletons";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +28,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { hasBrowserRole } from "@/lib/auth";
 import { canonicalUrl } from "@/lib/seo";
 import {
   listAdminMedia,
@@ -74,7 +72,6 @@ const formatBytes = (n: number) => {
 
 function MediaAdminRoute() {
   const initial = Route.useLoaderData();
-  const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [items, setItems] = useState<AdminMediaRow[]>(initial);
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "image" | "other">("all");
@@ -84,14 +81,6 @@ function MediaAdminRoute() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<null | "tag" | "delete" | "replace">(null);
   const [bulkPending, setBulkPending] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    void hasBrowserRole("admin").then((ok) => active && setAuthorized(ok));
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const allTags = useMemo(() => {
     const counts = new Map<string, number>();
@@ -188,25 +177,6 @@ function MediaAdminRoute() {
     const bust = cacheBuster[m.id];
     return bust ? `${m.publicUrl}${m.publicUrl.includes("?") ? "&" : "?"}v=${bust}` : m.publicUrl;
   };
-
-  if (authorized === null)
-    return (
-      <AdminWorkspaceShell>
-        <main className="min-h-screen bg-surface-page py-8 sm:py-10">
-          <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-            <AdminCardGridSkeleton count={6} />
-          </div>
-        </main>
-      </AdminWorkspaceShell>
-    );
-  if (!authorized)
-    return (
-      <AdminWorkspaceShell>
-        <main className="mx-auto max-w-2xl px-4 py-24 text-center">
-          <h1 className="display-1 text-brand-deep">Permission required</h1>
-        </main>
-      </AdminWorkspaceShell>
-    );
 
   return (
     <AdminWorkspaceShell>

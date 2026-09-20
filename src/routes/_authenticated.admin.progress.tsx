@@ -1,16 +1,7 @@
-import { useEffect, useState } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import {
-  ProgressDashboard,
-  ProgressDashboardSkeleton,
-} from "@/components/progress/ProgressDashboard";
-import {
-  getVerifiedBrowserSession,
-  hasBrowserRole,
-  requireBrowserProgressAccess,
-} from "@/lib/auth";
-import { hasProgressAccess } from "@/lib/progress-access";
+import { ProgressDashboard } from "@/components/progress/ProgressDashboard";
+import { requireBrowserProgressAccess } from "@/lib/auth";
 import { getRestrictedProgressSnapshot } from "@/lib/progress.functions";
 import { canonicalUrl } from "@/lib/seo";
 
@@ -35,31 +26,5 @@ export const Route = createFileRoute("/_authenticated/admin/progress")({
 
 function ProgressRoute() {
   const snapshot = Route.useLoaderData();
-  const [authorized, setAuthorized] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    Promise.all([hasBrowserRole("admin"), getVerifiedBrowserSession()]).then(
-      ([isAdmin, session]) => {
-        if (active) setAuthorized(hasProgressAccess(isAdmin ? "admin" : null, session?.user.email));
-      },
-    );
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  if (authorized === null) return <ProgressDashboardSkeleton />;
-  if (!authorized) {
-    return (
-      <main id="main" className="mx-auto max-w-2xl px-4 py-24 text-center">
-        <h1 className="display-1 text-brand-deep">Permission required</h1>
-        <p className="mt-4 text-muted-foreground">
-          You do not have permission to view the project progress dashboard.
-        </p>
-      </main>
-    );
-  }
-
   return <ProgressDashboard snapshot={snapshot} />;
 }
