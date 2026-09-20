@@ -1,0 +1,33 @@
+{
+  "generatedAt": "2026-08-02T06:26:10.881Z",
+  "url": "https://talk-space-production-2u149xwic-enyasystems-projects.vercel.app",
+  "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/150.0.0.0 Safari/537.36",
+  "performanceScore": 94,
+  "metrics": {
+    "firstContentfulPaint": {
+      "value": 2468.489,
+      "displayValue": "2.5 s",
+      "score": 0.68
+    },
+    "largestContentfulPaint": {
+      "value": 2468.489,
+      "displayValue": "2.5 s",
+      "score": 0.9
+    },
+    "totalBlockingTime": {
+      "value": 12.5,
+      "displayValue": "10 ms",
+      "score": 1
+    },
+    "cumulativeLayoutShift": {
+      "value": 0.0001084257666649965,
+      "displayValue": "0",
+      "score": 1
+    },
+    "speedIndex": {
+      "value": 2468.489,
+      "displayValue": "2.5 s",
+      "score": 0.98
+    }
+  }
+}

@@ -1,0 +1,914 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Talk Space Counselling Services — Design System
+ * Source of truth: docs 07 (colours) + 08 (typography).
+ * Rule: components consume semantic tokens only. Never hardcode hex.
+ */
+
+@theme inline {
+  /* Radii — doc 07: controls ~10px, cards ~14px */
+  --radius: 0.625rem;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: 0.875rem; /* card */
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.75rem;
+
+  /* Type families — doc 08 */
+  --font-sans: "Inter", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  --font-display: "Fraunces", "Instrument Serif", ui-serif, Georgia, "Times New Roman", serif;
+
+  /* Layout containers — Calenira-inspired centred columns */
+  --container-narrow: 44rem; /* prose, forms, single-column content */
+  --container-content: 64rem; /* default marketing content */
+  --container-wide: 80rem; /* hero, gallery, dashboards */
+
+  /* Vertical rhythm — apply on every marketing section */
+  --space-section-y: clamp(3rem, 6vw, 5rem);
+  --space-section-y-lg: clamp(4.5rem, 9vw, 7.5rem);
+  --space-stack: 1.5rem; /* default gap between blocks */
+
+  /* Motion — mirrored for utility access */
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --duration-slow: 250ms;
+}
+
+@keyframes marquee-x {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@keyframes drift-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -10px, 0);
+  }
+}
+
+@keyframes glow-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes dock-shake {
+  0%,
+  74%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  80% {
+    transform: translate3d(-4px, 0, 0);
+  }
+  84% {
+    transform: translate3d(4px, 0, 0);
+  }
+  88% {
+    transform: translate3d(-3px, 0, 0);
+  }
+  92% {
+    transform: translate3d(3px, 0, 0);
+  }
+  96% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@layer base {
+  :root {
+    --site-body-font: var(--font-sans);
+    --site-heading-font: var(--font-display);
+    --site-base-size: 16px;
+    --site-section-spacing: 1;
+  }
+
+  body {
+    font-family: var(--site-body-font);
+    font-size: var(--site-base-size);
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  .font-display,
+  h1,
+  h2,
+  h3 {
+    font-family: var(--site-heading-font);
+  }
+
+  [data-button-style="pill"] button,
+  [data-button-style="pill"] a[class*="rounded"] {
+    border-radius: 9999px;
+  }
+
+  [data-button-style="square"] button,
+  [data-button-style="square"] a[class*="rounded"] {
+    border-radius: 0.35rem;
+  }
+
+  .marquee-x {
+    animation-name: marquee-x !important;
+    animation-duration: var(--marquee-duration, 40s) !important;
+    animation-timing-function: linear !important;
+    animation-iteration-count: infinite !important;
+    animation-direction: var(--marquee-direction, normal) !important;
+  }
+
+  .reviews-carousel {
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+  }
+
+  .reviews-carousel::-webkit-scrollbar {
+    display: none;
+  }
+
+  .reviews-carousel [data-review-group] {
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+
+  .motion-float {
+    animation: drift-float 6s ease-in-out infinite;
+  }
+
+  .motion-glow {
+    animation: glow-breathe 7s ease-in-out infinite;
+  }
+
+  .motion-dock-shake {
+    animation: dock-shake 3s ease-in-out infinite;
+  }
+}
+
+@theme inline {
+  /* Shadcn semantic tokens (drive bg-background, text-foreground, etc.) */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+
+  /* Talk Space brand tokens — semantic aliases */
+  --color-brand-deep: var(--brand-deep);
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-blue-deep: var(--brand-blue-deep);
+  --color-brand-blue-soft: var(--brand-blue-soft);
+  --color-brand-mint: var(--brand-mint);
+  --color-brand-mint-soft: var(--brand-mint-soft);
+  --color-surface-page: var(--surface-page);
+  --color-surface-card: var(--surface-card);
+  --color-surface-cream: var(--surface-cream);
+  --color-surface-peach: var(--surface-peach);
+  --color-accent-terracotta: var(--accent-terracotta);
+  --color-accent-terracotta-soft: var(--accent-terracotta-soft);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+
+  /* Booking status colours (calendar, side panel, timeline) */
+  --color-status-confirmed: var(--status-confirmed);
+  --color-status-confirmed-soft: var(--status-confirmed-soft);
+  --color-status-confirmed-strong: var(--status-confirmed-strong);
+  --color-status-completed: var(--status-completed);
+  --color-status-completed-soft: var(--status-completed-soft);
+  --color-status-completed-strong: var(--status-completed-strong);
+  --color-status-pending: var(--status-pending);
+  --color-status-pending-soft: var(--status-pending-soft);
+  --color-status-pending-strong: var(--status-pending-strong);
+  --color-status-cancelled: var(--status-cancelled);
+  --color-status-cancelled-soft: var(--status-cancelled-soft);
+  --color-status-cancelled-strong: var(--status-cancelled-strong);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root {
+  /* Talk Space sage-cream palette — calm, premium, wellness-led */
+  --brand-deep: #2f312c; /* Dark charcoal text / deep surfaces */
+  --brand-blue: #81846f; /* Sage green — decorative surfaces only (fails AA for text) */
+  --brand-blue-deep: #5f6252; /* Darker sage — AA-safe for text on cream/off-white */
+  --brand-blue-soft: #a4a58f; /* Light sage */
+  --brand-mint: #6b6e5b; /* Accessible olive gray accent */
+  --brand-mint-soft: #f6f2e9; /* Warm cream */
+  --surface-page: #f6f2e9;
+  --surface-card: #fcfaf5;
+  /* Warm supporting surfaces */
+  --surface-cream: #f6f2e9;
+  --surface-peach: #d8d2c6;
+  --accent-terracotta: #6b6e5b; /* Accessible olive gray for sage cohesion */
+  --accent-terracotta-soft: #f6f2e9; /* Warm cream soft accent */
+
+  --warning: #a86415;
+  --warning-foreground: #ffffff;
+  --danger: #b42318;
+  --danger-foreground: #ffffff;
+
+  /* Booking status palette — soft surface, strong text, solid dot */
+  --status-confirmed: #1f7a4d;
+  --status-confirmed-soft: #e6f4ec;
+  --status-confirmed-strong: #14603a;
+  --status-completed: #2f6fa3;
+  --status-completed-soft: #e7f0f8;
+  --status-completed-strong: #1d4f78;
+  --status-pending: #a86415;
+  --status-pending-soft: #fdf1e2;
+  --status-pending-strong: #86500f;
+  --status-cancelled: #b42318;
+  --status-cancelled-soft: #fdeceb;
+  --status-cancelled-strong: #8f1c13;
+
+  /* Shadcn semantic mapping → Talk Space palette */
+  --background: var(--surface-page);
+  --foreground: #2f312c;
+
+  --card: var(--surface-card);
+  --card-foreground: #2f312c;
+  --popover: var(--surface-card);
+  --popover-foreground: #2f312c;
+
+  --primary: var(--brand-blue-deep);
+  --primary-foreground: #fcfaf5;
+
+  --secondary: var(--brand-blue-soft);
+  --secondary-foreground: var(--brand-deep);
+
+  --muted: #d8d2c6; /* muted taupe, sits on --surface-page */
+  --muted-foreground: #5f6252;
+
+  --accent: var(--brand-mint-soft);
+  --accent-foreground: var(--brand-deep);
+
+  --destructive: var(--danger);
+  --destructive-foreground: var(--danger-foreground);
+
+  --border: #d8d2c6;
+  --input: #d8d2c6;
+  --ring: var(--brand-blue-deep);
+
+  /* Charts — muted, brand-consistent (dashboards, not marketing) */
+  --chart-1: var(--brand-blue-deep);
+  --chart-2: var(--brand-mint);
+  --chart-3: var(--brand-deep);
+  --chart-4: #d8d2c6;
+  --chart-5: #a4a58f;
+
+  /* Sidebar (staff dashboard) — deep, calm */
+  --sidebar: var(--brand-deep);
+  --sidebar-foreground: #f6f2e9;
+  --sidebar-primary: var(--brand-blue-deep);
+  --sidebar-primary-foreground: #fcfaf5;
+  --sidebar-accent: rgba(255, 255, 255, 0.08);
+  --sidebar-accent-foreground: #f6f2e9;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: var(--brand-blue-deep);
+
+  /* Motion — doc 07: 150–250ms purposeful */
+  --motion-fast: 150ms;
+  --motion-base: 200ms;
+  --motion-slow: 250ms;
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.dark {
+  --background: #2f312c;
+  --foreground: #f6f2e9;
+
+  --card: #3a3d36;
+  --card-foreground: #f6f2e9;
+  --popover: #3a3d36;
+  --popover-foreground: #f6f2e9;
+
+  /* Dark-mode primary is lifted a step so links/rings/CTAs pass AA on both bg (#2f312c) and card (#3a3d36) surfaces. */
+  --primary: #bcbda6;
+  --primary-foreground: #2f312c;
+
+  --secondary: #4a4d44;
+  --secondary-foreground: #f6f2e9;
+
+  --muted: #4a4d44;
+  --muted-foreground: #d8d2c6;
+
+  --accent: #3a3d36;
+  --accent-foreground: #f6f2e9;
+
+  /* Softened so charcoal foreground meets AA (5.39:1). */
+  --destructive: #f08a78;
+  --destructive-foreground: #2f312c;
+
+  /* Booking status palette — dark mode */
+  --status-confirmed: #6fd39c;
+  --status-confirmed-soft: rgba(111, 211, 156, 0.16);
+  --status-confirmed-strong: #a8e7c5;
+  --status-completed: #7db6e8;
+  --status-completed-soft: rgba(125, 182, 232, 0.16);
+  --status-completed-strong: #b6d8f5;
+  --status-pending: #e6b269;
+  --status-pending-soft: rgba(230, 178, 105, 0.16);
+  --status-pending-strong: #f2d5a6;
+  --status-cancelled: #f08a78;
+  --status-cancelled-soft: rgba(240, 138, 120, 0.16);
+  --status-cancelled-strong: #f7bcb1;
+
+  --border: rgba(246, 242, 233, 0.14);
+  --input: rgba(246, 242, 233, 0.18);
+  --ring: #bcbda6;
+
+  --sidebar: #1e201c;
+  --sidebar-foreground: #f6f2e9;
+  --sidebar-primary: #bcbda6;
+  --sidebar-primary-foreground: #2f312c;
+  --sidebar-accent: rgba(246, 242, 233, 0.08);
+  --sidebar-accent-foreground: #f6f2e9;
+  --sidebar-border: rgba(246, 242, 233, 0.1);
+  --sidebar-ring: #bcbda6;
+}
+
+/* Admin workspace palette: simple navy, warm white, and mint accent. */
+.admin-theme {
+  --brand-deep: #183b5d;
+  --brand-blue: #2f6fa3;
+  --brand-blue-deep: #183b5d;
+  --brand-blue-soft: #e7f0f8;
+  --brand-mint: #55c49b;
+  --brand-mint-soft: #e7f7f0;
+  --surface-page: #faf9f7;
+  --surface-card: #ffffff;
+  --surface-cream: #faf9f7;
+  --surface-peach: #f1eee8;
+  --accent-terracotta: #c2763d;
+  --accent-terracotta-soft: #fff2e7;
+  --background: var(--surface-page);
+  --foreground: #183b5d;
+  --card: var(--surface-card);
+  --card-foreground: #183b5d;
+  --popover: var(--surface-card);
+  --popover-foreground: #183b5d;
+  --primary: var(--brand-deep);
+  --primary-foreground: #ffffff;
+  --secondary: var(--brand-blue-soft);
+  --secondary-foreground: var(--brand-deep);
+  --muted: #eef1f4;
+  --muted-foreground: #4b6175;
+  --accent: var(--brand-mint-soft);
+  --accent-foreground: var(--brand-deep);
+  --border: #d7e0e8;
+  --input: #c8d5df;
+  --ring: var(--brand-blue);
+  --sidebar: #183b5d;
+  --sidebar-foreground: #f7fbff;
+  --sidebar-primary: var(--brand-mint);
+  --sidebar-primary-foreground: #183b5d;
+  --sidebar-accent: rgba(255, 255, 255, 0.12);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.14);
+  --sidebar-ring: var(--brand-mint);
+  background: var(--surface-page);
+  color: var(--foreground);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    /* Body: 16/26, weight 400 — doc 08 */
+    font-size: 1rem;
+    line-height: 1.625;
+    font-weight: 400;
+  }
+
+  /* Type scale — doc 08 (desktop values; mobile handled by responsive utilities) */
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-sans);
+    color: var(--color-foreground);
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+
+  h1 {
+    font-size: 2.5rem;
+    line-height: 1.2;
+    font-weight: 700;
+  }
+  h2 {
+    font-size: 2rem;
+    line-height: 1.25;
+    font-weight: 600;
+  }
+  h3 {
+    font-size: 1.5rem;
+    line-height: 1.33;
+    font-weight: 600;
+  }
+  h4 {
+    font-size: 1.25rem;
+    line-height: 1.4;
+    font-weight: 600;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* References / IDs / booking codes — doc 08 */
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-mono);
+  }
+
+  /* Visible focus — WCAG 2.2 AA (doc 19) */
+  :where(a, button, [role="button"], input, select, textarea, summary):focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Never justify body text — doc 07 */
+  p,
+  li {
+    text-align: start;
+  }
+
+  ::selection {
+    background-color: var(--color-brand-blue-soft);
+    color: var(--color-brand-deep);
+  }
+
+  .text-link {
+    color: var(--color-brand-blue-deep);
+    font-weight: 500;
+    text-decoration-line: underline;
+    text-underline-offset: 0.18em;
+    text-decoration-thickness: 0.08em;
+    transition:
+      color var(--motion-base) var(--ease-standard),
+      text-decoration-color var(--motion-base) var(--ease-standard);
+  }
+
+  .text-link:hover {
+    color: var(--color-brand-deep);
+    text-decoration-color: var(--color-brand-mint);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  .content-body {
+    @apply mx-auto max-w-3xl text-base leading-8 text-foreground;
+  }
+
+  .content-body > * + * {
+    @apply mt-5;
+  }
+
+  .content-body h2,
+  .content-body h3,
+  .content-body h4 {
+    @apply mt-10 font-semibold leading-tight text-brand-deep;
+  }
+
+  .content-body h2 {
+    @apply text-3xl;
+  }
+
+  .content-body h3 {
+    @apply text-2xl;
+  }
+
+  .content-body h4 {
+    @apply text-xl;
+  }
+
+  .content-body a {
+    @apply font-medium text-brand-blue-deep underline decoration-brand-mint underline-offset-4;
+  }
+
+  .content-body img {
+    @apply my-8 h-auto max-w-full rounded-2xl;
+  }
+
+  .content-body ul,
+  .content-body ol {
+    @apply pl-6;
+  }
+
+  .content-body ul {
+    @apply list-disc;
+  }
+
+  .content-body ol {
+    @apply list-decimal;
+  }
+
+  .content-body blockquote {
+    @apply border-l-4 border-brand-mint pl-5 italic text-muted-foreground;
+  }
+}
+
+/* Content editor template foundations. Section blocks will build on these hooks. */
+.content-template-landing {
+  max-width: none;
+  background: linear-gradient(180deg, #fff0e5 0, #fffaf7 28rem, var(--surface-page) 50rem);
+  border-top: 1px solid rgba(194, 123, 103, 0.14);
+}
+
+.content-template-landing .content-template-hero {
+  max-width: 64rem;
+  padding: clamp(2rem, 6vw, 5rem) clamp(1rem, 5vw, 4rem);
+  text-align: center;
+}
+
+.content-template-landing .content-template-hero .eyebrow {
+  color: var(--accent-terracotta);
+}
+
+.content-template-landing .content-template-content {
+  max-width: 64rem;
+  margin-inline: auto;
+  padding: 0 clamp(1rem, 5vw, 4rem);
+}
+
+.content-template-landing .content-template-image {
+  max-height: 34rem;
+  box-shadow: 0 24px 60px rgba(137, 92, 67, 0.18);
+}
+
+.content-template-article .content-body {
+  max-width: 46rem;
+  margin-inline: auto;
+}
+
+.content-template-article .content-template-hero {
+  max-width: 46rem;
+  padding-bottom: 1rem;
+}
+
+.content-template-article .content-template-image {
+  max-width: 46rem;
+  border-radius: 1.25rem;
+}
+
+.content-template-article .content-template-content {
+  max-width: 46rem;
+  margin-inline: auto;
+  border-top: 1px solid hsl(var(--border) / 0.65);
+  padding-top: 2.5rem;
+}
+
+.template-preview {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid hsl(var(--border) / 0.8);
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  background: #fff;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.6875rem;
+}
+
+.template-preview-landing {
+  background: linear-gradient(180deg, #fff0e5, #fff);
+}
+.template-preview-article {
+  background: #f8fafc;
+}
+.template-preview-bar {
+  height: 0.35rem;
+  width: 35%;
+  border-radius: 999px;
+  background: var(--accent-terracotta);
+}
+.template-preview-line {
+  height: 0.3rem;
+  width: 55%;
+  margin-top: 0.65rem;
+  border-radius: 999px;
+  background: hsl(var(--brand-deep) / 0.3);
+}
+.template-preview-line-wide {
+  width: 80%;
+  height: 0.45rem;
+}
+.template-preview-body {
+  height: 2.4rem;
+  margin-top: 0.75rem;
+  border-radius: 0.35rem;
+  background: hsl(var(--muted) / 0.7);
+}
+.template-preview span {
+  display: block;
+  margin-top: 0.55rem;
+  font-weight: 600;
+}
+
+/* Display type — hero headings (doc 08: 52/60 desktop, 38/46 mobile) */
+@utility display-1 {
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 4.5vw + 1rem, 4rem);
+  line-height: 1.1;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+/* Editorial eyebrow label */
+@utility eyebrow {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-muted-foreground);
+}
+
+/* Calenira-style pill section badge (cream pill, terracotta text) */
+@utility section-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.375rem 0.875rem;
+  border-radius: 9999px;
+  background: var(--color-accent-terracotta-soft);
+  color: var(--color-accent-terracotta);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* Serif display heading (Calenira-style hero + section headings) */
+@utility font-display {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+/* Warm botanical soft shadow used for cards, hero image frames */
+@utility shadow-soft-warm {
+  box-shadow:
+    0 1px 2px rgba(110, 113, 94, 0.06),
+    0 20px 40px -20px rgba(47, 49, 44, 0.18),
+    0 8px 24px -12px rgba(110, 113, 94, 0.12);
+}
+
+/* Monospace reference chip — booking/payment IDs */
+@utility ref-mono {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  letter-spacing: 0;
+  color: var(--color-brand-deep);
+}
+
+@utility hide-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ---------- Layout primitives (Calenira-pattern) ---------- */
+
+/* Centred content container, narrow → forms, prose */
+@utility container-narrow {
+  width: 100%;
+  margin-inline: auto;
+  max-width: var(--container-narrow);
+  padding-inline: 1.25rem;
+}
+
+/* Centred content container, default marketing width */
+@utility container-content {
+  width: 100%;
+  margin-inline: auto;
+  max-width: var(--container-content);
+  padding-inline: 1.25rem;
+}
+
+/* Centred content container, wide → hero, galleries */
+@utility container-wide {
+  width: 100%;
+  margin-inline: auto;
+  max-width: var(--container-wide);
+  padding-inline: 1.25rem;
+}
+
+/* Standard section vertical rhythm */
+@utility section-y {
+  padding-block: var(--space-section-y);
+}
+
+/* Hero / feature section vertical rhythm */
+@utility section-y-lg {
+  padding-block: var(--space-section-y-lg);
+}
+
+/* Warm card surface — off-white + soft shadow + generous radius */
+@utility card-warm {
+  background-color: var(--color-surface-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-3xl);
+  padding: 2rem;
+  box-shadow:
+    0 1px 2px rgba(110, 113, 94, 0.06),
+    0 20px 40px -20px rgba(47, 49, 44, 0.18),
+    0 8px 24px -12px rgba(110, 113, 94, 0.12);
+}
+
+/* Cream surface — the sub-hero panels used across Calenira sections */
+@utility surface-cream-panel {
+  background-color: var(--color-surface-cream);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-3xl);
+  padding: 2rem;
+}
+
+/* Scroll reveal utility used by <Reveal /> */
+.reveal-on-scroll {
+  opacity: 0;
+  transform: translateY(24px);
+  transition:
+    opacity 700ms var(--ease-standard),
+    transform 700ms var(--ease-standard);
+  will-change: opacity, transform;
+}
+
+.reveal-on-scroll--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-on-scroll,
+  .marquee-x,
+  .motion-float,
+  .motion-glow,
+  .motion-dock-shake {
+    opacity: 1;
+    transform: none;
+    transition: none;
+    animation: none !important;
+  }
+}
+
+@media print {
+  header,
+  footer,
+  nav,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  body {
+    background: white;
+  }
+
+  main {
+    padding: 0 !important;
+  }
+
+  details {
+    break-inside: avoid;
+  }
+
+  details:not([open]) > *:not(summary) {
+    display: block;
+  }
+}
+
+/* Reusable CMS content blocks — rendered identically in the admin editor and
+   on the public site (see src/components/admin/content-blocks.ts). */
+@layer components {
+  .content-body .cb-cards {
+    @apply my-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3;
+  }
+
+  .content-body .cb-card {
+    @apply rounded-3xl border border-border/70 bg-card p-6 shadow-sm;
+  }
+
+  .content-body .cb-card > h3 {
+    @apply mt-0 text-lg;
+  }
+
+  .content-body .cb-card > p {
+    @apply mt-2 text-sm leading-6 text-muted-foreground;
+  }
+
+  .content-body .cb-cta {
+    @apply my-10 rounded-3xl border border-border/70 bg-surface-cream p-7 text-center sm:p-10;
+  }
+
+  .content-body .cb-cta > h3 {
+    @apply mt-0;
+  }
+
+  .content-body .cb-cta a {
+    @apply mt-2 inline-flex rounded-full bg-brand-deep px-5 py-2.5 text-sm font-semibold text-primary-foreground no-underline transition-transform hover:-translate-y-0.5;
+  }
+
+  .content-body .cb-callout {
+    @apply my-10 rounded-3xl bg-brand-deep p-7 text-primary-foreground sm:p-10;
+  }
+
+  .content-body .cb-callout h2,
+  .content-body .cb-callout h3,
+  .content-body .cb-callout h4 {
+    @apply mt-0 text-primary-foreground;
+  }
+
+  .content-body .cb-callout p {
+    @apply text-primary-foreground/80;
+  }
+
+  .content-body .cb-figure {
+    @apply my-10;
+  }
+
+  .content-body .cb-figure img {
+    @apply my-0 w-full object-cover;
+  }
+
+  .content-body .cb-caption {
+    @apply mt-3 text-center text-sm text-muted-foreground;
+  }
+}

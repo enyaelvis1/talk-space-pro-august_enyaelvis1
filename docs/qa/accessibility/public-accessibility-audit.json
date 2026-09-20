@@ -1,0 +1,52 @@
+{
+  "generatedAt": "2026-08-02T06:26:38.293Z",
+  "baseUrl": "https://talk-space-production-2u149xwic-enyasystems-projects.vercel.app",
+  "routes": [
+    {
+      "route": "/",
+      "violations": []
+    },
+    {
+      "route": "/services",
+      "violations": []
+    },
+    {
+      "route": "/therapists",
+      "violations": []
+    },
+    {
+      "route": "/pricing",
+      "violations": []
+    },
+    {
+      "route": "/blog",
+      "violations": []
+    },
+    {
+      "route": "/contact",
+      "violations": []
+    },
+    {
+      "route": "/faqs",
+      "violations": []
+    }
+  ],
+  "summary": {
+    "seriousOrCriticalViolations": 0,
+    "keyboardChecksPassed": true,
+    "landmarkChecksPassed": true
+  },
+  "keyboardChecks": {
+    "skipLinkFirst": true,
+    "skipLinkMovesFocus": true,
+    "mobileMenuReceivesFocus": true,
+    "escapeRestoresMenuButton": true
+  },
+  "landmarkChecks": {
+    "banner": true,
+    "main": true,
+    "navigation": true,
+    "contentinfo": true
+  },
+  "seriousViolations": []
+}

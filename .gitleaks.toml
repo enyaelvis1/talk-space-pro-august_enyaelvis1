@@ -1,0 +1,8 @@
+[allowlist]
+description = "Historical Supabase demo seed data contains public UUIDs and expired signed media URLs."
+paths = ['''^supabase/migrations/20260810103445_data_seed\.sql$''']
+commits = [
+  "335484f415d44b63b4a926756786cfac55a0f0c8",
+  "463a222d9faf17bf4ef4730671a71151cf05ac2e",
+  "cf39f67eb92d3c7004b4d352560e366d73f5188e",
+]

@@ -1,0 +1,1 @@
+CREATE POLICY therapists_admin_all ON public.therapists FOR ALL TO authenticated USING (public.has_role(auth.uid(), 'admin'::app_role)) WITH CHECK (public.has_role(auth.uid(), 'admin'::app_role));

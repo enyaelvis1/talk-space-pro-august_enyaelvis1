@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - develop
+      - main
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: http://127.0.0.1:54321
+      SUPABASE_SERVICE_ROLE_KEY: ci-service-role-key
+      SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      VITE_SUPABASE_URL: http://127.0.0.1:54321
+      VITE_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Start app server
+        run: |
+          npm run dev -- --host 127.0.0.1 --port 5173 > /tmp/talk-space-vite.log 2>&1 &
+          for attempt in {1..30}; do
+            if curl --silent --fail http://127.0.0.1:5173/bank-transfer-harness.html > /dev/null \
+              && curl --silent --fail http://127.0.0.1:5173/therapist > /dev/null \
+              && curl --silent --fail http://127.0.0.1:5173/admin/payments > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/talk-space-vite.log
+          exit 1
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build

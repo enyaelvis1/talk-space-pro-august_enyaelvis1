@@ -1,0 +1,122 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Bank Transfer Harness (App Public)</title>
+    <style>
+      body {
+        font-family: Inter, system-ui, Arial, sans-serif;
+        padding: 24px;
+      }
+      .card {
+        border: 1px solid #e5e7eb;
+        padding: 18px;
+        border-radius: 12px;
+        max-width: 720px;
+      }
+      label {
+        display: block;
+        margin-top: 12px;
+        font-weight: 600;
+      }
+      input[type="text"],
+      textarea {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+      }
+      .muted {
+        color: #6b7280;
+        font-size: 13px;
+      }
+      .summary {
+        background: #f1f5f9;
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 12px;
+      }
+      .btn {
+        margin-top: 12px;
+        padding: 10px 14px;
+        background: #0f172a;
+        color: #fff;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      .receipt {
+        margin-top: 8px;
+      }
+      .result {
+        margin-top: 16px;
+        padding: 10px;
+        border-radius: 8px;
+        background: #ecfccb;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h2>Bank transfer checkout (App Public Harness)</h2>
+      <div class="summary">
+        <div class="muted">Booking reference</div>
+        <div id="bookingRef" style="font-family: monospace; font-weight: 700">TS-BK-123456</div>
+        <div class="muted" style="margin-top: 8px">Amount</div>
+        <div style="font-weight: 700">₦5,000</div>
+      </div>
+
+      <div>
+        <div class="muted">Bank</div>
+        <div id="bankName">First National Bank</div>
+        <div class="muted" style="margin-top: 6px">Account name</div>
+        <div id="bankAccount">Talk Space Counseling</div>
+        <div class="muted" style="margin-top: 6px">Account number</div>
+        <div id="bankNumber">0123456789</div>
+        <div class="muted" style="margin-top: 6px">Instructions</div>
+        <div id="bankInstructions">Use the booking reference as narration where possible.</div>
+      </div>
+
+      <label for="bank-note">Note (optional)</label>
+      <textarea id="bank-note" rows="3" placeholder="Sender name or transfer time"></textarea>
+
+      <label for="bank-ref">Transfer reference (optional)</label>
+      <input
+        id="bank-ref"
+        type="text"
+        placeholder="Transaction reference from your bank"
+        maxlength="200"
+      />
+      <p class="muted">
+        If your bank provided a transaction reference, paste it here. Using the booking reference as
+        narration helps automatic matching.
+      </p>
+
+      <label for="receipt">Receipt (optional)</label>
+      <input id="receipt" type="file" class="receipt" />
+
+      <button id="submit" class="btn">Submit bank transfer</button>
+
+      <div id="result" style="display: none" class="result"></div>
+    </div>
+
+    <script>
+      document.getElementById("submit").addEventListener("click", () => {
+        const bookingRef = document.getElementById("bookingRef").textContent;
+        const note = document.getElementById("bank-note").value || "";
+        const ref = document.getElementById("bank-ref").value || "";
+        const res = document.getElementById("result");
+        res.style.display = "block";
+        res.innerHTML =
+          '<strong>Submitted</strong><div class="muted">booking: ' +
+          bookingRef +
+          "</div>" +
+          '<div class="muted">note: ' +
+          (note || "(none)") +
+          "</div>" +
+          '<div class="muted">transfer_ref: ' +
+          (ref || "(none)") +
+          "</div>";
+      });
+    </script>
+  </body>
+</html>

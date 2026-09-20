@@ -1,0 +1,1 @@
+drop function if exists public.__tmp_apply_migration(text, text);

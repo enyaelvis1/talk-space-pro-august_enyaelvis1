@@ -1,0 +1,22 @@
+{
+  "name": "Talk Space Counselling Services",
+  "short_name": "Talk Space",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#16324F",
+  "theme_color": "#16324F",
+  "icons": [
+    {
+      "src": "/favicon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
