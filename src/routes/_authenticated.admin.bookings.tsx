@@ -567,6 +567,7 @@ function AdminBookingsPage() {
         data: {
           appointmentIds: hiddenTemporaryRows.map((row) => row.id),
           confirmation,
+          reason: "temporary_or_test_booking_cleanup",
         },
       });
       setRows((current) =>
@@ -588,7 +589,11 @@ function AdminBookingsPage() {
     setDeletingId(row.id);
     try {
       const result = await deleteTemporaryAppointmentsForAdmin({
-        data: { appointmentIds: [row.id], confirmation },
+        data: {
+          appointmentIds: [row.id],
+          confirmation,
+          reason: "temporary_or_test_booking_cleanup",
+        },
       });
       if (result.deletedCount === 0) {
         throw new Error("This booking is no longer eligible for permanent deletion.");
@@ -624,7 +629,7 @@ function AdminBookingsPage() {
           ) : (
             <Trash2 className="h-4 w-4" aria-hidden />
           )}
-          Delete
+          Delete booking
         </Button>
       );
     },

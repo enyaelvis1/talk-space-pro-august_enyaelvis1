@@ -71,6 +71,7 @@ test("admin booking and payment operations require an admin role check", () => {
   assert.match(restoreBody, /requireAdminClient\(\)/);
   assert.match(restoreBody, /archived_at: null/);
   assert.match(bulkDeleteBody, /confirmation: z\.literal\("DELETE TEST BOOKINGS"\)/);
+  assert.match(bulkDeleteBody, /reason: z\.string\(\)\.trim\(\)\.min\(3\)/);
   assert.match(bulkDeleteBody, /status === "hold"/);
   assert.match(bulkDeleteBody, /status === "cancelled"/);
   assert.match(bulkDeleteBody, /"succeeded", "awaiting_confirmation"/);
