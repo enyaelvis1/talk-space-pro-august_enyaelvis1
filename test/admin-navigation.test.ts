@@ -473,6 +473,17 @@ test("admin audit log records actor, action, reason, target, and timestamp", asy
   assert.match(migration, /actor_email/);
   assert.match(migration, /action text NOT NULL/);
   assert.match(migration, /reason text NOT NULL/);
+  const lifecycleAuditMigration = await readFile(
+    new URL(
+      "../supabase/migrations/20260921130000_audit_booking_payment_lifecycle_actions.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.match(lifecycleAuditMigration, /appointments\.cancel_release/);
+  assert.match(lifecycleAuditMigration, /payments\.verify/);
+  assert.match(lifecycleAuditMigration, /appointments\.restore/);
+  assert.match(auditRoute, /appointments\.archive/);
   assert.match(migration, /changed_fields text\[\]/);
   assert.match(migration, /created_at timestamptz NOT NULL/);
   assert.match(migration, /REVOKE INSERT, UPDATE, DELETE/);

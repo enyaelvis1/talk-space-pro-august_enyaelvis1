@@ -45,6 +45,15 @@ function formatDate(value: string) {
 }
 
 function actionLabel(action: string) {
+  const explicitLabels: Record<string, string> = {
+    "appointments.archive": "archive appointment",
+    "appointments.restore": "restore appointment",
+    "appointments.cancel_release": "cancel and release appointment",
+    "payments.verify": "verify payment",
+    "payments.resolve": "resolve payment",
+    "payments.refund": "refund payment",
+  };
+  if (explicitLabels[action]) return explicitLabels[action];
   const [target, operation] = action.split(".");
   return `${(operation || "changed").replaceAll("_", " ")} ${target.replaceAll("_", " ")}`;
 }
