@@ -102,7 +102,10 @@ test("hold creation writes explicit hold state and expires stale holds", () => {
 test("booking holds reuse existing profiles without creating unpaid client records", () => {
   assert.match(bookingFunctions, /async function ensureBookingClientProfile/);
   assert.match(bookingFunctions, /from\("clients"\)[\s\S]*select\("id"\)/);
-  assert.doesNotMatch(bookingFunctions, /ensureBookingClientProfile[\s\S]*?\.upsert\(/);
+  const profileStart = bookingFunctions.indexOf("async function ensureBookingClientProfile");
+  const profileEnd = bookingFunctions.indexOf("\nexport type HeldAppointment", profileStart);
+  assert.ok(profileStart >= 0 && profileEnd > profileStart);
+  assert.doesNotMatch(bookingFunctions.slice(profileStart, profileEnd), /\.upsert\(/);
   assert.match(bookingFunctions, /const clientId = await ensureBookingClientProfile/);
   assert.match(bookingFunctions, /p_client_id: clientId/);
   assert.match(bookingFunctions, /client_id: clientId/);

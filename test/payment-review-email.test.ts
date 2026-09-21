@@ -6,10 +6,12 @@ import ts from "typescript";
 test("payment review receipt does not promise a booked slot or disclose unusable links", async () => {
   const source = (
     await readFile(new URL("../src/lib/email-templates.server.ts", import.meta.url), "utf8")
-  ).replace(
-    "@/lib/first-time-assessments",
-    new URL("../src/lib/first-time-assessments.ts", import.meta.url).href,
-  );
+  )
+    .replace(
+      "@/lib/first-time-assessments",
+      new URL("../src/lib/first-time-assessments.ts", import.meta.url).href,
+    )
+    .replace("@/lib/talkspace", new URL("../src/lib/talkspace.ts", import.meta.url).href);
   const { outputText } = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
   });

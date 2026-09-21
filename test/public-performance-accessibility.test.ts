@@ -165,7 +165,7 @@ test("public SSR keeps its fallback when preview Supabase variables are absent",
   assert.match(supabaseClient, /import\.meta\.env[\s\S]*process\.env/);
   assert.match(supabaseClient, /new Proxy\(/);
   assert.match(contentFunctions, /process\.env\.SUPABASE_URL/);
-  assert.match(root, /loader: \(\) => getPublicSiteDetails\(\)/);
+  assert.match(root, /loader: \(\) => getPublicShellData\(\)/);
   assert.match(root, /--site-background/);
   assert.doesNotMatch(appearance, /getPublicSiteDetails\(/);
 });

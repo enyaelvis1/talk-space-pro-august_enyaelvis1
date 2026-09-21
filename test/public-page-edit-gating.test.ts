@@ -75,6 +75,5 @@ test("editor data and save endpoints require an admin session server-side", () =
   const requireAdmin = adminFunctions.slice(
     adminFunctions.indexOf("async function requireAdmin()"),
   );
-  assert.match(requireAdmin.slice(0, 900), /throw new Error\("Sign in required\."\)/);
-  assert.match(requireAdmin.slice(0, 900), /throw new Error\("Admin permission required\."\)/);
+  assert.match(requireAdmin.slice(0, 900), /requireRequestRole\("admin"\)/);
 });
