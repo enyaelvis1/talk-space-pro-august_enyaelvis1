@@ -1719,6 +1719,44 @@ export const verifyBankTransferPayment = createServerFn({ method: "POST" })
     },
   );
 
+export const recoverPaidBankTransferBooking = createServerFn({ method: "POST" })
+  .validator((d: { paymentId: string }) => z.object({ paymentId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    const admin = await requireAdmin();
+    const rpc = admin.client.rpc.bind(admin.client) as unknown as (
+      name: "recover_paid_bank_transfer_booking",
+      args: { p_payment_id: string },
+    ) => Promise<{
+      data: Record<string, unknown>[] | Record<string, unknown> | null;
+      error: { message?: string } | null;
+    }>;
+    const { data: rows, error } = await rpc("recover_paid_bank_transfer_booking", {
+      p_payment_id: data.paymentId,
+    });
+    admin.commitCookies();
+    if (error) throw error;
+    const row = (Array.isArray(rows) ? rows[0] : rows) as Record<string, unknown> | null;
+    if (!row?.id || !row.manage_token) {
+      throw new Error("Booking recovery did not return a manage link.");
+    }
+
+    const appointmentId = String(row.id);
+    await syncGoogleBeforePaymentEmail(appointmentId);
+    try {
+      const { sendPaymentEmail } = await import("@/lib/payment-email.server");
+      await sendPaymentEmail({ paymentId: data.paymentId, templateKey: "payment_success" });
+    } catch (err) {
+      console.error("[payments] recovered booking email failed:", err);
+    }
+    const reference = String(row.booking_reference);
+    return {
+      ok: true as const,
+      bookingConfirmed: true as const,
+      appointmentStatus: String(row.status),
+      manageUrl: canonicalUrl(`/manage/${reference}?token=${String(row.manage_token)}`),
+    };
+  });
+
 export const getReceiptSignedUrl = createServerFn({ method: "POST" })
   .validator((d: { path: string }) => z.object({ path: z.string().min(1).max(500) }).parse(d))
   .handler(async ({ data }) => {

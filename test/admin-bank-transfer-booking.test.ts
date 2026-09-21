@@ -20,3 +20,28 @@ test("admin booking RPC qualifies id references for confirmed bank transfers", (
   assert.match(migration, /p_payment_method not in \('bank_transfer', 'paystack'\)/);
   assert.match(migration, /payment_status_value = 'succeeded'/);
 });
+
+test("paid cancelled bank transfers are reviewable and recover with a fresh manage link", async () => {
+  const migration = await readFile(
+    new URL(
+      "../supabase/migrations/20260921170000_recover_paid_cancelled_booking.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const paymentsFunctions = await readFile(
+    new URL("../src/lib/payments.functions.ts", import.meta.url),
+    "utf8",
+  );
+  const paymentsRoute = await readFile(
+    new URL("../src/routes/_authenticated.admin.payments.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(migration, /pay\.status = 'succeeded'/);
+  assert.match(migration, /appt\.status = 'cancelled'/);
+  assert.match(migration, /recover_paid_bank_transfer_booking/);
+  assert.match(migration, /manage_token = new_token/);
+  assert.match(migration, /manage_token_revoked_at = NULL/);
+  assert.match(paymentsFunctions, /recoverPaidBankTransferBooking/);
+  assert.match(paymentsRoute, /Restore booking/);
+});

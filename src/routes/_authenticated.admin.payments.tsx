@@ -55,6 +55,7 @@ import {
   updatePaymentSettings,
   updatePaymentStatusForAdmin,
   verifyBankTransferPayment,
+  recoverPaidBankTransferBooking,
   verifyPaystackPaymentForAdmin,
   type PaymentRow,
   type PaymentReviewEntry,
@@ -353,6 +354,25 @@ function PaymentsAdminScreen({
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to retry booking confirmation.");
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
+
+  const onRecoverBooking = async (row: PaymentRow) => {
+    const ok = confirm(
+      `Restore the cancelled booking for paid transfer ${row.reference} and issue a new manage link?`,
+    );
+    if (!ok) return;
+    const stepUpAllowed = await stepUp.requestStepUp(`recover booking ${row.reference}`);
+    if (!stepUpAllowed) return;
+    setUpdatingStatusId(row.id);
+    try {
+      const result = await recoverPaidBankTransferBooking({ data: { paymentId: row.id } });
+      await refresh();
+      toast.success(`Booking restored. Manage link: ${result.manageUrl}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to restore the booking.");
     } finally {
       setUpdatingStatusId(null);
     }
@@ -1155,7 +1175,9 @@ function PaymentsAdminScreen({
                           <Button size="sm" onClick={() => openReview(row)}>
                             Review
                           </Button>
-                        ) : row.provider === "bank_transfer" && row.bookingReviewRequired ? (
+                        ) : row.provider === "bank_transfer" &&
+                          row.bookingReviewRequired &&
+                          row.status !== "succeeded" ? (
                           <Button
                             size="sm"
                             variant="outline"
@@ -1168,6 +1190,15 @@ function PaymentsAdminScreen({
                               <RefreshCw className="mr-2 h-4 w-4" />
                             )}
                             Retry booking
+                          </Button>
+                        ) : row.provider === "bank_transfer" && row.status === "succeeded" ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={updatingStatusId === row.id}
+                            onClick={() => void onRecoverBooking(row)}
+                          >
+                            Restore booking
                           </Button>
                         ) : row.provider === "bank_transfer" && row.receiptPath ? (
                           <Button size="sm" variant="ghost" onClick={() => openReview(row)}>
