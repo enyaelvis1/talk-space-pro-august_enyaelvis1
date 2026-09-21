@@ -20,6 +20,8 @@ replacement.
 - [x] Milestone 3c: expose explicit payment and booking lifecycle labels so
       pending review, verified booking, verified payment needing review,
       cancelled, refunded, and archived states are not conflated.
+- [x] Milestone 3d: classify high-risk booking and payment changes with
+      explicit immutable audit actions visible in Admin → Audit.
 
 ## Incident safety and evidence
 
@@ -60,8 +62,9 @@ replacement.
       confirmed appointment or its audit history.
 - [x] Replace destructive row actions with explicit labels and confirmation
       dialogs that show the booking reference, payment state, and consequences.
-- [ ] Add an audit event for every verify, resolve, archive, restore, cancel,
-      delete, refund, and slot-release action.
+- [x] Add an audit event for every verify, resolve, archive, restore, cancel,
+      delete, refund, and slot-release action. The lifecycle migration keeps
+      the existing single audit trigger and assigns explicit action names.
 - [x] Add a recovery/admin view for accidentally archived or removed records;
       never rely on the UI list as the only record of a payment. The admin
       bookings page loads archived records on demand and restores them without
