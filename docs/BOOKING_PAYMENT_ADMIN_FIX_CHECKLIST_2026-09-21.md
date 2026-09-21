@@ -32,6 +32,8 @@ replacement.
       side effects remain claim/idempotence protected.
 - [x] Milestone 3h: make slot replacement an explicit operator decision and
       keep replacement/rescheduling guarded by the transactional booking RPCs.
+- [x] Milestone 3i: make identical committed reschedule retries return the
+      existing appointment without a second slot change or notification.
 
 ## Incident safety and evidence
 
@@ -130,7 +132,8 @@ replacement.
 - [x] Enforce admin authorization server-side for all destructive and payment
       actions; do not trust client-visible status or IDs alone.
 - [ ] Make retries idempotent and prevent duplicate emails, Meet operations,
-      payment updates, and audit events.
+      payment updates, and audit events. Identical committed reschedule retries
+      are now guarded at the RPC layer; provider/email claim coverage remains.
 - [ ] Confirm the changes do not add polling or duplicate Supabase requests to
       payments, bookings, calendar, or confirmation pages.
 

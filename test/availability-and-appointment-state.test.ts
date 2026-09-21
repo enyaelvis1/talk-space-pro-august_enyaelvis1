@@ -157,6 +157,23 @@ test("appointment state transitions reject unsafe states and clear hold metadata
   assert.match(appointmentStateMigration, /status = p_new_status/);
 });
 
+test("rescheduling the same committed slot is an idempotent no-op", async () => {
+  const retryMigration = await readFile(
+    new URL(
+      "../supabase/migrations/20260921200000_idempotent_reschedule_retry.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.match(retryMigration, /appt\.status = 'confirmed'/i);
+  assert.match(retryMigration, /appt\.starts_at = p_new_starts_at/i);
+  assert.match(retryMigration, /RETURN NEXT;\s+RETURN;/i);
+  assert.match(
+    retryMigration,
+    /without changing its timestamp, timeline, slot, or notification state/i,
+  );
+});
+
 test("manage-token lifecycle revokes access for terminal appointment states", () => {
   assert.match(manageTokenLifecycleMigration, /appointment_manage_token_is_active/);
   assert.match(manageTokenLifecycleMigration, /manage_token_revoked_at is null/);
