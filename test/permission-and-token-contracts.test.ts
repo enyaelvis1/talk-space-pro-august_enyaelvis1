@@ -28,6 +28,13 @@ const bookingFoundation = await readFile(
   new URL("../supabase/migrations/20260715200000_booking_foundation.sql", import.meta.url),
   "utf8",
 );
+const unpaidCleanupMigration = await readFile(
+  new URL(
+    "../supabase/migrations/20260921190000_atomic_unpaid_test_booking_cleanup.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 function exportBody(source: string, name: string) {
   const start = source.indexOf(`export const ${name}`);
@@ -75,6 +82,12 @@ test("admin booking and payment operations require an admin role check", () => {
   assert.match(bulkDeleteBody, /status === "hold"/);
   assert.match(bulkDeleteBody, /status === "cancelled"/);
   assert.match(bulkDeleteBody, /"succeeded", "awaiting_confirmation"/);
+  assert.match(bulkDeleteBody, /delete_unpaid_test_appointment/);
+  assert.match(unpaidCleanupMigration, /manage_token = null/);
+  assert.match(unpaidCleanupMigration, /manage_token_hash = null/);
+  assert.match(unpaidCleanupMigration, /hold_expires_at = null/);
+  assert.match(unpaidCleanupMigration, /payment_history_protected/);
+  assert.match(unpaidCleanupMigration, /set_config\('app\.audit_reason'/);
 
   const requireAdmin = paymentFunctions.slice(
     paymentFunctions.indexOf("async function requireAdmin()"),

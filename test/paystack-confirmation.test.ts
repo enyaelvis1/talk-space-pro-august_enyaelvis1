@@ -345,3 +345,13 @@ test("webhook and scheduled recheck use group totals and persist provider receip
     assert.match(source, /paystack_receipt: paymentReceipt/);
   }
 });
+
+test("successful Paystack reconciliation keeps downstream effects idempotent", async () => {
+  const source = readFileSync("src/lib/payments.functions.ts", "utf8");
+  const emailSender = readFileSync("src/lib/payment-email.server.ts", "utf8");
+  assert.match(source, /syncClientRecordsForSuccessfulPayment\(reference\)/);
+  assert.match(source, /syncGoogleForPaymentReference\(reference\)/);
+  assert.match(source, /sendPaymentEmailsForReference\(\s*reference/);
+  assert.match(emailSender, /payment_success_email_claimed_at/);
+  assert.match(emailSender, /\.is\(claimColumn, null\)/);
+});
