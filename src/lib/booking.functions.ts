@@ -1595,6 +1595,30 @@ export const listAppointmentsForAdmin = createServerFn({ method: "GET" }).handle
   },
 );
 
+export const listArchivedAppointmentsForAdmin = createServerFn({ method: "GET" }).handler(
+  async (): Promise<UpcomingAppointmentRow[]> => {
+    const bag = await requireAdminClient();
+    const [windows, appointments] = await Promise.all([
+      loadReminderWindows(bag.client),
+      bag.client
+        .from("appointments")
+        .select(
+          "id, booking_reference, status, hold_expires_at, starts_at, ends_at, session_mode, service_id, therapist_id, client_name, client_email, manage_token, manage_token_expires_at, manage_token_revoked_at, manage_token_revocation_reason, reminder_24h_sent_at, reminder_1h_sent_at, created_at, google_synced_at, google_sync_error, google_meet_url, paid_amount_kobo, archived_at, archive_reason, services(name), therapists(full_name), payments(status, provider, amount_kobo, created_at, metadata)",
+        )
+        .not("archived_at", "is", null)
+        .order("archived_at", { ascending: false })
+        .limit(100),
+    ]);
+    bag.commitCookies();
+    if (appointments.error) throw appointments.error;
+    const now = Date.now();
+    noStoreLocal();
+    return (appointments.data ?? []).map((row: Record<string, unknown>) =>
+      mapAdminAppointmentRow(row, now, windows.win24, windows.win1),
+    );
+  },
+);
+
 type UntypedTimelineQuery = {
   select: (columns: string) => {
     eq: (
@@ -1919,6 +1943,25 @@ export const archiveAppointmentForAdmin = createServerFn({ method: "POST" })
     if (error) throw error;
     if (!archived) throw new Error("Appointment not found or already archived.");
     return { ok: true, archivedAt: new Date().toISOString() };
+  });
+
+export const restoreAppointmentForAdmin = createServerFn({ method: "POST" })
+  .validator((data: { appointmentId: string }) =>
+    z.object({ appointmentId: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    await requireAdminClient();
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: restored, error } = await supabaseAdmin
+      .from("appointments")
+      .update({ archived_at: null, archived_by: null, archive_reason: null })
+      .eq("id", data.appointmentId)
+      .not("archived_at", "is", null)
+      .select("id")
+      .maybeSingle();
+    if (error) throw error;
+    if (!restored) throw new Error("Appointment not found or already active.");
+    return { ok: true, restoredId: String(restored.id) };
   });
 
 export const cancelAppointmentForAdmin = createServerFn({ method: "POST" })

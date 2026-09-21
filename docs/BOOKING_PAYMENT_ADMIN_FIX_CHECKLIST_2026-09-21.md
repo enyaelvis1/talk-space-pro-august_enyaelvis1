@@ -4,6 +4,16 @@ Purpose: resolve the Paystack confirmation failure, prevent accidental loss of
 confirmed records, add safe booking deletion, and support controlled slot
 replacement.
 
+## Progress — 2026-09-21
+
+- [x] Milestone 1: make admin Paystack rechecks idempotent.
+- [x] Milestone 2: add admin cancellation that releases a confirmed slot while
+      preserving paid booking and payment history.
+- [ ] Milestone 3: add recoverable archive/delete actions and explicit lifecycle
+      separation for pending review, confirmed, cancelled, refunded, and
+      archived records. Server-side archived-list and restore primitives are
+      now in place; the admin recovery view and lifecycle UI remain.
+
 ## Incident safety and evidence
 
 - [ ] Record the affected booking ID, booking reference, payment ID, Paystack
@@ -23,7 +33,7 @@ replacement.
 - [ ] Trace the admin verification path from `Check Paystack` through the
       server function, provider lookup, grouped checkout validation, and
       payment/appointment reconciliation.
-- [ ] Make already-succeeded and already-refunded transactions idempotent:
+- [x] Make already-succeeded and already-refunded transactions idempotent:
       checking them again must return the stored result instead of throwing.
 - [ ] Return actionable admin errors for missing references, provider
       failures, amount/currency mismatches, stale checkout groups, and payment
@@ -31,7 +41,7 @@ replacement.
 - [ ] Ensure a successful Paystack check creates or refreshes the booking link,
       client record, meeting-link state, and confirmation notifications exactly
       once.
-- [ ] Add regression tests for first verification, repeated verification,
+- [x] Add regression tests for first verification, repeated verification,
       provider timeout, mismatched amount, and paid-booking review states.
 
 ## Confirmed versus pending-review records
@@ -57,14 +67,14 @@ replacement.
       `Archive` instead.
 - [ ] If deletion is approved for an unpaid booking, revoke its manage token,
       clear holds, remove it from availability, and record the audit event.
-- [ ] For paid bookings, preserve the payment ledger and client history even if
+- [x] For paid bookings, preserve the payment ledger and client history even if
       the appointment is cancelled or hidden from active views.
 - [ ] Confirm archive, cancellation, deletion, and restore behavior in the
       admin bookings, payments, calendar, client, reminder, and email views.
 
 ## Slot replacement and rescheduling
 
-- [ ] Add a `Release slot` or `Cancel and release` workflow distinct from
+- [x] Add a `Release slot` or `Cancel and release` workflow distinct from
       permanent deletion.
 - [ ] Require the operator to choose: reschedule the same client, cancel with
       refund review, or release the slot for a new booking.
@@ -72,7 +82,7 @@ replacement.
       appointment state and payment consequence are committed transactionally.
 - [ ] Preserve the original time, therapist, service, payment, and reason in
       the appointment timeline when a slot is released or replaced.
-- [ ] Revoke or regenerate manage and Meet links according to the resulting
+- [x] Revoke or regenerate manage and Meet links according to the resulting
       state; do not leave an old client link active after reassignment.
 - [ ] Send the correct client and therapist notifications exactly once after a
       reschedule, cancellation, refund decision, or replacement.
@@ -85,7 +95,7 @@ replacement.
       restore, release-slot, and replacement operations.
 - [ ] Qualify every ambiguous `id`, status, and appointment/payment reference
       in SQL joins and RPC return clauses.
-- [ ] Enforce admin authorization server-side for all destructive and payment
+- [x] Enforce admin authorization server-side for all destructive and payment
       actions; do not trust client-visible status or IDs alone.
 - [ ] Make retries idempotent and prevent duplicate emails, Meet operations,
       payment updates, and audit events.
@@ -94,9 +104,10 @@ replacement.
 
 ## Verification and release
 
-- [ ] Run targeted payment, booking-state, permission, notification, and
+- [x] Run targeted payment, booking-state, permission, notification, and
       request-budget tests.
-- [ ] Run the full CI suite, lint, type-check, and production build.
+- [x] Run the full CI suite, lint, type-check, and production build for the
+      completed milestones; repeat after the next lifecycle milestone.
 - [ ] Perform staging UAT for Paystack verification, pending-review resolution,
       confirmed-booking protection, deletion, slot release, and replacement.
 - [ ] Verify the affected live record through the approved recovery workflow;
