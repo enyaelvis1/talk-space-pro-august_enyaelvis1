@@ -1971,25 +1971,15 @@ export const archiveAppointmentForAdmin = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const bag = await requireAdminClient();
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const {
-      data: { user },
-    } = await bag.client.auth.getUser();
+    const { data: rows, error } = await bag.client.rpc("archive_appointment_for_admin", {
+      p_appointment_id: data.appointmentId,
+      p_reason: data.reason?.trim() || "manual_admin_archive",
+    } as never);
     bag.commitCookies();
-    const { data: archived, error } = await supabaseAdmin
-      .from("appointments")
-      .update({
-        archived_at: new Date().toISOString(),
-        archived_by: user?.id ?? null,
-        archive_reason: data.reason?.trim() || "manual_admin_archive",
-      })
-      .eq("id", data.appointmentId)
-      .is("archived_at", null)
-      .select("id")
-      .maybeSingle();
     if (error) throw error;
-    if (!archived) throw new Error("Appointment not found or already archived.");
-    return { ok: true, archivedAt: new Date().toISOString() };
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    if (!row) throw new Error("Appointment not found or already archived.");
+    return { ok: true, archivedAt: String(row.archived_at) };
   });
 
 export const restoreAppointmentForAdmin = createServerFn({ method: "POST" })
@@ -1997,18 +1987,15 @@ export const restoreAppointmentForAdmin = createServerFn({ method: "POST" })
     z.object({ appointmentId: z.string().uuid() }).parse(data),
   )
   .handler(async ({ data }) => {
-    await requireAdminClient();
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: restored, error } = await supabaseAdmin
-      .from("appointments")
-      .update({ archived_at: null, archived_by: null, archive_reason: null })
-      .eq("id", data.appointmentId)
-      .not("archived_at", "is", null)
-      .select("id")
-      .maybeSingle();
+    const bag = await requireAdminClient();
+    const { data: rows, error } = await bag.client.rpc("restore_appointment_for_admin", {
+      p_appointment_id: data.appointmentId,
+    } as never);
+    bag.commitCookies();
     if (error) throw error;
-    if (!restored) throw new Error("Appointment not found or already active.");
-    return { ok: true, restoredId: String(restored.id) };
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    if (!row) throw new Error("Appointment not found or already active.");
+    return { ok: true, restoredId: String(row.id) };
   });
 
 export const cancelAppointmentForAdmin = createServerFn({ method: "POST" })

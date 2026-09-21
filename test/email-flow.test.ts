@@ -19,6 +19,10 @@ const bookingFunctions = await readFile(
   new URL("../src/lib/booking.functions.ts", import.meta.url),
   "utf8",
 );
+const googleFunctions = await readFile(
+  new URL("../src/lib/google.functions.ts", import.meta.url),
+  "utf8",
+);
 const remindersRoute = await readFile(
   new URL("../src/routes/api/public/hooks/send-reminders.ts", import.meta.url),
   "utf8",
@@ -228,6 +232,13 @@ test("lifecycle notices use atomic appointment claims and release failed claims"
   assert.match(bookingFunctions, /finalize_appointment_notification/);
   assert.match(bookingFunctions, /notificationKey: "reschedule_notice"/);
   assert.match(bookingFunctions, /notificationKey: "cancellation_notice"/);
+});
+
+test("concurrent Google appointment syncs coalesce per appointment", () => {
+  assert.match(googleFunctions, /googleSyncInFlight = new Map<string, Promise<void>>/);
+  assert.match(googleFunctions, /const existing = googleSyncInFlight\.get\(appointmentId\)/);
+  assert.match(googleFunctions, /syncAppointmentToGoogleInternal/);
+  assert.match(googleFunctions, /googleSyncInFlight\.delete\(appointmentId\)/);
 });
 
 test("new therapist accounts use the branded Resend invitation template", () => {
