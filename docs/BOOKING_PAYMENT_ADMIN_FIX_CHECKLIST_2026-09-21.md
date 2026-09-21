@@ -11,8 +11,8 @@ replacement.
       preserving paid booking and payment history.
 - [ ] Milestone 3: add recoverable archive/delete actions and explicit lifecycle
       separation for pending review, confirmed, cancelled, refunded, and
-      archived records. Server-side archived-list and restore primitives are
-      now in place; the admin recovery view and lifecycle UI remain.
+      archived records. The archived recovery view and restore action are now
+      complete; lifecycle labeling and payment-action safeguards remain.
 
 ## Incident safety and evidence
 
@@ -54,8 +54,10 @@ replacement.
       dialogs that show the booking reference, payment state, and consequences.
 - [ ] Add an audit event for every verify, resolve, archive, restore, cancel,
       delete, refund, and slot-release action.
-- [ ] Add a recovery/admin view for accidentally archived or removed records;
-      never rely on the UI list as the only record of a payment.
+- [x] Add a recovery/admin view for accidentally archived or removed records;
+      never rely on the UI list as the only record of a payment. The admin
+      bookings page loads archived records on demand and restores them without
+      deleting payment or booking history.
 
 ## Safe booking deletion and cancellation
 
