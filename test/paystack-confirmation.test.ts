@@ -172,7 +172,13 @@ function loadHandler(name: string, deps: Record<string, unknown>) {
 }
 
 function fixture(
-  options: { stored?: boolean; admin?: boolean; rpcError?: boolean; underpaid?: boolean } = {},
+  options: {
+    stored?: boolean;
+    admin?: boolean;
+    bookingReviewRequired?: boolean;
+    rpcError?: boolean;
+    underpaid?: boolean;
+  } = {},
 ) {
   const verified = {
     ...result,
@@ -185,6 +191,7 @@ function fixture(
   const checkout = {
     ...summarizePaystackCheckout(rows, reference),
     alreadySucceeded: !!options.stored,
+    bookingReviewRequired: options.bookingReviewRequired ?? false,
     payment: {
       appointments: { booking_reference: "TS-BOOK" },
       metadata: options.stored ? { paystack_receipt: receipt } : {},
@@ -277,12 +284,24 @@ test("successful callback refresh reuses the stored exact receipt without a Pays
   assert.equal(f.calls.rpc.length, 0);
 });
 
+test("admin Paystack recheck reuses a stored successful receipt", async () => {
+  const f = fixture({ stored: true, admin: true, bookingReviewRequired: true });
+  const response = await f.run();
+  assert.equal(response.status, "succeeded");
+  assert.equal(response.bookingReviewRequired, true);
+  assert.equal(response.bookingReference, "TS-BOOK");
+  assert.equal(f.calls.auth, 1);
+  assert.equal(f.calls.verify.length, 0);
+  assert.equal(f.calls.rpc.length, 0);
+  assert.equal(f.calls.sync, 0);
+});
+
 test("admin verifies a child row against the parent checkout, including already-paid records", async () => {
   const f = fixture({ admin: true, stored: true });
   assert.equal((await f.run()).amountKobo, 16700000);
   assert.equal(f.calls.auth, 1);
-  assert.deepEqual(f.calls.verify, [reference]);
-  assert.equal(f.calls.rpc[0].p_reference, reference);
+  assert.deepEqual(f.calls.verify, []);
+  assert.deepEqual(f.calls.rpc, []);
 });
 
 test("webhook and scheduled recheck use group totals and persist provider receipts", () => {
