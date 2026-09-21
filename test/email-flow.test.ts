@@ -158,6 +158,17 @@ test("booking reminders and payment confirmations share the same email pipeline"
   assert.match(remindersRoute, /reminder_1h_open_min_minutes/);
 });
 
+test("reschedule and cancellation notify the therapist exactly once", () => {
+  assert.match(bookingFunctions, /therapist_reschedule_notice/);
+  assert.match(bookingFunctions, /therapist_cancellation_notice/);
+  assert.match(bookingFunctions, /sendTherapistLifecycleEmail/);
+  assert.match(therapistEmail, /claim_appointment_notification/);
+  assert.match(therapistEmail, /finalize_appointment_notification/);
+  assert.match(therapistEmail, /p_recipient_role: "therapist"/);
+  assert.match(emailTemplates, /case "therapist_reschedule_notice"/);
+  assert.match(emailTemplates, /case "therapist_cancellation_notice"/);
+});
+
 test("admins can resend a confirmed booking confirmation with the current meeting link", () => {
   assert.match(bookingFunctions, /export const resendBookingConfirmation/);
   assert.match(bookingFunctions, /row\.status !== "confirmed"/);

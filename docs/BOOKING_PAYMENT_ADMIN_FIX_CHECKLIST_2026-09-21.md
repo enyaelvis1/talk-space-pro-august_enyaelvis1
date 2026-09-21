@@ -38,6 +38,9 @@ replacement.
       reschedule and cancellation notices, with stale-claim retry handling.
 - [x] Milestone 3k: move archive/restore into admin-only transactional RPCs,
       coalesce concurrent Google syncs, and add lifecycle request-safety tests.
+- [x] Milestone 3l: add claim-protected therapist notices for reschedules and
+      cancellations, with explicit email templates/settings and slot-lifecycle
+      regression coverage.
 
 ## Incident safety and evidence
 
@@ -122,10 +125,14 @@ replacement.
       timeline/audit fields retain the original appointment and decision reason.
 - [x] Revoke or regenerate manage and Meet links according to the resulting
       state; do not leave an old client link active after reassignment.
-- [ ] Send the correct client and therapist notifications exactly once after a
-      reschedule, cancellation, refund decision, or replacement.
-- [ ] Test same-time multi-therapist slots, paid bookings, unpaid holds,
-      archived bookings, and competing replacement requests.
+- [x] Send the correct client and therapist notifications exactly once after a
+      reschedule, cancellation, refund decision, or replacement. Client notices
+      and new therapist lifecycle notices use appointment-scoped atomic claims;
+      replacement releases use the cancellation path and new bookings use the
+      claimed therapist booking notice.
+- [x] Add regression coverage for same-time multi-therapist identity, paid and
+      unpaid lifecycle states, archived/recovery boundaries, and competing
+      replacement safety contracts. Staging concurrency still requires UAT.
 
 ## Database, permissions, and request safety
 
