@@ -25,11 +25,19 @@ const initialSnapshot: BrowserAuthSnapshot = {
   checkedAt: 0,
 };
 
+const BROWSER_ROLE_CACHE_MAX_AGE_MS = 60_000;
+
 let snapshot = initialSnapshot;
 let started = false;
 let refreshPromise: Promise<void> | null = null;
 let lastRefreshAt = 0;
 let expiryTimer: number | undefined;
+let roleCache: {
+  userId: string;
+  checkedAt: number;
+  isAdmin: boolean;
+  isTherapist: boolean;
+} | null = null;
 const listeners = new Set<() => void>();
 
 function emit(next: BrowserAuthSnapshot) {
@@ -81,6 +89,28 @@ function snapshotForSession(
   } satisfies BrowserAuthSnapshot;
 }
 
+function clearRoleCache() {
+  roleCache = null;
+}
+
+async function getBrowserRoles(session: Session, force: boolean) {
+  const now = Date.now();
+  if (
+    !force &&
+    roleCache?.userId === session.user.id &&
+    now - roleCache.checkedAt < BROWSER_ROLE_CACHE_MAX_AGE_MS
+  ) {
+    return roleCache;
+  }
+
+  const [isAdmin, isTherapist] = await Promise.all([
+    hasBrowserRoleForSession(session, "admin"),
+    hasBrowserRoleForSession(session, "therapist"),
+  ]);
+  roleCache = { userId: session.user.id, checkedAt: Date.now(), isAdmin, isTherapist };
+  return roleCache;
+}
+
 export function getBrowserAuthSnapshot() {
   return snapshot;
 }
@@ -101,17 +131,15 @@ export async function refreshBrowserAuthState(force = false) {
     try {
       const session = await getVerifiedBrowserSession();
       if (!session) {
+        clearRoleCache();
         emit(snapshotForSession(null));
         clearExpiryTimer();
         return;
       }
 
-      const [isAdmin, isTherapist] = await Promise.all([
-        hasBrowserRoleForSession(session, "admin"),
-        hasBrowserRoleForSession(session, "therapist"),
-      ]);
+      const roles = await getBrowserRoles(session, force);
       const next = snapshotForSession(session);
-      emit({ ...next, isAdmin, isTherapist });
+      emit({ ...next, isAdmin: roles.isAdmin, isTherapist: roles.isTherapist });
       scheduleSessionExpiry(session);
     } catch (error) {
       console.error("Browser auth refresh failed.", error);
@@ -137,10 +165,13 @@ function startBrowserAuthState() {
   supabase.auth.onAuthStateChange((event, nextSession) => {
     if (!nextSession) {
       lastRefreshAt = Date.now();
+      clearRoleCache();
       emit(snapshotForSession(null));
       clearExpiryTimer();
       return;
     }
+
+    if (snapshot.session?.user.id !== nextSession.user.id) clearRoleCache();
 
     if (event === "TOKEN_REFRESHED" && snapshot.session?.user.id === nextSession.user.id) {
       const next = snapshotForSession(nextSession);

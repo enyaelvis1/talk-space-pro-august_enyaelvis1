@@ -195,6 +195,9 @@ test("actual browser auth helper makes no Auth request for anonymous visits", as
 test("browser auth refresh is event and expiry driven instead of periodic polling", () => {
   const source = read("src/lib/browser-auth-state.ts");
   assert.doesNotMatch(source, /window\.setInterval/);
+  assert.match(source, /BROWSER_ROLE_CACHE_MAX_AGE_MS = 60_000/);
+  assert.match(source, /getBrowserRoles\(session, force\)/);
+  assert.match(source, /now - roleCache\.checkedAt < BROWSER_ROLE_CACHE_MAX_AGE_MS/);
   assert.match(source, /onAuthStateChange/);
   assert.match(source, /TOKEN_REFRESHED/);
   assert.match(source, /visibilitychange/);
