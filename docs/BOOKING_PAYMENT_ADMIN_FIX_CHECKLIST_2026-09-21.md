@@ -27,6 +27,9 @@ replacement.
 - [x] Milestone 3f: make Paystack admin verification failures actionable and
       distinguish provider, checkout, amount/currency/reference, and booking
       review outcomes.
+- [x] Milestone 3g: harden lifecycle cleanup and payment reconciliation so
+      eligible unpaid/test deletion is transactional and successful-payment
+      side effects remain claim/idempotence protected.
 
 ## Incident safety and evidence
 
@@ -44,18 +47,20 @@ replacement.
 
 - [ ] Reproduce the failure with a test payment or a redacted provider
       reference; do not repeatedly verify a live customer payment.
-- [ ] Trace the admin verification path from `Check Paystack` through the
+- [x] Trace the admin verification path from `Check Paystack` through the
       server function, provider lookup, grouped checkout validation, and
-      payment/appointment reconciliation.
+      payment/appointment reconciliation. The path is covered by the handler
+      contract tests and server-side phase boundaries.
 - [x] Make already-succeeded and already-refunded transactions idempotent:
       checking them again must return the stored result instead of throwing.
 - [x] Return actionable admin errors for missing references, provider
       failures, amount/currency mismatches, stale checkout groups, and payment
       records that need rescheduling or refund review. Raw provider errors and
       payloads are logged server-side only; the UI receives safe guidance.
-- [ ] Ensure a successful Paystack check creates or refreshes the booking link,
+- [x] Ensure a successful Paystack check creates or refreshes the booking link,
       client record, meeting-link state, and confirmation notifications exactly
-      once.
+      once. Client/Google reconciliation is rerunnable, while payment and
+      therapist/customer/admin notifications use database claim markers.
 - [x] Add regression tests for first verification, repeated verification,
       provider timeout, mismatched amount, and paid-booking review states.
 
@@ -64,8 +69,9 @@ replacement.
 - [x] Define separate lifecycle labels for payment review, confirmed booking,
       cancelled booking, refunded payment, and archived record in the admin
       payment and booking views.
-- [ ] Ensure deleting or resolving a pending-review payment cannot remove a
-      confirmed appointment or its audit history.
+- [x] Ensure deleting or resolving a pending-review payment cannot remove a
+      confirmed appointment or its audit history. Financial payment deletion
+      remains status-protected, and booking cleanup is database-guarded.
 - [x] Replace destructive row actions with explicit labels and confirmation
       dialogs that show the booking reference, payment state, and consequences.
 - [x] Add an audit event for every verify, resolve, archive, restore, cancel,
@@ -84,8 +90,9 @@ replacement.
 - [x] Block permanent deletion by default for paid, refunded, completed, or
       legally/audit-relevant payment records; provide review, cancel, refund,
       or archive workflows instead.
-- [ ] If deletion is approved for an unpaid booking, revoke its manage token,
-      clear holds, remove it from availability, and record the audit event.
+- [x] If deletion is approved for an unpaid booking, revoke its manage token,
+      clear holds, remove it from availability, and record the audit event. The
+      new admin-only RPC performs the checks and cleanup in one transaction.
 - [x] For paid bookings, preserve the payment ledger and client history even if
       the appointment is cancelled or hidden from active views.
 - [ ] Confirm archive, cancellation, deletion, and restore behavior in the

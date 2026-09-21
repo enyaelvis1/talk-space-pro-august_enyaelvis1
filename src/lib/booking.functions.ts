@@ -2011,7 +2011,7 @@ export const deleteTemporaryAppointmentsForAdmin = createServerFn({ method: "POS
       .parse(data),
   )
   .handler(async ({ data }) => {
-    await requireAdminClient();
+    const admin = await requireAdminClient();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: candidates, error: candidatesError } = await supabaseAdmin
       .from("appointments")
@@ -2049,13 +2049,17 @@ export const deleteTemporaryAppointmentsForAdmin = createServerFn({ method: "POS
 
     if (!safeIds.length) return { deletedCount: 0 };
 
-    const { data: deleted, error } = await supabaseAdmin
-      .from("appointments")
-      .delete()
-      .in("id", safeIds)
-      .select("id");
-    if (error) throw error;
-    return { deletedCount: deleted?.length ?? 0 };
+    let deletedCount = 0;
+    for (const appointmentId of safeIds) {
+      const { data: deleted, error } = await admin.client.rpc("delete_unpaid_test_appointment", {
+        p_appointment_id: appointmentId,
+        p_reason: data.reason,
+      });
+      if (error) throw error;
+      if (Array.isArray(deleted) ? deleted.length > 0 : deleted) deletedCount += 1;
+    }
+    admin.commitCookies();
+    return { deletedCount };
   });
 
 export const revokeAppointmentManageToken = createServerFn({ method: "POST" })
