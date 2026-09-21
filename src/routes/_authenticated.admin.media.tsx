@@ -31,6 +31,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { canonicalUrl } from "@/lib/seo";
 import {
   listAdminMedia,
+  listAdminMediaPage,
   updateMediaMetadata,
   refreshMediaAfterReplace,
   bulkUpdateMediaTags,
@@ -42,7 +43,7 @@ import {
 export const Route = createFileRoute("/_authenticated/admin/media")({
   loader: async () => {
     try {
-      return await listAdminMedia();
+      return await listAdminMediaPage({ data: { page: 1, pageSize: 100 } });
     } catch {
       throw redirect({ href: "/account?error=forbidden" });
     }
@@ -72,7 +73,9 @@ const formatBytes = (n: number) => {
 
 function MediaAdminRoute() {
   const initial = Route.useLoaderData();
-  const [items, setItems] = useState<AdminMediaRow[]>(initial);
+  const [items, setItems] = useState<AdminMediaRow[]>(initial.items);
+  const [hasMore, setHasMore] = useState(initial.hasMore);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "image" | "other">("all");
   const [tagFilter, setTagFilter] = useState<string | null>(null);
@@ -135,6 +138,22 @@ function MediaAdminRoute() {
   };
 
   const restoreFn = useServerFn(restoreMedia);
+  const pageFn = useServerFn(listAdminMediaPage);
+
+  const loadMore = async () => {
+    setLoadingMore(true);
+    try {
+      const next = await pageFn({
+        data: { page: Math.floor(items.length / initial.pageSize) + 1, pageSize: initial.pageSize },
+      });
+      setItems((current) => [...current, ...next.items]);
+      setHasMore(next.hasMore);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load more media.");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
   const showUndoDeleteToast = ({
     deletedIds,
     deletedItems,
@@ -353,6 +372,15 @@ function MediaAdminRoute() {
             })}
           </section>
         )}
+
+        {hasMore ? (
+          <div className="flex justify-center">
+            <Button type="button" variant="outline" onClick={loadMore} disabled={loadingMore}>
+              {loadingMore ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {loadingMore ? "Loading media…" : "Load more media"}
+            </Button>
+          </div>
+        ) : null}
       </main>
 
       <MediaDetailDialog

@@ -17,9 +17,12 @@ test("the root shell and site settings loader have resilient fallbacks", async (
     readFile(new URL("../src/lib/content.functions.ts", import.meta.url), "utf8"),
   ]);
 
-  assert.match(rootSource, /Route\.useLoaderData\(\) \?\? DEFAULT_SITE_DETAILS/);
+  assert.match(
+    rootSource,
+    /Route\.useLoaderData\(\)\?\.details \?\? DEFAULT_PUBLIC_SHELL_DATA\.details/,
+  );
   assert.match(
     contentSource,
-    /getPublicSiteDetails[\s\S]*try \{[\s\S]*catch \(error\) \{[\s\S]*return DEFAULT_SITE_DETAILS;/,
+    /getPublicShellData[\s\S]*try \{[\s\S]*catch \(error\) \{[\s\S]*return DEFAULT_PUBLIC_SHELL_DATA;/,
   );
 });

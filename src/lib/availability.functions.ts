@@ -2,8 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest, setResponseHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 
-import { createRequestSupabase } from "@/lib/supabase-server";
 import { availabilitySlotInputSchema } from "@/lib/availability-validation";
+import { getRequestAuthContext } from "@/lib/server-auth";
 
 export type AdminAvailabilityMode = "online" | "in_person";
 
@@ -28,25 +28,9 @@ export type AdminAvailabilityData = {
 };
 
 async function getAdminClient() {
-  const requestSupabase = createRequestSupabase(getRequest());
-  if (!requestSupabase) return null;
-
-  const {
-    data: { user },
-  } = await requestSupabase.client.auth.getUser();
-  if (!user) {
-    requestSupabase.commitCookies();
-    return null;
-  }
-
-  const { data: isAdmin, error } = await requestSupabase.client.rpc("has_role", {
-    _user_id: user.id,
-    _role: "admin",
-  });
-  requestSupabase.commitCookies();
-  if (error || isAdmin !== true) return null;
-
-  return requestSupabase.client;
+  const context = await getRequestAuthContext();
+  if (!context?.user || !(await context.hasRole("admin"))) return null;
+  return context.bag.client;
 }
 
 function toAdminSlot(

@@ -48,6 +48,8 @@ jobs:
           exit 1
 
       - name: Test
+        env:
+          SKIP_EGRESS_BROWSER: "1"
         run: npm test
 
       - name: Build

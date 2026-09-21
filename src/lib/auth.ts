@@ -136,7 +136,7 @@ export async function requireBrowserAdmin(location: string) {
       href: `/login?error=session_expired&redirect=${encodeURIComponent(getSafeRedirect(location))}`,
     });
   }
-  if (await hasBrowserRole("admin")) return;
+  if (await hasBrowserRoleForSession(session, "admin")) return;
 
   throw redirect({ href: "/account?error=forbidden" });
 }

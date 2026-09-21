@@ -3,9 +3,15 @@ import { getRequest, setResponseHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { clientPhoneSchema } from "./client-profile.ts";
 
-import { createRequestSupabase } from "@/lib/supabase-server";
+import { getRequestAuthContext } from "@/lib/server-auth";
 import type { Database, Json } from "@/integrations/supabase/types";
-import { getTemplateVersion } from "@/lib/form-templates";
+import {
+  cloneFormTemplates,
+  DEFAULT_FORM_TEMPLATES,
+  getTemplateVersion,
+  normalizeFormTemplates,
+  type FormTemplateDefinition,
+} from "@/lib/form-templates";
 
 export type ClientSessionMode = "online" | "in_person" | "phone";
 
@@ -200,46 +206,40 @@ export function getClientContactCompletionState({
 }
 
 async function getAdminClient() {
-  const requestSupabase = createRequestSupabase(getRequest());
-  if (!requestSupabase) return null;
-
-  const {
-    data: { user },
-  } = await requestSupabase.client.auth.getUser();
-  if (!user) {
-    requestSupabase.commitCookies();
-    return null;
-  }
-
-  const { data: isAdmin, error } = await requestSupabase.client.rpc("has_role", {
-    _user_id: user.id,
-    _role: "admin",
-  });
-  requestSupabase.commitCookies();
-  if (error || isAdmin !== true) return null;
-
-  return requestSupabase.client;
+  const context = await getRequestAuthContext();
+  if (!context?.user || !(await context.hasRole("admin"))) return null;
+  return context.bag.client;
 }
 
-export const getAdminClients = createServerFn({ method: "GET" }).handler(async () => {
-  const client = await getAdminClient();
-  if (!client) return null;
+const ADMIN_CLIENT_PAGE_SIZE = 100;
 
-  setResponseHeader("Cache-Control", "private, no-store");
-
-  const [{ data: clients, error: clientsError }, { data: therapists, error: therapistsError }] =
-    await Promise.all([
-      client.from("clients").select(extendedClientSelect).order("created_at", { ascending: false }),
-      client.from("therapists").select("id, full_name").eq("is_active", true).order("full_name"),
-    ]);
+async function loadAdminClientPage(
+  client: NonNullable<Awaited<ReturnType<typeof getAdminClient>>>,
+  page: number,
+  pageSize: number,
+) {
+  const start = (page - 1) * pageSize;
+  const end = start + pageSize - 1;
+  const [
+    { data: clients, error: clientsError, count },
+    { data: therapists, error: therapistsError },
+  ] = await Promise.all([
+    client
+      .from("clients")
+      .select(extendedClientSelect, { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(start, end),
+    client.from("therapists").select("id, full_name").eq("is_active", true).order("full_name"),
+  ]);
 
   let clientRows = clients as ClientRowWithCrmFields[] | null;
   if (clientsError) {
     if (!isMissingExtendedClientColumnError(clientsError)) throw clientsError;
     const { data: fallbackClients, error: fallbackError } = await client
       .from("clients")
-      .select(legacyClientSelect)
-      .order("created_at", { ascending: false });
+      .select(legacyClientSelect, { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(start, end);
     if (fallbackError) throw fallbackError;
     clientRows = fallbackClients as ClientRowWithCrmFields[] | null;
   }
@@ -248,259 +248,307 @@ export const getAdminClients = createServerFn({ method: "GET" }).handler(async (
   const therapistNames = new Map(
     (therapists ?? []).map((therapist) => [therapist.id, therapist.full_name]),
   );
+  const rows = (clientRows ?? []).map((client) => mapClientRecord(client, therapistNames));
+  return { clients: rows, hasMore: start + rows.length < (count ?? start + rows.length) };
+}
 
-  return (clientRows ?? []).map((client) => mapClientRecord(client, therapistNames));
+export const getAdminClients = createServerFn({ method: "GET" }).handler(async () => {
+  const client = await getAdminClient();
+  if (!client) return null;
+
+  setResponseHeader("Cache-Control", "private, no-store");
+  return (await loadAdminClientPage(client, 1, ADMIN_CLIENT_PAGE_SIZE)).clients;
 });
+
+export const getAdminClientsPage = createServerFn({ method: "GET" })
+  .inputValidator((data: unknown) =>
+    z.object({ page: z.number().int().min(1).max(1000) }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const client = await getAdminClient();
+    if (!client) return null;
+    setResponseHeader("Cache-Control", "private, no-store");
+    return loadAdminClientPage(client, data.page, ADMIN_CLIENT_PAGE_SIZE);
+  });
+
+async function loadAdminClientDetail(
+  client: Awaited<ReturnType<typeof getAdminClient>>,
+  clientId: string,
+) {
+  const data = { clientId };
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      data.clientId,
+    )
+  ) {
+    return null;
+  }
+
+  if (!client) return null;
+
+  setResponseHeader("Cache-Control", "private, no-store");
+
+  const { data: authUser, error: authUserError } = await client.auth.admin.getUserById(
+    data.clientId,
+  );
+  if (authUserError) throw authUserError;
+  const clientEmail = authUser.user?.email?.toLowerCase() ?? null;
+
+  const { data: clientRecord, error: clientError } = await client
+    .from("clients")
+    .select(extendedClientSelect)
+    .eq("id", data.clientId)
+    .maybeSingle();
+
+  let clientProfile = clientRecord as ClientRowWithCrmFields | null;
+  if (clientError) {
+    if (!isMissingExtendedClientColumnError(clientError)) throw clientError;
+    const { data: fallbackRecord, error: fallbackError } = await client
+      .from("clients")
+      .select(legacyClientSelect)
+      .eq("id", data.clientId)
+      .maybeSingle();
+    if (fallbackError) throw fallbackError;
+    clientProfile = fallbackRecord as ClientRowWithCrmFields | null;
+  }
+  if (!clientProfile) return null;
+
+  const therapistQuery = clientProfile.assigned_therapist_id
+    ? client
+        .from("therapists")
+        .select("id, full_name")
+        .eq("id", clientProfile.assigned_therapist_id)
+        .maybeSingle()
+    : Promise.resolve({ data: null, error: null });
+
+  const [
+    { data: therapist, error: therapistError },
+    { data: notes, error: notesError },
+    { data: appointments, error: appointmentsError },
+    { data: intakeSubmissions, error: intakeSubmissionsError },
+  ] = await Promise.all([
+    therapistQuery,
+    client
+      .from("client_notes")
+      .select("id, body, author_id, created_at, updated_at")
+      .eq("client_id", data.clientId)
+      .order("created_at", { ascending: false }),
+    client
+      .from("appointments")
+      .select(
+        "id, booking_reference, session_mode, starts_at, ends_at, status, notes, service_id, therapist_id, client_email",
+      )
+      .eq("client_id", data.clientId)
+      .order("starts_at", { ascending: false }),
+    client
+      .from("intake_submissions")
+      .select(
+        "id, source, template_key, template_version, subject_name, subject_email, payload, consent_acknowledged_at, completed_at, completion_state, created_at, appointment_id, contact_submission_id",
+      )
+      .eq("client_id", data.clientId)
+      .order("created_at", { ascending: false }),
+  ]);
+
+  if (therapistError) throw therapistError;
+  if (notesError) throw notesError;
+  if (appointmentsError) throw appointmentsError;
+  if (intakeSubmissionsError) throw intakeSubmissionsError;
+
+  const contactSubmissionQueries = [];
+  if (clientEmail) {
+    contactSubmissionQueries.push(
+      client
+        .from("contact_submissions")
+        .select(
+          "id, full_name, email, phone, message, source, created_at, ack_sent_at, admin_notified_at",
+        )
+        .eq("email", clientEmail)
+        .order("created_at", { ascending: false }),
+    );
+  }
+  if (clientProfile.phone) {
+    contactSubmissionQueries.push(
+      client
+        .from("contact_submissions")
+        .select(
+          "id, full_name, email, phone, message, source, created_at, ack_sent_at, admin_notified_at",
+        )
+        .eq("phone", clientProfile.phone)
+        .order("created_at", { ascending: false }),
+    );
+  }
+
+  const submissionResults = contactSubmissionQueries.length
+    ? await Promise.all(contactSubmissionQueries)
+    : [];
+  const contactSubmissionsError = submissionResults.find((result) => result.error)?.error ?? null;
+  if (contactSubmissionsError) throw contactSubmissionsError;
+  const contactSubmissions = [
+    ...new Map(
+      submissionResults
+        .flatMap((result) => result.data ?? [])
+        .map((submission) => [submission.id, submission]),
+    ).values(),
+  ];
+
+  const serviceIds = [
+    ...new Set((appointments ?? []).map((appointment) => appointment.service_id)),
+  ];
+  const therapistIds = [
+    ...new Set((appointments ?? []).map((appointment) => appointment.therapist_id)),
+  ];
+  const [
+    { data: services, error: servicesError },
+    { data: appointmentTherapists, error: therapistsError },
+    { data: payments, error: paymentsError },
+  ] = await Promise.all([
+    serviceIds.length
+      ? client.from("services").select("id, name").in("id", serviceIds)
+      : Promise.resolve({ data: [], error: null }),
+    therapistIds.length
+      ? client.from("therapists").select("id, full_name").in("id", therapistIds)
+      : Promise.resolve({ data: [], error: null }),
+    appointments?.length
+      ? client
+          .from("payments")
+          .select(
+            "id, appointment_id, provider, reference, amount_kobo, currency, status, created_at, verified_at, failed_reason",
+          )
+          .in(
+            "appointment_id",
+            appointments.map((appointment) => appointment.id),
+          )
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (servicesError) throw servicesError;
+  if (therapistsError) throw therapistsError;
+  if (paymentsError) throw paymentsError;
+
+  const serviceNames = new Map((services ?? []).map((service) => [service.id, service.name]));
+  const appointmentTherapistNames = new Map(
+    (appointmentTherapists ?? []).map((appointmentTherapist) => [
+      appointmentTherapist.id,
+      appointmentTherapist.full_name,
+    ]),
+  );
+  const bookingReferences = new Map(
+    (appointments ?? []).map((appointment) => [appointment.id, appointment.booking_reference]),
+  );
+
+  return {
+    id: clientProfile.id,
+    email: clientProfile.email ?? clientEmail,
+    surname: clientProfile.surname ?? null,
+    otherNames: clientProfile.other_names ?? null,
+    fullName: clientProfile.full_name,
+    phone: clientProfile.phone,
+    address: clientProfile.address ?? null,
+    dateOfBirth: clientProfile.date_of_birth,
+    weddingAnniversaryDate: clientProfile.wedding_anniversary_date ?? null,
+    occupation: clientProfile.occupation ?? null,
+    recordSource: clientProfile.record_source ?? "platform",
+    preferredMode: clientProfile.preferred_mode,
+    assignedTherapistId: clientProfile.assigned_therapist_id,
+    assignedTherapistName: therapist?.full_name ?? null,
+    createdAt: clientProfile.created_at,
+    updatedAt: clientProfile.updated_at,
+    notes: (notes ?? []).map((note): AdminClientNote => ({
+      id: note.id,
+      body: note.body,
+      authorId: note.author_id,
+      createdAt: note.created_at,
+      updatedAt: note.updated_at,
+    })),
+    appointments: (appointments ?? []).map((appointment) => ({
+      id: appointment.id,
+      bookingReference: appointment.booking_reference,
+      serviceName: serviceNames.get(appointment.service_id) ?? null,
+      therapistName: appointmentTherapistNames.get(appointment.therapist_id) ?? null,
+      sessionMode: appointment.session_mode,
+      startsAt: appointment.starts_at,
+      endsAt: appointment.ends_at,
+      status: appointment.status,
+      notes: appointment.notes,
+    })),
+    payments: (payments ?? []).map((payment) => ({
+      id: payment.id,
+      appointmentId: payment.appointment_id,
+      bookingReference: bookingReferences.get(payment.appointment_id) ?? null,
+      provider: payment.provider,
+      reference: payment.reference,
+      amountKobo: Number(payment.amount_kobo),
+      currency: payment.currency,
+      status: payment.status,
+      createdAt: payment.created_at,
+      verifiedAt: payment.verified_at,
+      failedReason: payment.failed_reason,
+    })),
+    contactSubmissions: contactSubmissions.map((submission) => ({
+      id: submission.id,
+      fullName: submission.full_name,
+      email: submission.email,
+      phone: submission.phone,
+      message: submission.message,
+      source: submission.source,
+      createdAt: submission.created_at,
+      ackSentAt: submission.ack_sent_at,
+      adminNotifiedAt: submission.admin_notified_at,
+    })),
+    intakeSubmissions: (intakeSubmissions ?? []).map((submission) => ({
+      id: submission.id,
+      source: submission.source,
+      templateKey: submission.template_key,
+      templateVersion: submission.template_version,
+      subjectName: submission.subject_name,
+      subjectEmail: submission.subject_email,
+      payload:
+        submission.payload && typeof submission.payload === "object"
+          ? (submission.payload as Record<string, Json>)
+          : {},
+      consentAcknowledgedAt: submission.consent_acknowledged_at,
+      completedAt: submission.completed_at,
+      completionState:
+        submission.completion_state === "draft" ||
+        submission.completion_state === "in_progress" ||
+        submission.completion_state === "completed"
+          ? submission.completion_state
+          : submission.completed_at
+            ? "completed"
+            : "draft",
+      createdAt: submission.created_at,
+      appointmentId: submission.appointment_id,
+      contactSubmissionId: submission.contact_submission_id,
+    })),
+  } satisfies AdminClientDetail;
+}
 
 export const getAdminClientDetail = createServerFn({ method: "GET" })
   .validator((data: { clientId: string }) => data)
-  .handler(async ({ data }) => {
-    if (
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-        data.clientId,
-      )
-    ) {
-      return null;
-    }
+  .handler(async ({ data }) => loadAdminClientDetail(await getAdminClient(), data.clientId));
 
+export type AdminClientDetailWorkspace = {
+  client: AdminClientDetail | null;
+  assessmentTemplates: FormTemplateDefinition[];
+};
+
+export const getAdminClientDetailWorkspace = createServerFn({ method: "GET" })
+  .validator((data: { clientId: string }) => data)
+  .handler(async ({ data }): Promise<AdminClientDetailWorkspace> => {
     const client = await getAdminClient();
-    if (!client) return null;
+    if (!client) return { client: null, assessmentTemplates: [] };
 
-    setResponseHeader("Cache-Control", "private, no-store");
-
-    const { data: authUser, error: authUserError } = await client.auth.admin.getUserById(
-      data.clientId,
-    );
-    if (authUserError) throw authUserError;
-    const clientEmail = authUser.user?.email?.toLowerCase() ?? null;
-
-    const { data: clientRecord, error: clientError } = await client
-      .from("clients")
-      .select(extendedClientSelect)
-      .eq("id", data.clientId)
-      .maybeSingle();
-
-    let clientProfile = clientRecord as ClientRowWithCrmFields | null;
-    if (clientError) {
-      if (!isMissingExtendedClientColumnError(clientError)) throw clientError;
-      const { data: fallbackRecord, error: fallbackError } = await client
-        .from("clients")
-        .select(legacyClientSelect)
-        .eq("id", data.clientId)
-        .maybeSingle();
-      if (fallbackError) throw fallbackError;
-      clientProfile = fallbackRecord as ClientRowWithCrmFields | null;
-    }
-    if (!clientProfile) return null;
-
-    const therapistQuery = clientProfile.assigned_therapist_id
-      ? client
-          .from("therapists")
-          .select("id, full_name")
-          .eq("id", clientProfile.assigned_therapist_id)
-          .maybeSingle()
-      : Promise.resolve({ data: null, error: null });
-
-    const [
-      { data: therapist, error: therapistError },
-      { data: notes, error: notesError },
-      { data: appointments, error: appointmentsError },
-      { data: intakeSubmissions, error: intakeSubmissionsError },
-    ] = await Promise.all([
-      therapistQuery,
-      client
-        .from("client_notes")
-        .select("id, body, author_id, created_at, updated_at")
-        .eq("client_id", data.clientId)
-        .order("created_at", { ascending: false }),
-      client
-        .from("appointments")
-        .select(
-          "id, booking_reference, session_mode, starts_at, ends_at, status, notes, service_id, therapist_id, client_email",
-        )
-        .eq("client_id", data.clientId)
-        .order("starts_at", { ascending: false }),
-      client
-        .from("intake_submissions")
-        .select(
-          "id, source, template_key, template_version, subject_name, subject_email, payload, consent_acknowledged_at, completed_at, completion_state, created_at, appointment_id, contact_submission_id",
-        )
-        .eq("client_id", data.clientId)
-        .order("created_at", { ascending: false }),
+    const [detail, templateResult] = await Promise.all([
+      loadAdminClientDetail(client, data.clientId),
+      client.from("site_settings").select("value").eq("key", "form_templates").maybeSingle(),
     ]);
-
-    if (therapistError) throw therapistError;
-    if (notesError) throw notesError;
-    if (appointmentsError) throw appointmentsError;
-    if (intakeSubmissionsError) throw intakeSubmissionsError;
-
-    const contactSubmissionQueries = [];
-    if (clientEmail) {
-      contactSubmissionQueries.push(
-        client
-          .from("contact_submissions")
-          .select(
-            "id, full_name, email, phone, message, source, created_at, ack_sent_at, admin_notified_at",
-          )
-          .eq("email", clientEmail)
-          .order("created_at", { ascending: false }),
-      );
-    }
-    if (clientProfile.phone) {
-      contactSubmissionQueries.push(
-        client
-          .from("contact_submissions")
-          .select(
-            "id, full_name, email, phone, message, source, created_at, ack_sent_at, admin_notified_at",
-          )
-          .eq("phone", clientProfile.phone)
-          .order("created_at", { ascending: false }),
-      );
-    }
-
-    const submissionResults = contactSubmissionQueries.length
-      ? await Promise.all(contactSubmissionQueries)
-      : [];
-    const contactSubmissionsError = submissionResults.find((result) => result.error)?.error ?? null;
-    if (contactSubmissionsError) throw contactSubmissionsError;
-    const contactSubmissions = [
-      ...new Map(
-        submissionResults
-          .flatMap((result) => result.data ?? [])
-          .map((submission) => [submission.id, submission]),
-      ).values(),
-    ];
-
-    const serviceIds = [
-      ...new Set((appointments ?? []).map((appointment) => appointment.service_id)),
-    ];
-    const therapistIds = [
-      ...new Set((appointments ?? []).map((appointment) => appointment.therapist_id)),
-    ];
-    const [
-      { data: services, error: servicesError },
-      { data: appointmentTherapists, error: therapistsError },
-      { data: payments, error: paymentsError },
-    ] = await Promise.all([
-      serviceIds.length
-        ? client.from("services").select("id, name").in("id", serviceIds)
-        : Promise.resolve({ data: [], error: null }),
-      therapistIds.length
-        ? client.from("therapists").select("id, full_name").in("id", therapistIds)
-        : Promise.resolve({ data: [], error: null }),
-      appointments?.length
-        ? client
-            .from("payments")
-            .select(
-              "id, appointment_id, provider, reference, amount_kobo, currency, status, created_at, verified_at, failed_reason",
-            )
-            .in(
-              "appointment_id",
-              appointments.map((appointment) => appointment.id),
-            )
-            .order("created_at", { ascending: false })
-        : Promise.resolve({ data: [], error: null }),
-    ]);
-    if (servicesError) throw servicesError;
-    if (therapistsError) throw therapistsError;
-    if (paymentsError) throw paymentsError;
-
-    const serviceNames = new Map((services ?? []).map((service) => [service.id, service.name]));
-    const appointmentTherapistNames = new Map(
-      (appointmentTherapists ?? []).map((appointmentTherapist) => [
-        appointmentTherapist.id,
-        appointmentTherapist.full_name,
-      ]),
-    );
-    const bookingReferences = new Map(
-      (appointments ?? []).map((appointment) => [appointment.id, appointment.booking_reference]),
-    );
-
+    if (templateResult.error) throw templateResult.error;
     return {
-      id: clientProfile.id,
-      email: clientProfile.email ?? clientEmail,
-      surname: clientProfile.surname ?? null,
-      otherNames: clientProfile.other_names ?? null,
-      fullName: clientProfile.full_name,
-      phone: clientProfile.phone,
-      address: clientProfile.address ?? null,
-      dateOfBirth: clientProfile.date_of_birth,
-      weddingAnniversaryDate: clientProfile.wedding_anniversary_date ?? null,
-      occupation: clientProfile.occupation ?? null,
-      recordSource: clientProfile.record_source ?? "platform",
-      preferredMode: clientProfile.preferred_mode,
-      assignedTherapistId: clientProfile.assigned_therapist_id,
-      assignedTherapistName: therapist?.full_name ?? null,
-      createdAt: clientProfile.created_at,
-      updatedAt: clientProfile.updated_at,
-      notes: (notes ?? []).map((note): AdminClientNote => ({
-        id: note.id,
-        body: note.body,
-        authorId: note.author_id,
-        createdAt: note.created_at,
-        updatedAt: note.updated_at,
-      })),
-      appointments: (appointments ?? []).map((appointment) => ({
-        id: appointment.id,
-        bookingReference: appointment.booking_reference,
-        serviceName: serviceNames.get(appointment.service_id) ?? null,
-        therapistName: appointmentTherapistNames.get(appointment.therapist_id) ?? null,
-        sessionMode: appointment.session_mode,
-        startsAt: appointment.starts_at,
-        endsAt: appointment.ends_at,
-        status: appointment.status,
-        notes: appointment.notes,
-      })),
-      payments: (payments ?? []).map((payment) => ({
-        id: payment.id,
-        appointmentId: payment.appointment_id,
-        bookingReference: bookingReferences.get(payment.appointment_id) ?? null,
-        provider: payment.provider,
-        reference: payment.reference,
-        amountKobo: Number(payment.amount_kobo),
-        currency: payment.currency,
-        status: payment.status,
-        createdAt: payment.created_at,
-        verifiedAt: payment.verified_at,
-        failedReason: payment.failed_reason,
-      })),
-      contactSubmissions: contactSubmissions.map((submission) => ({
-        id: submission.id,
-        fullName: submission.full_name,
-        email: submission.email,
-        phone: submission.phone,
-        message: submission.message,
-        source: submission.source,
-        createdAt: submission.created_at,
-        ackSentAt: submission.ack_sent_at,
-        adminNotifiedAt: submission.admin_notified_at,
-      })),
-      intakeSubmissions: (intakeSubmissions ?? []).map((submission) => ({
-        id: submission.id,
-        source: submission.source,
-        templateKey: submission.template_key,
-        templateVersion: submission.template_version,
-        subjectName: submission.subject_name,
-        subjectEmail: submission.subject_email,
-        payload:
-          submission.payload && typeof submission.payload === "object"
-            ? (submission.payload as Record<string, Json>)
-            : {},
-        consentAcknowledgedAt: submission.consent_acknowledged_at,
-        completedAt: submission.completed_at,
-        completionState:
-          submission.completion_state === "draft" ||
-          submission.completion_state === "in_progress" ||
-          submission.completion_state === "completed"
-            ? submission.completion_state
-            : submission.completed_at
-              ? "completed"
-              : "draft",
-        createdAt: submission.created_at,
-        appointmentId: submission.appointment_id,
-        contactSubmissionId: submission.contact_submission_id,
-      })),
-    } satisfies AdminClientDetail;
+      client: detail,
+      assessmentTemplates: normalizeFormTemplates(
+        templateResult.data?.value ?? cloneFormTemplates(DEFAULT_FORM_TEMPLATES),
+      ),
+    };
   });
 
 export const createAdminAssessmentSubmission = createServerFn({ method: "POST" })

@@ -67,7 +67,9 @@ async function processReminders() {
     .eq("status", "confirmed")
     .is("archived_at", null)
     .gte("starts_at", windowStart)
-    .lte("starts_at", windowEnd);
+    .lte("starts_at", windowEnd)
+    .order("starts_at", { ascending: true })
+    .limit(100);
 
   if (error) throw error;
 

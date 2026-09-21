@@ -31,8 +31,7 @@ import { canonicalUrl } from "@/lib/seo";
 import {
   clearEmailApiKey,
   deleteEmailDeliveryLog,
-  getEmailAdminData,
-  getReminderSettings,
+  getEmailAdminWorkspace,
   listEmailDeliveryLogs,
   previewEmailTemplate,
   retryEmailDeliveryLog,
@@ -51,12 +50,7 @@ import {
 export const Route = createFileRoute("/_authenticated/admin/emails")({
   loader: async () => {
     try {
-      const [admin, logs, reminder] = await Promise.all([
-        getEmailAdminData(),
-        listEmailDeliveryLogs(),
-        getReminderSettings(),
-      ]);
-      return { ...admin, logs, reminder };
+      return getEmailAdminWorkspace();
     } catch {
       throw redirect({ href: "/account?error=forbidden" });
     }

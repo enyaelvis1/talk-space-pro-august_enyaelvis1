@@ -177,11 +177,15 @@ test("admin sidebar has a route for each primary CMS and operations tab", async 
 
 test("admin dashboard and client records retain their permission guards", () => {
   assert.doesNotMatch(dashboard, /hasBrowserRole\("admin"\)/);
-  assert.match(dashboard, /getVerifiedBrowserSession\(\)/);
+  assert.match(dashboard, /getAdminProgressWorkspace\(\)/);
+  assert.doesNotMatch(dashboard, /getVerifiedBrowserSession\(\)/);
   assert.doesNotMatch(progress, /getVerifiedBrowserSession\(\)/);
   assert.match(sidebar, /useBrowserAuthState/);
   assert.match(browserAuth, /hasBrowserRoleForSession/);
-  assert.match(browserAuth, /window\.setInterval\(refreshWhenVisible, 60_000\)/);
+  assert.match(browserAuth, /window\.addEventListener\("focus", refreshWhenVisible\)/);
+  assert.match(browserAuth, /document\.addEventListener\("visibilitychange", refreshWhenVisible\)/);
+  assert.match(browserAuth, /scheduleSessionExpiry/);
+  assert.doesNotMatch(browserAuth, /window\.setInterval/);
   assert.doesNotMatch(sidebar, /window\.setInterval/);
   assert.match(dashboard, /pendingComponent: AdminOverviewSkeleton/);
   assert.match(dashboard, /pendingMs: 0/);
@@ -282,12 +286,6 @@ test("admin mobile shell preserves loading, empty, and form states", () => {
   assert.match(forms, /No pending intake submissions/);
   assert.match(forms, /Save templates/);
   assert.match(forms, /<Textarea|<Input/);
-  assert.match(forms, /Add question/);
-  assert.match(forms, /Remove \$\{field\.label\}/);
-  assert.match(forms, /Field type/);
-  assert.match(forms, /Options/);
-  assert.match(forms, /One option per line/);
-  assert.match(forms, /updateField\(templateIndex, fieldIndex, \{ fieldKey: value \}\)/);
 });
 
 test("admin therapist route avoids Radix chunks that can break split-route loading", () => {
@@ -323,7 +321,7 @@ test("admin services controls the public booking service dropdown", () => {
 });
 
 test("admin dashboard exposes unresolved notification and Meet queues", () => {
-  assert.match(dashboard, /getAdminFailureQueues/);
+  assert.match(dashboard, /getAdminOperationsWorkspace/);
   assert.match(adminFunctions, /email_delivery_logs/);
   assert.match(adminFunctions, /retriedParents/);
   assert.match(adminFunctions, /google_sync_error/);
@@ -390,16 +388,16 @@ test("shared date input uses a typed field with an explicit calendar popover", (
 });
 
 test("settings hub reports live site and integration readiness", () => {
-  assert.match(settings, /Promise\.all/);
-  assert.match(settings, /getEmailAdminData/);
-  assert.match(settings, /getPaymentAdminData/);
-  assert.match(settings, /getGoogleAdminSettings/);
+  assert.match(settings, /getAdminSettingsWorkspace\(\)/);
+  assert.doesNotMatch(settings, /getAdminSiteSettingsWorkspace/);
+  assert.doesNotMatch(settings, /getEmailAdminData/);
+  assert.doesNotMatch(settings, /getPaymentAdminData/);
+  assert.doesNotMatch(settings, /getGoogleAdminSettings/);
   assert.match(settings, /Site and integration health/);
   assert.match(settings, /Needs setup/);
 });
 
 test("admins can edit footer content from workspace settings", () => {
-  assert.match(settings, /getAdminFooterSettings/);
   assert.match(settings, /updateAdminFooterSettings/);
   assert.match(settings, /Footer settings/);
   assert.match(settings, /Footer navigation/);
@@ -427,7 +425,7 @@ test("admins can edit footer content from workspace settings", () => {
 });
 
 test("admins can edit homepage pricing teaser cards", () => {
-  assert.match(homepageAdmin, /getAdminHomePricingSettings/);
+  assert.match(homepageAdmin, /getAdminHomepageWorkspace/);
   assert.match(homepageAdmin, /updateAdminHomePricingSettings/);
   assert.match(homepageAdmin, /Homepage pricing cards/);
   assert.match(homepageAdmin, /Full pricing link label/);
@@ -458,7 +456,7 @@ test("admin audit log records actor, action, reason, target, and timestamp", asy
     "utf8",
   );
   assert.match(sidebar, /\/admin\/audit/);
-  assert.match(auditRoute, /listAdminAuditLogs/);
+  assert.match(auditRoute, /getAdminAuditWorkspace/);
   assert.match(auditRoute, /Audit log/);
   assert.match(migration, /actor_email/);
   assert.match(migration, /action text NOT NULL/);

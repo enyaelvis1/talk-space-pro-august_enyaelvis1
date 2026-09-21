@@ -40,14 +40,9 @@ test("admin booking and payment operations require an admin role check", () => {
   const requireAdminClient = bookingFunctions.slice(
     bookingFunctions.indexOf("async function requireAdminClient()"),
   );
-  assert.match(requireAdminClient.slice(0, 1200), /auth\.getUser\(\)/);
-  assert.match(requireAdminClient.slice(0, 1200), /throw new Error\("Sign in required\."\)/);
-  assert.match(requireAdminClient.slice(0, 1200), /rpc\("has_role", \{/);
-  assert.match(requireAdminClient.slice(0, 1200), /_role: "admin"/);
-  assert.match(
-    requireAdminClient.slice(0, 1200),
-    /throw new Error\("Admin permission required\."\)/,
-  );
+  assert.match(requireAdminClient.slice(0, 1200), /requireRequestRole\("admin"\)/);
+  assert.match(requireAdminClient.slice(0, 1200), /requireRequestRole\("admin"\)/);
+  assert.doesNotMatch(requireAdminClient.slice(0, 1200), /auth\.getUser\(\)/);
 
   for (const name of [
     "listAppointmentsForAdmin",
@@ -73,11 +68,9 @@ test("admin booking and payment operations require an admin role check", () => {
   const requireAdmin = paymentFunctions.slice(
     paymentFunctions.indexOf("async function requireAdmin()"),
   );
-  assert.match(requireAdmin.slice(0, 1200), /auth\.getUser\(\)/);
-  assert.match(requireAdmin.slice(0, 1200), /throw new Error\("Sign in required\."\)/);
-  assert.match(requireAdmin.slice(0, 1200), /rpc\("has_role", \{/);
-  assert.match(requireAdmin.slice(0, 1200), /_role: "admin"/);
-  assert.match(requireAdmin.slice(0, 1200), /throw new Error\("Admin permission required\."\)/);
+  assert.match(requireAdmin.slice(0, 1200), /requireRequestRole\("admin"\)/);
+  assert.match(requireAdmin.slice(0, 1200), /requireRequestRole\("admin"\)/);
+  assert.doesNotMatch(requireAdmin.slice(0, 1200), /auth\.getUser\(\)/);
 
   for (const name of [
     "getPaymentAdminData",
@@ -103,6 +96,7 @@ test("manage-token access is throttled, hashed, and rejected when inactive", () 
   assert.match(lookup, /windowSeconds: 15 \* 60/);
   assert.match(lookup, /rpc\(\s*"get_appointment_by_manage_token"/);
   assert.match(lookup, /p_manage_token_hash: hashToken\(data\.manageToken\)/);
+  assert.ok(bookingFunctions.includes('const normalized = trimmed.replace(/[),.;:!?]+$/, "");'));
 
   const activePredicate = manageTokenMigration.slice(
     manageTokenMigration.indexOf(

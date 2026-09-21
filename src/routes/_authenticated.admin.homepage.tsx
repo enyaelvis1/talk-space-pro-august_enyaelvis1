@@ -19,13 +19,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  getAdminHomepageSectionCopy,
-  getAdminHomepageSections,
-  getAdminHomePricingSettings,
+  getAdminHomepageWorkspace,
   updateAdminHomepageSectionCopy,
   updateAdminHomepageSections,
   updateAdminHomePricingSettings,
   type AdminHomepageSection,
+  type AdminHomepageWorkspace,
 } from "@/lib/admin.functions";
 import {
   EDITABLE_HOMEPAGE_COPY_SECTIONS,
@@ -35,11 +34,7 @@ import type { HomepageSectionId } from "@/lib/content.functions";
 import type { HomePricingBilling, HomePricingSettings } from "@/lib/content.functions";
 import { canonicalUrl } from "@/lib/seo";
 
-type LoaderData = {
-  sections: AdminHomepageSection[];
-  copy: HomepageSectionCopyMap;
-  homePricing: HomePricingSettings;
-};
+type LoaderData = AdminHomepageWorkspace;
 
 /** Sections whose detailed content lives in a dedicated admin tool. */
 const SECTION_EDITORS: Partial<Record<HomepageSectionId, { to: string; label: string }>> = {
@@ -56,12 +51,7 @@ const SECTION_EDITORS: Partial<Record<HomepageSectionId, { to: string; label: st
 
 export const Route = createFileRoute("/_authenticated/admin/homepage")({
   loader: async (): Promise<LoaderData> => {
-    const [sections, copy, homePricing] = await Promise.all([
-      getAdminHomepageSections(),
-      getAdminHomepageSectionCopy(),
-      getAdminHomePricingSettings(),
-    ]);
-    return { sections, copy, homePricing };
+    return getAdminHomepageWorkspace();
   },
   head: () => ({
     meta: [

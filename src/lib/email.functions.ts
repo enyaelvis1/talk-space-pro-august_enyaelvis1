@@ -1,23 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequest, setResponseHeader } from "@tanstack/react-start/server";
+import { setResponseHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 
-import { createRequestSupabase } from "@/lib/supabase-server";
+import { requireRequestRole } from "@/lib/server-auth";
 
 async function requireAdmin() {
-  const bag = createRequestSupabase(getRequest());
-  if (!bag) throw new Error("Supabase is not configured.");
-  const {
-    data: { user },
-  } = await bag.client.auth.getUser();
-  bag.commitCookies();
-  if (!user) throw new Error("Sign in required.");
-  const { data: isAdmin, error } = await bag.client.rpc("has_role", {
-    _user_id: user.id,
-    _role: "admin",
-  });
-  if (error || !isAdmin) throw new Error("Admin permission required.");
-  return { userId: user.id, email: user.email ?? null };
+  const context = await requireRequestRole("admin");
+  return { userId: context.user.id, email: context.user.email ?? null };
 }
 
 function noStore() {
@@ -45,12 +34,17 @@ export type EmailTemplateDTO = {
   subjectOverride: string | null;
 };
 
-export const getEmailAdminData = createServerFn({ method: "GET" }).handler(async () => {
-  await requireAdmin();
+async function loadEmailAdminData() {
   const { loadEmailSettings, loadTemplateSettings } = await import("@/lib/email.server");
   const [settings, templates] = await Promise.all([loadEmailSettings(), loadTemplateSettings()]);
-  noStore();
   return { settings: settings as EmailSettingsDTO, templates: templates as EmailTemplateDTO[] };
+}
+
+export const getEmailAdminData = createServerFn({ method: "GET" }).handler(async () => {
+  await requireAdmin();
+  const data = await loadEmailAdminData();
+  noStore();
+  return data;
 });
 
 const settingsInput = z
@@ -434,8 +428,7 @@ export type EmailLogRow = {
   canRetry: boolean;
 };
 
-export const listEmailDeliveryLogs = createServerFn({ method: "GET" }).handler(async () => {
-  await requireAdmin();
+async function loadEmailDeliveryLogs(): Promise<EmailLogRow[]> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("email_delivery_logs")
@@ -460,7 +453,6 @@ export const listEmailDeliveryLogs = createServerFn({ method: "GET" }).handler(a
     for (const row of retryable ?? []) retryableIds.add(row.id as string);
   }
 
-  noStore();
   return (data ?? []).map((row): EmailLogRow => ({
     id: row.id as string,
     templateKey: (row.template_key as string | null) ?? null,
@@ -477,6 +469,13 @@ export const listEmailDeliveryLogs = createServerFn({ method: "GET" }).handler(a
     retryTrigger: (row.retry_trigger as "initial" | "automatic" | "manual") ?? "initial",
     canRetry: retryableIds.has(row.id as string),
   }));
+}
+
+export const listEmailDeliveryLogs = createServerFn({ method: "GET" }).handler(async () => {
+  await requireAdmin();
+  const logs = await loadEmailDeliveryLogs();
+  noStore();
+  return logs;
 });
 
 export const retryEmailDeliveryLog = createServerFn({ method: "POST" })
@@ -507,26 +506,51 @@ export type ReminderSettingsDTO = {
   updatedAt: string;
 };
 
+async function loadReminderSettings(): Promise<ReminderSettingsDTO> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("reminder_settings")
+    .select(
+      "reminder_24h_open_min_minutes, reminder_24h_open_max_minutes, reminder_1h_open_min_minutes, reminder_1h_open_max_minutes, updated_at",
+    )
+    .eq("id", 1)
+    .maybeSingle();
+  if (error) throw error;
+  return {
+    reminder24hOpenMinMinutes: (data?.reminder_24h_open_min_minutes as number) ?? 1380,
+    reminder24hOpenMaxMinutes: (data?.reminder_24h_open_max_minutes as number) ?? 1470,
+    reminder1hOpenMinMinutes: (data?.reminder_1h_open_min_minutes as number) ?? 30,
+    reminder1hOpenMaxMinutes: (data?.reminder_1h_open_max_minutes as number) ?? 90,
+    updatedAt: (data?.updated_at as string) ?? new Date().toISOString(),
+  };
+}
+
 export const getReminderSettings = createServerFn({ method: "GET" }).handler(
   async (): Promise<ReminderSettingsDTO> => {
     await requireAdmin();
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin
-      .from("reminder_settings")
-      .select(
-        "reminder_24h_open_min_minutes, reminder_24h_open_max_minutes, reminder_1h_open_min_minutes, reminder_1h_open_max_minutes, updated_at",
-      )
-      .eq("id", 1)
-      .maybeSingle();
-    if (error) throw error;
+    const settings = await loadReminderSettings();
     noStore();
-    return {
-      reminder24hOpenMinMinutes: (data?.reminder_24h_open_min_minutes as number) ?? 1380,
-      reminder24hOpenMaxMinutes: (data?.reminder_24h_open_max_minutes as number) ?? 1470,
-      reminder1hOpenMinMinutes: (data?.reminder_1h_open_min_minutes as number) ?? 30,
-      reminder1hOpenMaxMinutes: (data?.reminder_1h_open_max_minutes as number) ?? 90,
-      updatedAt: (data?.updated_at as string) ?? new Date().toISOString(),
-    };
+    return settings;
+  },
+);
+
+export type EmailAdminWorkspace = {
+  settings: EmailSettingsDTO;
+  templates: EmailTemplateDTO[];
+  logs: EmailLogRow[];
+  reminder: ReminderSettingsDTO;
+};
+
+export const getEmailAdminWorkspace = createServerFn({ method: "GET" }).handler(
+  async (): Promise<EmailAdminWorkspace> => {
+    await requireAdmin();
+    const [admin, logs, reminder] = await Promise.all([
+      loadEmailAdminData(),
+      loadEmailDeliveryLogs(),
+      loadReminderSettings(),
+    ]);
+    noStore();
+    return { ...admin, logs, reminder };
   },
 );
 

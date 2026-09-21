@@ -3,6 +3,11 @@ import { parseCookieHeader, serializeCookieHeader } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { setResponseHeader } from "@tanstack/react-start/server";
 
+export type RequestSupabase = {
+  client: SupabaseClient;
+  commitCookies: () => void;
+};
+
 function isNewSupabaseApiKey(value: string): boolean {
   return value.startsWith("sb_publishable_") || value.startsWith("sb_secret_");
 }
@@ -57,7 +62,7 @@ export function createRequestSupabase(request: Request) {
     return {
       client,
       commitCookies() {},
-    } satisfies { client: SupabaseClient; commitCookies: () => void };
+    } satisfies RequestSupabase;
   }
 
   const pendingCookies: string[] = [];
@@ -85,7 +90,7 @@ export function createRequestSupabase(request: Request) {
         setResponseHeader("Set-Cookie", pendingCookies);
       }
     },
-  } satisfies { client: SupabaseClient; commitCookies: () => void };
+  } satisfies RequestSupabase;
 }
 
 export function isProtectedPath(pathname: string) {

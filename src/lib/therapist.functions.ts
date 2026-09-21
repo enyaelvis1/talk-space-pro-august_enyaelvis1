@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest, setResponseHeader } from "@tanstack/react-start/server";
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { createRequestSupabase } from "@/lib/supabase-server";
+import { requireRequestRole } from "@/lib/server-auth";
 
 function noStore() {
   setResponseHeader("Cache-Control", "private, no-store");
@@ -17,25 +17,8 @@ type TherapistContext = {
 };
 
 async function requireTherapist(): Promise<TherapistContext> {
-  const bag = createRequestSupabase(getRequest());
-  if (!bag) throw new Error("Supabase is not configured.");
-  const {
-    data: { user },
-  } = await bag.client.auth.getUser();
-  if (!user) {
-    bag.commitCookies();
-    throw new Error("Sign in required.");
-  }
-
-  const { data: isTherapist, error: roleError } = await bag.client.rpc("has_role", {
-    _user_id: user.id,
-    _role: "therapist",
-  });
-
-  bag.commitCookies();
-  if (roleError || !isTherapist) {
-    throw new Error("Therapist permission required.");
-  }
+  const context = await requireRequestRole("therapist");
+  const { user } = context;
 
   const { data: therapist, error } = await supabaseAdmin
     .from("therapists")

@@ -3,7 +3,7 @@ import { getRequest } from "@tanstack/react-start/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
-import { createRequestSupabase } from "@/lib/supabase-server";
+import { createRequestSupabase, type RequestSupabase } from "@/lib/supabase-server";
 import type { Database, Json } from "@/integrations/supabase/types";
 import {
   normalizeHomepageSectionCopy,
@@ -34,6 +34,7 @@ import {
   type FormTemplateDefinition,
 } from "@/lib/form-templates";
 import { fallbackInPersonPriceNgn, isMissingInPersonPriceColumn } from "@/lib/service-pricing";
+import { requireRequestRole } from "@/lib/server-auth";
 
 function getConfiguredClient() {
   const bag = createRequestSupabase(getRequest());
@@ -42,23 +43,7 @@ function getConfiguredClient() {
 }
 
 async function requireAdmin() {
-  const bag = getConfiguredClient();
-  const {
-    data: { user },
-  } = await bag.client.auth.getUser();
-  if (!user) {
-    bag.commitCookies();
-    throw new Error("Sign in required.");
-  }
-  const { data: isAdmin, error } = await bag.client.rpc("has_role", {
-    _user_id: user.id,
-    _role: "admin",
-  });
-  if (error || !isAdmin) {
-    bag.commitCookies();
-    throw new Error("Admin permission required.");
-  }
-  return bag;
+  return (await requireRequestRole("admin")).bag;
 }
 
 // ============================================================================
@@ -294,6 +279,31 @@ export const getAdminHomePricingSettings = createServerFn({ method: "GET" }).han
     bag.commitCookies();
     if (error) throw error;
     return normalizeHomePricingSettings(data?.value);
+  },
+);
+
+export type AdminHomepageWorkspace = {
+  sections: AdminHomepageSection[];
+  copy: HomepageSectionCopyMap;
+  homePricing: HomePricingSettings;
+};
+
+export const getAdminHomepageWorkspace = createServerFn({ method: "GET" }).handler(
+  async (): Promise<AdminHomepageWorkspace> => {
+    const bag = await requireAdmin();
+    const { data, error } = await bag.client
+      .from("site_settings")
+      .select("key, value")
+      .in("key", ["home_sections", "home_section_copy", "home_pricing"]);
+    bag.commitCookies();
+    if (error) throw error;
+
+    const values = new Map((data ?? []).map((row) => [row.key as string, row.value]));
+    return {
+      sections: normalizeHomepageSections(values.get("home_sections")),
+      copy: normalizeHomepageSectionCopy(values.get("home_section_copy")),
+      homePricing: normalizeHomePricingSettings(values.get("home_pricing")),
+    };
   },
 );
 
@@ -797,17 +807,26 @@ const formTemplateSchema = z.object({
 
 export type AdminFormTemplate = FormTemplateDefinition;
 
+async function loadAdminFormTemplates(
+  bag: Awaited<ReturnType<typeof requireAdmin>>,
+): Promise<AdminFormTemplate[]> {
+  const { data, error } = await bag.client
+    .from("site_settings")
+    .select("value")
+    .eq("key", "form_templates")
+    .maybeSingle();
+  if (error) throw error;
+  return normalizeFormTemplates(data?.value ?? cloneFormTemplates(DEFAULT_FORM_TEMPLATES));
+}
+
 export const getAdminFormTemplates = createServerFn({ method: "GET" }).handler(
   async (): Promise<AdminFormTemplate[]> => {
     const bag = await requireAdmin();
-    const { data, error } = await bag.client
-      .from("site_settings")
-      .select("value")
-      .eq("key", "form_templates")
-      .maybeSingle();
-    bag.commitCookies();
-    if (error) throw error;
-    return normalizeFormTemplates(data?.value ?? cloneFormTemplates(DEFAULT_FORM_TEMPLATES));
+    try {
+      return await loadAdminFormTemplates(bag);
+    } finally {
+      bag.commitCookies();
+    }
   },
 );
 
@@ -843,36 +862,65 @@ export type AdminPendingIntakeSubmission = {
   reminderSentAt: string | null;
 };
 
+async function loadPendingIntakeSubmissions(
+  bag: Awaited<ReturnType<typeof requireAdmin>>,
+): Promise<AdminPendingIntakeSubmission[]> {
+  const { data, error } = await bag.client
+    .from("intake_submissions")
+    .select(
+      "id, source, template_key, template_version, subject_name, subject_email, completion_state, created_at, updated_at, client_id, appointment_id, contact_submission_id, payload, reminder_sent_at",
+    )
+    .in("completion_state", ["draft", "in_progress"])
+    .order("updated_at", { ascending: false })
+    .limit(100);
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    source: row.source as "booking" | "contact" | "assessment",
+    templateKey: row.template_key as string,
+    templateVersion: Number(row.template_version ?? 1),
+    subjectName: (row.subject_name as string | null) ?? null,
+    subjectEmail: (row.subject_email as string | null) ?? null,
+    completionState: row.completion_state === "in_progress" ? "in_progress" : ("draft" as const),
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+    clientId: (row.client_id as string | null) ?? null,
+    appointmentId: (row.appointment_id as string | null) ?? null,
+    contactSubmissionId: (row.contact_submission_id as string | null) ?? null,
+    payload:
+      row.payload && typeof row.payload === "object" ? (row.payload as Record<string, Json>) : {},
+    reminderSentAt: (row.reminder_sent_at as string | null) ?? null,
+  }));
+}
+
 export const listPendingIntakeSubmissions = createServerFn({ method: "GET" }).handler(
   async (): Promise<AdminPendingIntakeSubmission[]> => {
     const bag = await requireAdmin();
-    const { data, error } = await bag.client
-      .from("intake_submissions")
-      .select(
-        "id, source, template_key, template_version, subject_name, subject_email, completion_state, created_at, updated_at, client_id, appointment_id, contact_submission_id, payload, reminder_sent_at",
-      )
-      .in("completion_state", ["draft", "in_progress"])
-      .order("updated_at", { ascending: false })
-      .limit(100);
-    bag.commitCookies();
-    if (error) throw error;
-    return (data ?? []).map((row) => ({
-      id: row.id as string,
-      source: row.source as "booking" | "contact" | "assessment",
-      templateKey: row.template_key as string,
-      templateVersion: Number(row.template_version ?? 1),
-      subjectName: (row.subject_name as string | null) ?? null,
-      subjectEmail: (row.subject_email as string | null) ?? null,
-      completionState: row.completion_state === "in_progress" ? "in_progress" : ("draft" as const),
-      createdAt: row.created_at as string,
-      updatedAt: row.updated_at as string,
-      clientId: (row.client_id as string | null) ?? null,
-      appointmentId: (row.appointment_id as string | null) ?? null,
-      contactSubmissionId: (row.contact_submission_id as string | null) ?? null,
-      payload:
-        row.payload && typeof row.payload === "object" ? (row.payload as Record<string, Json>) : {},
-      reminderSentAt: (row.reminder_sent_at as string | null) ?? null,
-    }));
+    try {
+      return await loadPendingIntakeSubmissions(bag);
+    } finally {
+      bag.commitCookies();
+    }
+  },
+);
+
+export type AdminFormsWorkspace = {
+  templates: AdminFormTemplate[];
+  pendingForms: AdminPendingIntakeSubmission[];
+};
+
+export const getAdminFormsWorkspace = createServerFn({ method: "GET" }).handler(
+  async (): Promise<AdminFormsWorkspace> => {
+    const bag = await requireAdmin();
+    try {
+      const [templates, pendingForms] = await Promise.all([
+        loadAdminFormTemplates(bag),
+        loadPendingIntakeSubmissions(bag),
+      ]);
+      return { templates, pendingForms };
+    } finally {
+      bag.commitCookies();
+    }
   },
 );
 
@@ -937,6 +985,34 @@ const footerSettingsSchema = z.object({
   showSocialLinks: z.boolean(),
 });
 
+function normalizeAdminSiteDetails(value: unknown): PublicSiteDetails {
+  if (!value || typeof value !== "object") return DEFAULT_SITE_DETAILS;
+  const details = value as Partial<PublicSiteDetails>;
+  return {
+    ...DEFAULT_SITE_DETAILS,
+    ...details,
+    appearance: {
+      ...DEFAULT_SITE_DETAILS.appearance!,
+      ...(details.appearance ?? {}),
+    },
+  };
+}
+
+function normalizeAdminFooterSettings(value: unknown): PublicFooterSettings {
+  if (!value || typeof value !== "object") return DEFAULT_FOOTER_SETTINGS;
+  return footerSettingsSchema
+    .partial()
+    .transform((settings) => ({
+      ...DEFAULT_FOOTER_SETTINGS,
+      ...settings,
+      sections:
+        settings.sections && settings.sections.length
+          ? settings.sections
+          : DEFAULT_FOOTER_SETTINGS.sections,
+    }))
+    .parse(value);
+}
+
 export const getAdminSiteDetails = createServerFn({ method: "GET" }).handler(
   async (): Promise<PublicSiteDetails> => {
     const bag = await requireAdmin();
@@ -947,16 +1023,7 @@ export const getAdminSiteDetails = createServerFn({ method: "GET" }).handler(
       .maybeSingle();
     bag.commitCookies();
     if (error) throw error;
-    if (!data?.value || typeof data.value !== "object") return DEFAULT_SITE_DETAILS;
-    const value = data.value as Partial<PublicSiteDetails>;
-    return {
-      ...DEFAULT_SITE_DETAILS,
-      ...value,
-      appearance: {
-        ...DEFAULT_SITE_DETAILS.appearance!,
-        ...(value.appearance ?? {}),
-      },
-    };
+    return normalizeAdminSiteDetails(data?.value);
   },
 );
 
@@ -983,18 +1050,35 @@ export const getAdminFooterSettings = createServerFn({ method: "GET" }).handler(
       .maybeSingle();
     bag.commitCookies();
     if (error) throw error;
-    if (!data?.value || typeof data.value !== "object") return DEFAULT_FOOTER_SETTINGS;
-    return footerSettingsSchema
-      .partial()
-      .transform((value) => ({
-        ...DEFAULT_FOOTER_SETTINGS,
-        ...value,
-        sections:
-          value.sections && value.sections.length
-            ? value.sections
-            : DEFAULT_FOOTER_SETTINGS.sections,
-      }))
-      .parse(data.value);
+    return normalizeAdminFooterSettings(data?.value);
+  },
+);
+
+export type AdminSiteSettingsWorkspace = {
+  siteDetails: PublicSiteDetails;
+  footerSettings: PublicFooterSettings;
+};
+
+export async function loadAdminSiteSettingsWorkspace(
+  bag: RequestSupabase,
+): Promise<AdminSiteSettingsWorkspace> {
+  const { data, error } = await bag.client
+    .from("site_settings")
+    .select("key, value")
+    .in("key", ["site_details", "footer_settings"]);
+  bag.commitCookies();
+  if (error) throw error;
+  const values = new Map((data ?? []).map((row) => [row.key as string, row.value]));
+  return {
+    siteDetails: normalizeAdminSiteDetails(values.get("site_details")),
+    footerSettings: normalizeAdminFooterSettings(values.get("footer_settings")),
+  };
+}
+
+export const getAdminSiteSettingsWorkspace = createServerFn({ method: "GET" }).handler(
+  async (): Promise<AdminSiteSettingsWorkspace> => {
+    const bag = await requireAdmin();
+    return loadAdminSiteSettingsWorkspace(bag);
   },
 );
 
@@ -1065,21 +1149,30 @@ export const listAdminContent = createServerFn({ method: "GET" })
 
 export type AdminCategoryOption = { sourceId: number; title: string };
 
+async function loadAdminCategories(
+  bag: Awaited<ReturnType<typeof requireAdmin>>,
+): Promise<AdminCategoryOption[]> {
+  const { data, error } = await bag.client
+    .from("content_entries")
+    .select("source_id, title")
+    .eq("kind", "category")
+    .eq("source_status", "publish")
+    .order("title", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    sourceId: Number(row.source_id),
+    title: String(row.title),
+  }));
+}
+
 export const listAdminCategories = createServerFn({ method: "GET" }).handler(
   async (): Promise<AdminCategoryOption[]> => {
     const bag = await requireAdmin();
-    const { data, error } = await bag.client
-      .from("content_entries")
-      .select("source_id, title")
-      .eq("kind", "category")
-      .eq("source_status", "publish")
-      .order("title", { ascending: true });
-    bag.commitCookies();
-    if (error) throw error;
-    return (data ?? []).map((row) => ({
-      sourceId: Number(row.source_id),
-      title: String(row.title),
-    }));
+    try {
+      return await loadAdminCategories(bag);
+    } finally {
+      bag.commitCookies();
+    }
   },
 );
 
@@ -1096,100 +1189,107 @@ export type AdminDashboardSummary = {
   failedGoogleSyncs: number;
 };
 
+async function loadAdminDashboardSummary(
+  bag: Awaited<ReturnType<typeof requireAdmin>>,
+): Promise<AdminDashboardSummary> {
+  const now = new Date().toISOString();
+  const [
+    pages,
+    posts,
+    media,
+    therapists,
+    clients,
+    upcomingBookings,
+    pendingMessages,
+    pendingPayments,
+    paidBookingReviewPayments,
+    pendingForms,
+    failedGoogleSyncs,
+  ] = await Promise.all([
+    bag.client
+      .from("content_entries")
+      .select("id", { count: "exact", head: true })
+      .eq("kind", "page"),
+    bag.client
+      .from("content_entries")
+      .select("id", { count: "exact", head: true })
+      .eq("kind", "post"),
+    bag.client
+      .from("content_media")
+      .select("id", { count: "exact", head: true })
+      .is("deleted_at", null),
+    bag.client
+      .from("therapists")
+      .select("id", { count: "exact", head: true })
+      .eq("is_active", true),
+    bag.client.from("clients").select("id", { count: "exact", head: true }),
+    bag.client
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .gte("starts_at", now)
+      .eq("status", "confirmed")
+      .is("archived_at", null),
+    bag.client
+      .from("contact_submissions")
+      .select("id", { count: "exact", head: true })
+      .is("ack_sent_at", null),
+    bag.client
+      .from("payments")
+      .select("id", { count: "exact", head: true })
+      .in("status", ["initiated", "awaiting_confirmation"]),
+    bag.client.from("payments").select("metadata").eq("status", "succeeded"),
+    bag.client
+      .from("intake_submissions")
+      .select("id", { count: "exact", head: true })
+      .in("completion_state", ["draft", "in_progress"]),
+    bag.client
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .not("google_sync_error", "is", null),
+  ]);
+  const firstError = [
+    pages,
+    posts,
+    media,
+    therapists,
+    clients,
+    upcomingBookings,
+    pendingMessages,
+    pendingPayments,
+    paidBookingReviewPayments,
+    pendingForms,
+    failedGoogleSyncs,
+  ].find((result) => result.error)?.error;
+  if (firstError) throw firstError;
+  const paidBookingReviewCount = (paidBookingReviewPayments.data ?? []).filter((row) => {
+    const metadata = row.metadata;
+    return (
+      metadata !== null &&
+      typeof metadata === "object" &&
+      !Array.isArray(metadata) &&
+      (metadata as Record<string, unknown>).booking_review_required === true
+    );
+  }).length;
+  return {
+    pages: pages.count ?? 0,
+    posts: posts.count ?? 0,
+    media: media.count ?? 0,
+    activeTherapists: therapists.count ?? 0,
+    clients: clients.count ?? 0,
+    upcomingBookings: upcomingBookings.count ?? 0,
+    pendingMessages: pendingMessages.count ?? 0,
+    pendingTransfers: (pendingPayments.count ?? 0) + paidBookingReviewCount,
+    pendingForms: pendingForms.count ?? 0,
+    failedGoogleSyncs: failedGoogleSyncs.count ?? 0,
+  };
+}
+
 export const getAdminDashboardSummary = createServerFn({ method: "GET" }).handler(
   async (): Promise<AdminDashboardSummary> => {
     const bag = await requireAdmin();
-    const now = new Date().toISOString();
-    const [
-      pages,
-      posts,
-      media,
-      therapists,
-      clients,
-      upcomingBookings,
-      pendingMessages,
-      pendingPayments,
-      paidBookingReviewPayments,
-      pendingForms,
-      failedGoogleSyncs,
-    ] = await Promise.all([
-      bag.client
-        .from("content_entries")
-        .select("id", { count: "exact", head: true })
-        .eq("kind", "page"),
-      bag.client
-        .from("content_entries")
-        .select("id", { count: "exact", head: true })
-        .eq("kind", "post"),
-      bag.client
-        .from("content_media")
-        .select("id", { count: "exact", head: true })
-        .is("deleted_at", null),
-      bag.client
-        .from("therapists")
-        .select("id", { count: "exact", head: true })
-        .eq("is_active", true),
-      bag.client.from("clients").select("id", { count: "exact", head: true }),
-      bag.client
-        .from("appointments")
-        .select("id", { count: "exact", head: true })
-        .gte("starts_at", now)
-        .eq("status", "confirmed")
-        .is("archived_at", null),
-      bag.client
-        .from("contact_submissions")
-        .select("id", { count: "exact", head: true })
-        .is("ack_sent_at", null),
-      bag.client
-        .from("payments")
-        .select("id", { count: "exact", head: true })
-        .in("status", ["initiated", "awaiting_confirmation"]),
-      bag.client.from("payments").select("metadata").eq("status", "succeeded"),
-      bag.client
-        .from("intake_submissions")
-        .select("id", { count: "exact", head: true })
-        .in("completion_state", ["draft", "in_progress"]),
-      bag.client
-        .from("appointments")
-        .select("id", { count: "exact", head: true })
-        .not("google_sync_error", "is", null),
-    ]);
+    const summary = await loadAdminDashboardSummary(bag);
     bag.commitCookies();
-    const firstError = [
-      pages,
-      posts,
-      media,
-      therapists,
-      clients,
-      upcomingBookings,
-      pendingMessages,
-      pendingPayments,
-      paidBookingReviewPayments,
-      pendingForms,
-      failedGoogleSyncs,
-    ].find((result) => result.error)?.error;
-    if (firstError) throw firstError;
-    const paidBookingReviewCount = (paidBookingReviewPayments.data ?? []).filter((row) => {
-      const metadata = row.metadata;
-      return (
-        metadata !== null &&
-        typeof metadata === "object" &&
-        !Array.isArray(metadata) &&
-        (metadata as Record<string, unknown>).booking_review_required === true
-      );
-    }).length;
-    return {
-      pages: pages.count ?? 0,
-      posts: posts.count ?? 0,
-      media: media.count ?? 0,
-      activeTherapists: therapists.count ?? 0,
-      clients: clients.count ?? 0,
-      upcomingBookings: upcomingBookings.count ?? 0,
-      pendingMessages: pendingMessages.count ?? 0,
-      pendingTransfers: (pendingPayments.count ?? 0) + paidBookingReviewCount,
-      pendingForms: pendingForms.count ?? 0,
-      failedGoogleSyncs: failedGoogleSyncs.count ?? 0,
-    };
+    return summary;
   },
 );
 
@@ -1218,66 +1318,90 @@ export type AdminFailureQueues = {
   meetSyncs: AdminMeetFailureRow[];
 };
 
+async function loadAdminFailureQueues(
+  bag: Awaited<ReturnType<typeof requireAdmin>>,
+): Promise<AdminFailureQueues> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const [deliveryResult, meetResult] = await Promise.all([
+    supabaseAdmin
+      .from("email_delivery_logs")
+      .select(
+        "id, template_key, recipient, status, error, reason, created_at, retry_count, retried_from",
+      )
+      .in("status", ["sent", "failed", "skipped"])
+      .order("created_at", { ascending: false })
+      .limit(200),
+    bag.client
+      .from("appointments")
+      .select(
+        "id, booking_reference, client_name, starts_at, google_sync_error, therapists(full_name)",
+        { count: "exact" },
+      )
+      .not("google_sync_error", "is", null)
+      .order("starts_at", { ascending: true })
+      .limit(20),
+  ]);
+  if (deliveryResult.error) throw deliveryResult.error;
+  if (meetResult.error) throw meetResult.error;
+
+  // A failed log remains immutable after retry. Treat only failed leaf rows
+  // as unresolved so a sent or policy-suppressed retry removes its parent.
+  const retriedParents = new Set(
+    (deliveryResult.data ?? [])
+      .map((row) => row.retried_from as string | null)
+      .filter((value): value is string => Boolean(value)),
+  );
+  const unresolvedNotifications = (deliveryResult.data ?? []).filter(
+    (row) => row.status === "failed" && !retriedParents.has(row.id as string),
+  );
+
+  return {
+    notificationCount: unresolvedNotifications.length,
+    meetCount: meetResult.count ?? meetResult.data?.length ?? 0,
+    notifications: unresolvedNotifications.slice(0, 8).map((row) => ({
+      id: row.id as string,
+      templateKey: (row.template_key as string | null) ?? null,
+      recipient: row.recipient as string,
+      error: String(row.error ?? row.reason ?? "Delivery failed"),
+      createdAt: row.created_at as string,
+      retryCount: Number(row.retry_count ?? 0),
+    })),
+    meetSyncs: (meetResult.data ?? []).slice(0, 8).map((row) => ({
+      appointmentId: row.id as string,
+      bookingReference: String(row.booking_reference ?? ""),
+      clientName: String(row.client_name ?? ""),
+      therapistName:
+        ((row.therapists as { full_name?: string } | null)?.full_name as string | undefined) ??
+        null,
+      startsAt: row.starts_at as string,
+      error: String(row.google_sync_error ?? "Google Calendar or Meet synchronisation failed"),
+    })),
+  };
+}
+
 export const getAdminFailureQueues = createServerFn({ method: "GET" }).handler(
   async (): Promise<AdminFailureQueues> => {
     const bag = await requireAdmin();
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const [deliveryResult, meetResult] = await Promise.all([
-      supabaseAdmin
-        .from("email_delivery_logs")
-        .select(
-          "id, template_key, recipient, status, error, reason, created_at, retry_count, retried_from",
-        )
-        .in("status", ["sent", "failed", "skipped"])
-        .order("created_at", { ascending: false })
-        .limit(200),
-      bag.client
-        .from("appointments")
-        .select(
-          "id, booking_reference, client_name, starts_at, google_sync_error, therapists(full_name)",
-          { count: "exact" },
-        )
-        .not("google_sync_error", "is", null)
-        .order("starts_at", { ascending: true })
-        .limit(20),
+    const queues = await loadAdminFailureQueues(bag);
+    bag.commitCookies();
+    return queues;
+  },
+);
+
+export type AdminOperationsWorkspace = {
+  summary: AdminDashboardSummary;
+  failureQueues: AdminFailureQueues;
+};
+
+export const getAdminOperationsWorkspace = createServerFn({ method: "GET" }).handler(
+  async (): Promise<AdminOperationsWorkspace> => {
+    const bag = await requireAdmin();
+    const [summary, failureQueues] = await Promise.all([
+      loadAdminDashboardSummary(bag),
+      loadAdminFailureQueues(bag),
     ]);
     bag.commitCookies();
-    if (deliveryResult.error) throw deliveryResult.error;
-    if (meetResult.error) throw meetResult.error;
-
-    // A failed log remains immutable after retry. Treat only failed leaf rows
-    // as unresolved so a sent or policy-suppressed retry removes its parent.
-    const retriedParents = new Set(
-      (deliveryResult.data ?? [])
-        .map((row) => row.retried_from as string | null)
-        .filter((value): value is string => Boolean(value)),
-    );
-    const unresolvedNotifications = (deliveryResult.data ?? []).filter(
-      (row) => row.status === "failed" && !retriedParents.has(row.id as string),
-    );
-
-    return {
-      notificationCount: unresolvedNotifications.length,
-      meetCount: meetResult.count ?? meetResult.data?.length ?? 0,
-      notifications: unresolvedNotifications.slice(0, 8).map((row) => ({
-        id: row.id as string,
-        templateKey: (row.template_key as string | null) ?? null,
-        recipient: row.recipient as string,
-        error: String(row.error ?? row.reason ?? "Delivery failed"),
-        createdAt: row.created_at as string,
-        retryCount: Number(row.retry_count ?? 0),
-      })),
-      meetSyncs: (meetResult.data ?? []).slice(0, 8).map((row) => ({
-        appointmentId: row.id as string,
-        bookingReference: String(row.booking_reference ?? ""),
-        clientName: String(row.client_name ?? ""),
-        therapistName:
-          ((row.therapists as { full_name?: string } | null)?.full_name as string | undefined) ??
-          null,
-        startsAt: row.starts_at as string,
-        error: String(row.google_sync_error ?? "Google Calendar or Meet synchronisation failed"),
-      })),
-    };
+    return { summary, failureQueues };
   },
 );
 
@@ -1307,32 +1431,41 @@ type AuditLogQuery = {
   };
 };
 
+async function loadAdminAuditLogs(
+  bag: Awaited<ReturnType<typeof requireAdmin>>,
+): Promise<AdminAuditLogRow[]> {
+  const auditLogs = bag.client.from("admin_audit_logs" as never) as unknown as AuditLogQuery;
+  const { data, error } = await auditLogs
+    .select(
+      "id, actor_id, actor_email, actor_kind, action, target_type, target_id, reason, changed_fields, created_at",
+    )
+    .order("created_at", { ascending: false })
+    .limit(250);
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    id: String(row.id),
+    actorId: (row.actor_id as string | null) ?? null,
+    actorEmail: (row.actor_email as string | null) ?? null,
+    actorKind: row.actor_kind as AdminAuditLogRow["actorKind"],
+    action: String(row.action),
+    targetType: String(row.target_type),
+    targetId: (row.target_id as string | null) ?? null,
+    reason: String(row.reason),
+    changedFields: Array.isArray(row.changed_fields)
+      ? row.changed_fields.map((field) => String(field))
+      : [],
+    createdAt: String(row.created_at),
+  }));
+}
+
 export const listAdminAuditLogs = createServerFn({ method: "GET" }).handler(
   async (): Promise<AdminAuditLogRow[]> => {
     const bag = await requireAdmin();
-    const auditLogs = bag.client.from("admin_audit_logs" as never) as unknown as AuditLogQuery;
-    const { data, error } = await auditLogs
-      .select(
-        "id, actor_id, actor_email, actor_kind, action, target_type, target_id, reason, changed_fields, created_at",
-      )
-      .order("created_at", { ascending: false })
-      .limit(250);
-    bag.commitCookies();
-    if (error) throw error;
-    return (data ?? []).map((row) => ({
-      id: String(row.id),
-      actorId: (row.actor_id as string | null) ?? null,
-      actorEmail: (row.actor_email as string | null) ?? null,
-      actorKind: row.actor_kind as AdminAuditLogRow["actorKind"],
-      action: String(row.action),
-      targetType: String(row.target_type),
-      targetId: (row.target_id as string | null) ?? null,
-      reason: String(row.reason),
-      changedFields: Array.isArray(row.changed_fields)
-        ? row.changed_fields.map((field) => String(field))
-        : [],
-      createdAt: String(row.created_at),
-    }));
+    try {
+      return await loadAdminAuditLogs(bag);
+    } finally {
+      bag.commitCookies();
+    }
   },
 );
 
@@ -1350,32 +1483,59 @@ export type SecurityEventRow = {
  * Recent blocked/suspicious public requests (rate-limit trips, rejected cron
  * calls). Identifiers are hashed, so no raw IP addresses are exposed.
  */
+async function loadSecurityEvents(
+  bag: Awaited<ReturnType<typeof requireAdmin>>,
+): Promise<SecurityEventRow[]> {
+  const table = bag.client.from("security_events" as never) as unknown as AuditLogQuery;
+  const { data, error } = await table
+    .select("id, event_type, identifier, route, severity, details, created_at")
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    id: String(row.id),
+    eventType: String(row.event_type),
+    identifier: (row.identifier as string | null) ?? null,
+    route: (row.route as string | null) ?? null,
+    severity: String(row.severity ?? "warning"),
+    details: Object.fromEntries(
+      Object.entries((row.details as Record<string, unknown> | null) ?? {}).map(([key, value]) => [
+        key,
+        typeof value === "string" ? value : JSON.stringify(value ?? null),
+      ]),
+    ),
+    createdAt: String(row.created_at),
+  }));
+}
+
 export const listSecurityEvents = createServerFn({ method: "GET" }).handler(
   async (): Promise<SecurityEventRow[]> => {
     const bag = await requireAdmin();
-    const table = bag.client.from("security_events" as never) as unknown as AuditLogQuery;
-    const { data, error } = await table
-      .select("id, event_type, identifier, route, severity, details, created_at")
-      .order("created_at", { ascending: false })
-      .limit(100);
-    bag.commitCookies();
-    if (error) throw error;
-    return (data ?? []).map((row) => ({
-      id: String(row.id),
-      eventType: String(row.event_type),
-      identifier: (row.identifier as string | null) ?? null,
-      route: (row.route as string | null) ?? null,
-      severity: String(row.severity ?? "warning"),
-      details: Object.fromEntries(
-        Object.entries((row.details as Record<string, unknown> | null) ?? {}).map(
-          ([key, value]) => [
-            key,
-            typeof value === "string" ? value : JSON.stringify(value ?? null),
-          ],
-        ),
-      ),
-      createdAt: String(row.created_at),
-    }));
+    try {
+      return await loadSecurityEvents(bag);
+    } finally {
+      bag.commitCookies();
+    }
+  },
+);
+
+export type AdminAuditWorkspace = {
+  logs: AdminAuditLogRow[];
+  securityEvents: SecurityEventRow[];
+};
+
+export const getAdminAuditWorkspace = createServerFn({ method: "GET" }).handler(
+  async (): Promise<AdminAuditWorkspace> => {
+    const bag = await requireAdmin();
+    try {
+      const [logs, securityEvents] = await Promise.all([
+        loadAdminAuditLogs(bag),
+        loadSecurityEvents(bag).catch(() => [] as SecurityEventRow[]),
+      ]);
+      return { logs, securityEvents };
+    } finally {
+      bag.commitCookies();
+    }
   },
 );
 
@@ -1632,20 +1792,50 @@ export type AdminContentDetail = AdminContentRow & {
   metadata: Record<string, Json>;
 };
 
+async function loadAdminContentEntry(
+  bag: Awaited<ReturnType<typeof requireAdmin>>,
+  id: string,
+): Promise<AdminContentDetail | null> {
+  const { data: r, error } = await bag.client
+    .from("content_entries")
+    .select(
+      "id, kind, slug, title, source_status, published_at, source_modified_at, author_name, canonical_path, featured_media_path, excerpt_html, body_html, metadata, scheduled_publish_at, scheduled_unpublish_at, archived_at",
+    )
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return mapAdminContentDetail(r);
+}
+
 export const getAdminContentEntry = createServerFn({ method: "GET" })
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }): Promise<AdminContentDetail | null> => {
     const bag = await requireAdmin();
-    const { data: r, error } = await bag.client
-      .from("content_entries")
-      .select(
-        "id, kind, slug, title, source_status, published_at, source_modified_at, author_name, canonical_path, featured_media_path, excerpt_html, body_html, metadata, scheduled_publish_at, scheduled_unpublish_at, archived_at",
-      )
-      .eq("id", data.id)
-      .maybeSingle();
-    bag.commitCookies();
-    if (error) throw error;
-    return mapAdminContentDetail(r);
+    try {
+      return await loadAdminContentEntry(bag, data.id);
+    } finally {
+      bag.commitCookies();
+    }
+  });
+
+export type AdminContentEditWorkspace = {
+  entry: AdminContentDetail | null;
+  categories: AdminCategoryOption[];
+};
+
+export const getAdminContentEditWorkspace = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }): Promise<AdminContentEditWorkspace> => {
+    const bag = await requireAdmin();
+    try {
+      const [entry, categories] = await Promise.all([
+        loadAdminContentEntry(bag, data.id),
+        loadAdminCategories(bag),
+      ]);
+      return { entry, categories };
+    } finally {
+      bag.commitCookies();
+    }
   });
 
 export const getAdminContentEntryBySlug = createServerFn({ method: "GET" })
@@ -1818,6 +2008,43 @@ export const listAdminMedia = createServerFn({ method: "GET" }).handler(
     return out;
   },
 );
+
+export type AdminMediaPage = {
+  items: AdminMediaRow[];
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+};
+
+const adminMediaPageInput = z.object({
+  page: z.number().int().min(1).max(1000).default(1),
+  pageSize: z.number().int().min(20).max(100).default(100),
+});
+
+export const listAdminMediaPage = createServerFn({ method: "GET" })
+  .inputValidator((data: unknown) => adminMediaPageInput.parse(data))
+  .handler(async ({ data }): Promise<AdminMediaPage> => {
+    const bag = await requireAdmin();
+    const start = (data.page - 1) * data.pageSize;
+    const { data: rows, error } = await bag.client
+      .from("content_media")
+      .select("id, storage_path, source_filename, mime_type, byte_size, alt_text, tags, created_at")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .range(start, start + data.pageSize - 1);
+    if (error) {
+      bag.commitCookies();
+      throw error;
+    }
+    const items = await signMediaRows(bag, (rows ?? []) as never);
+    bag.commitCookies();
+    return {
+      items,
+      page: data.page,
+      pageSize: data.pageSize,
+      hasMore: items.length === data.pageSize,
+    };
+  });
 
 export type AdminTrashedMediaRow = AdminMediaRow & {
   deletedAt: string;
@@ -2069,19 +2296,48 @@ async function decorateTherapistAccounts(rows: AdminTherapistRow[]): Promise<Adm
   }));
 }
 
+async function loadAdminTherapists(
+  bag: Awaited<ReturnType<typeof requireAdmin>>,
+): Promise<AdminTherapistRow[]> {
+  const { data, error } = await bag.client
+    .from("therapists")
+    .select(THERAPIST_COLUMNS)
+    .order("display_order", { ascending: true })
+    .order("full_name", { ascending: true });
+  if (error) throw error;
+  return decorateTherapistAccounts(
+    (data ?? []).map((r) => mapTherapist(r as Record<string, unknown>)),
+  );
+}
+
 export const listAdminTherapists = createServerFn({ method: "GET" }).handler(
   async (): Promise<AdminTherapistRow[]> => {
     const bag = await requireAdmin();
-    const { data, error } = await bag.client
-      .from("therapists")
-      .select(THERAPIST_COLUMNS)
-      .order("display_order", { ascending: true })
-      .order("full_name", { ascending: true });
-    bag.commitCookies();
-    if (error) throw error;
-    return decorateTherapistAccounts(
-      (data ?? []).map((r) => mapTherapist(r as Record<string, unknown>)),
-    );
+    try {
+      return await loadAdminTherapists(bag);
+    } finally {
+      bag.commitCookies();
+    }
+  },
+);
+
+export type AdminServicesWorkspace = {
+  services: AdminServiceRow[];
+  therapists: AdminTherapistRow[];
+};
+
+export const getAdminServicesWorkspace = createServerFn({ method: "GET" }).handler(
+  async (): Promise<AdminServicesWorkspace> => {
+    const bag = await requireAdmin();
+    try {
+      const [services, therapists] = await Promise.all([
+        loadAdminServices(bag),
+        loadAdminTherapists(bag),
+      ]);
+      return { services, therapists };
+    } finally {
+      bag.commitCookies();
+    }
   },
 );
 
@@ -2533,69 +2789,75 @@ const currencySchema = z
   .regex(/^[A-Z]{3}$/i)
   .transform((v) => v.toUpperCase());
 
-export const listAdminServices = createServerFn({ method: "GET" }).handler(
-  async (): Promise<AdminServiceRow[]> => {
-    const bag = await requireAdmin();
-    let result = await bag.client
+async function loadAdminServices(
+  bag: Awaited<ReturnType<typeof requireAdmin>>,
+): Promise<AdminServiceRow[]> {
+  let result = await bag.client
+    .from("services")
+    .select(
+      "id, code, slug, name, description, duration_minutes, sessions_per_package, price_ngn, in_person_price_ngn, currency, buffer_before_minutes, buffer_after_minutes, minimum_lead_time_minutes, display_order, is_active, updated_at",
+    )
+    .order("display_order", { ascending: true })
+    .order("name", { ascending: true });
+  if (isMissingInPersonPriceColumn(result.error)) {
+    const fallback = await bag.client
       .from("services")
       .select(
-        "id, code, slug, name, description, duration_minutes, sessions_per_package, price_ngn, in_person_price_ngn, currency, buffer_before_minutes, buffer_after_minutes, minimum_lead_time_minutes, display_order, is_active, updated_at",
+        "id, code, slug, name, description, duration_minutes, sessions_per_package, price_ngn, currency, buffer_before_minutes, buffer_after_minutes, minimum_lead_time_minutes, display_order, is_active, updated_at",
       )
       .order("display_order", { ascending: true })
       .order("name", { ascending: true });
-    if (isMissingInPersonPriceColumn(result.error)) {
-      const fallback = await bag.client
-        .from("services")
-        .select(
-          "id, code, slug, name, description, duration_minutes, sessions_per_package, price_ngn, currency, buffer_before_minutes, buffer_after_minutes, minimum_lead_time_minutes, display_order, is_active, updated_at",
-        )
-        .order("display_order", { ascending: true })
-        .order("name", { ascending: true });
-      result = fallback.error
-        ? fallback
-        : {
-            ...fallback,
-            data: fallback.data.map((row) => ({ ...row, in_person_price_ngn: null })),
-          };
-    }
-    const { data, error } = result;
-    if (error) {
+    result = fallback.error
+      ? fallback
+      : {
+          ...fallback,
+          data: fallback.data.map((row) => ({ ...row, in_person_price_ngn: null })),
+        };
+  }
+  const { data, error } = result;
+  if (error) throw error;
+  const { data: assignments, error: aErr } = await bag.client
+    .from("therapist_services")
+    .select("service_id, therapist_id");
+  if (aErr) throw aErr;
+  const byService = new Map<string, string[]>();
+  for (const a of assignments ?? []) {
+    const list = byService.get(a.service_id as string) ?? [];
+    list.push(a.therapist_id as string);
+    byService.set(a.service_id as string, list);
+  }
+  return (data ?? []).map((r) => ({
+    id: r.id as string,
+    code: (r.code as string) ?? "",
+    slug: (r.slug as string) ?? "",
+    name: (r.name as string) ?? "",
+    description: (r.description as string) ?? null,
+    durationMinutes: Number(r.duration_minutes ?? 0),
+    sessionsPerPackage: Number(r.sessions_per_package ?? 1),
+    priceNgn: r.price_ngn == null ? null : Number(r.price_ngn),
+    inPersonPriceNgn:
+      "in_person_price_ngn" in r && r.in_person_price_ngn != null
+        ? Number(r.in_person_price_ngn)
+        : fallbackInPersonPriceNgn((r.code as string) ?? null),
+    currency: (r.currency as string) ?? "NGN",
+    bufferBeforeMinutes: Number(r.buffer_before_minutes ?? 0),
+    bufferAfterMinutes: Number(r.buffer_after_minutes ?? 0),
+    minimumLeadTimeMinutes: Number(r.minimum_lead_time_minutes ?? 0),
+    displayOrder: Number(r.display_order ?? 0),
+    isActive: Boolean(r.is_active),
+    therapistIds: byService.get(r.id as string) ?? [],
+    updatedAt: (r.updated_at as string) ?? null,
+  }));
+}
+
+export const listAdminServices = createServerFn({ method: "GET" }).handler(
+  async (): Promise<AdminServiceRow[]> => {
+    const bag = await requireAdmin();
+    try {
+      return await loadAdminServices(bag);
+    } finally {
       bag.commitCookies();
-      throw error;
     }
-    const { data: assignments, error: aErr } = await bag.client
-      .from("therapist_services")
-      .select("service_id, therapist_id");
-    bag.commitCookies();
-    if (aErr) throw aErr;
-    const byService = new Map<string, string[]>();
-    for (const a of assignments ?? []) {
-      const list = byService.get(a.service_id as string) ?? [];
-      list.push(a.therapist_id as string);
-      byService.set(a.service_id as string, list);
-    }
-    return (data ?? []).map((r) => ({
-      id: r.id as string,
-      code: (r.code as string) ?? "",
-      slug: (r.slug as string) ?? "",
-      name: (r.name as string) ?? "",
-      description: (r.description as string) ?? null,
-      durationMinutes: Number(r.duration_minutes ?? 0),
-      sessionsPerPackage: Number(r.sessions_per_package ?? 1),
-      priceNgn: r.price_ngn == null ? null : Number(r.price_ngn),
-      inPersonPriceNgn:
-        "in_person_price_ngn" in r && r.in_person_price_ngn != null
-          ? Number(r.in_person_price_ngn)
-          : fallbackInPersonPriceNgn((r.code as string) ?? null),
-      currency: (r.currency as string) ?? "NGN",
-      bufferBeforeMinutes: Number(r.buffer_before_minutes ?? 0),
-      bufferAfterMinutes: Number(r.buffer_after_minutes ?? 0),
-      minimumLeadTimeMinutes: Number(r.minimum_lead_time_minutes ?? 0),
-      displayOrder: Number(r.display_order ?? 0),
-      isActive: Boolean(r.is_active),
-      therapistIds: byService.get(r.id as string) ?? [],
-      updatedAt: (r.updated_at as string) ?? null,
-    }));
   },
 );
 

@@ -17,6 +17,7 @@ import { BackToTopButton } from "@/components/site/BackToTopButton";
 import { SiteAppearance } from "@/components/site/SiteAppearance";
 import { PublicRouteSkeleton } from "@/components/site/PublicRouteSkeleton";
 import { DEFAULT_PUBLIC_SHELL_DATA, getPublicShellData } from "@/lib/content.functions";
+import { reportLovableError } from "@/lib/lovable-error-reporting";
 import { claimAutomaticRouteRetry, routeRecoveryKey } from "@/lib/route-recovery";
 import appCss from "../styles.css?url";
 import { OG_IMAGE_URL, SITE_URL } from "../lib/seo";
@@ -57,6 +58,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     Sentry.captureException(error, {
       tags: { surface: "tanstack_router_error_boundary", path: pathname },
     });
+    reportLovableError(error, { surface: "tanstack_router_error_boundary" });
   }, [error, pathname]);
 
   useEffect(() => {
