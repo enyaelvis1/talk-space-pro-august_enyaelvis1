@@ -1166,6 +1166,25 @@ export const verifyPaystackPaymentForAdmin = createServerFn({ method: "POST" })
     if (payment.provider !== "paystack") throw new Error("This is not a Paystack payment.");
     const reference = payment.checkout_group_reference ?? payment.reference;
     const checkout = await loadPaystackCheckout(reference);
+    const storedReceipt = readPaymentReceipt(checkout.payment.metadata);
+    if (
+      checkout.alreadySucceeded &&
+      storedReceipt &&
+      storedReceipt.bookingAmountKobo === checkout.amountKobo &&
+      storedReceipt.currency === checkout.currency
+    ) {
+      return {
+        ...storedReceipt,
+        bookingReviewRequired: checkout.bookingReviewRequired,
+        status: "succeeded",
+        bookingReference:
+          (checkout.payment.appointments as { booking_reference?: string } | null)
+            ?.booking_reference ?? null,
+        packageBookingUrl: null,
+        packagePurchasedSessions: null,
+        packageRemainingSessions: null,
+      };
+    }
 
     const verify = await paystackVerify({ secretKey: secret, reference });
     validateProviderPayment({
