@@ -204,6 +204,20 @@ test("browser auth refresh is event and expiry driven instead of periodic pollin
   assert.match(source, /window\.setTimeout/);
 });
 
+test("payment, booking, and confirmation surfaces do not poll Supabase on timers", () => {
+  const payments = read("src/routes/_authenticated.admin.payments.tsx");
+  const bookings = read("src/routes/_authenticated.admin.bookings.tsx");
+  const confirmation = read("src/routes/book.payment-callback.tsx");
+
+  assert.doesNotMatch(payments, /setInterval|startVisiblePolling/);
+  assert.doesNotMatch(confirmation, /setInterval|startVisiblePolling/);
+  assert.match(bookings, /setInterval\(\(\) => setNowIso/);
+  assert.doesNotMatch(
+    bookings,
+    /setInterval\([\s\S]{0,240}(listAppointmentsForAdmin|refresh\(|\.rpc\()/,
+  );
+});
+
 test("protected server guards share request-scoped auth context", () => {
   const auth = read("src/lib/server-auth.ts");
   assert.match(auth, /new WeakMap<Request, Promise<RequestAuthContext \| null>>/);

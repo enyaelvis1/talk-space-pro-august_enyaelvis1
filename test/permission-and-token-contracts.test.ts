@@ -35,6 +35,13 @@ const unpaidCleanupMigration = await readFile(
   ),
   "utf8",
 );
+const archiveRestoreMigration = await readFile(
+  new URL(
+    "../supabase/migrations/20260922090000_admin_archive_restore_rpc_hardening.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 function exportBody(source: string, name: string) {
   const start = source.indexOf(`export const ${name}`);
@@ -68,15 +75,15 @@ test("admin booking and payment operations require an admin role check", () => {
   }
   const bulkDeleteBody = exportBody(bookingFunctions, "deleteTemporaryAppointmentsForAdmin");
   const archiveBody = exportBody(bookingFunctions, "archiveAppointmentForAdmin");
-  assert.match(archiveBody, /archived_at/);
-  assert.match(archiveBody, /archive_reason/);
+  assert.match(archiveBody, /archive_appointment_for_admin/);
+  assert.match(archiveBody, /p_reason/);
   const cancelBody = exportBody(bookingFunctions, "cancelAppointmentForAdmin");
   assert.match(cancelBody, /requireAdminClient\(\)/);
   assert.match(cancelBody, /cancel_appointment/);
   assert.match(cancelBody, /manual_admin_cancel_release/);
   const restoreBody = exportBody(bookingFunctions, "restoreAppointmentForAdmin");
   assert.match(restoreBody, /requireAdminClient\(\)/);
-  assert.match(restoreBody, /archived_at: null/);
+  assert.match(restoreBody, /restore_appointment_for_admin/);
   assert.match(bulkDeleteBody, /confirmation: z\.literal\("DELETE TEST BOOKINGS"\)/);
   assert.match(bulkDeleteBody, /reason: z\.string\(\)\.trim\(\)\.min\(3\)/);
   assert.match(bulkDeleteBody, /status === "hold"/);
@@ -118,6 +125,16 @@ test("admin booking and payment operations require an admin role check", () => {
   assert.match(deletePayment, /awaiting_confirmation/);
   assert.match(deletePayment, /refunded/);
   assert.match(deletePayment, /in\("status", \["initiated", "failed", "cancelled"\]\)/);
+});
+
+test("archive and restore use qualified, admin-only transactional RPCs", () => {
+  assert.match(archiveRestoreMigration, /has_role\(actor, 'admin'\)/);
+  assert.match(archiveRestoreMigration, /has_role\(actor, 'staff'\)/);
+  assert.match(archiveRestoreMigration, /UPDATE public\.appointments AS appointment/);
+  assert.match(archiveRestoreMigration, /WHERE appointment\.id = p_appointment_id/);
+  assert.match(archiveRestoreMigration, /archive_appointment_for_admin/);
+  assert.match(archiveRestoreMigration, /restore_appointment_for_admin/);
+  assert.match(archiveRestoreMigration, /GRANT EXECUTE/);
 });
 
 test("manage-token access is throttled, hashed, and rejected when inactive", () => {
