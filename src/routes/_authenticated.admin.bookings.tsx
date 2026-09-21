@@ -9,6 +9,7 @@ import {
   CalendarCheck,
   CalendarDays,
   CalendarPlus,
+  CalendarX,
   Archive,
   Clock,
   CreditCard,
@@ -43,6 +44,7 @@ import {
   listAvailableSlots,
   listAppointmentsForAdmin,
   archiveAppointmentForAdmin,
+  cancelAppointmentForAdmin,
   deleteTemporaryAppointmentsForAdmin,
   revokeAppointmentManageToken,
   rescheduleAppointment,
@@ -484,6 +486,31 @@ function AdminBookingsPage() {
     }
   }, []);
 
+  const onCancelAndRelease = useCallback(async (row: UpcomingAppointmentRow) => {
+    const paymentWarning = ["succeeded", "awaiting_confirmation"].includes(row.paymentStatus ?? "")
+      ? " Payment/refund review will still be required."
+      : "";
+    if (
+      !confirm(
+        `Cancel booking ${row.bookingReference} and release its slot? The booking and payment history will be kept.${paymentWarning}`,
+      )
+    ) {
+      return;
+    }
+    setDeletingId(row.id);
+    try {
+      await cancelAppointmentForAdmin({
+        data: { appointmentId: row.id, reason: "manual_admin_cancel_release" },
+      });
+      setRows((current) => current.filter((item) => item.id !== row.id));
+      toast.success("Booking cancelled and slot released.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to cancel booking.");
+    } finally {
+      setDeletingId(null);
+    }
+  }, []);
+
   const onBulkDeleteTemporary = useCallback(async () => {
     if (!hiddenTemporaryRows.length) return;
     const confirmation = prompt(
@@ -560,6 +587,29 @@ function AdminBookingsPage() {
       );
     },
     [deletingId, onDeleteTemporary],
+  );
+
+  const renderCancelAndReleaseButton = useCallback(
+    (appointment: UpcomingAppointmentRow) => {
+      if (appointment.status !== "confirmed") return null;
+      return (
+        <Button
+          size="sm"
+          variant="outline"
+          className="border-amber-500/50 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+          disabled={deletingId === appointment.id}
+          onClick={() => void onCancelAndRelease(appointment)}
+        >
+          {deletingId === appointment.id ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          ) : (
+            <CalendarX className="h-4 w-4" aria-hidden />
+          )}
+          Cancel & release slot
+        </Button>
+      );
+    },
+    [deletingId, onCancelAndRelease],
   );
 
   const onRevokeManageToken = useCallback(
@@ -987,6 +1037,7 @@ function AdminBookingsPage() {
                                   Timeline
                                 </Button>
                                 {renderDeleteButton(appointment)}
+                                {renderCancelAndReleaseButton(appointment)}
                                 {renderArchiveButton(appointment)}
                               </div>
                             </div>
@@ -1033,6 +1084,7 @@ function AdminBookingsPage() {
                                   Timeline
                                 </Button>
                                 {renderDeleteButton(appointment)}
+                                {renderCancelAndReleaseButton(appointment)}
                                 {renderArchiveButton(appointment)}
                               </div>
                             </div>
@@ -1201,6 +1253,7 @@ function AdminBookingsPage() {
                             Timeline
                           </Button>
                           {renderDeleteButton(appointment)}
+                          {renderCancelAndReleaseButton(appointment)}
                           {renderArchiveButton(appointment)}
                         </div>
                       </td>
@@ -1354,6 +1407,7 @@ function AdminBookingsPage() {
                             Revoke link
                           </Button>
                           {renderDeleteButton(appointment)}
+                          {renderCancelAndReleaseButton(appointment)}
                           {renderArchiveButton(appointment)}
                         </div>
                       </article>
