@@ -23,33 +23,19 @@ import { AdminWorkspaceShell } from "@/components/progress/AdminSidebar";
 import { MediaUploadInput } from "@/components/admin/MediaUploadInput";
 import { SensitiveActionDialog } from "@/components/admin/SensitiveActionDialog";
 import { useSensitiveActionGate } from "@/hooks/useSensitiveActionGate";
-import {
-  getAdminFooterSettings,
-  getAdminSiteDetails,
-  updateAdminFooterSettings,
-  updateAdminSiteDetails,
-} from "@/lib/admin.functions";
+import { updateAdminFooterSettings, updateAdminSiteDetails } from "@/lib/admin.functions";
 import {
   DEFAULT_FOOTER_SETTINGS,
   DEFAULT_SITE_DETAILS,
   type PublicFooterSettings,
   type PublicSiteDetails,
 } from "@/lib/content.functions";
-import { getEmailAdminData } from "@/lib/email.functions";
-import { getGoogleAdminSettings } from "@/lib/google.functions";
-import { getPaymentAdminData } from "@/lib/payments.functions";
+import { getAdminSettingsWorkspace } from "@/lib/admin-settings.functions";
 import { canonicalUrl } from "@/lib/seo";
 
 export const Route = createFileRoute("/_authenticated/admin/settings")({
   loader: async () => {
-    const [siteDetails, footerSettings, email, payments, google] = await Promise.all([
-      getAdminSiteDetails(),
-      getAdminFooterSettings(),
-      getEmailAdminData(),
-      getPaymentAdminData(),
-      getGoogleAdminSettings(),
-    ]);
-    return { siteDetails, footerSettings, email: email.settings, payments, google };
+    return getAdminSettingsWorkspace();
   },
   head: () => ({
     meta: [

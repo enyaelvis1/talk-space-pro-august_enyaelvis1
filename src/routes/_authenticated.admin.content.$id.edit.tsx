@@ -15,7 +15,7 @@ import { MediaPicker } from "@/components/admin/MediaPicker";
 
 import {
   getAdminContentEntry,
-  listAdminCategories,
+  getAdminContentEditWorkspace,
   setContentStatus,
   updateContentBody,
   updateContentFields,
@@ -177,11 +177,8 @@ function EditContentPage() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    Promise.all([
-      getAdminContentEntry({ data: { id } }) as Promise<AdminContentDetail | null>,
-      listAdminCategories(),
-    ])
-      .then(([e, categoryOptions]) => {
+    getAdminContentEditWorkspace({ data: { id } })
+      .then(({ entry: e, categories: categoryOptions }) => {
         if (cancelled) return;
         setEntry(e);
         setCategories(categoryOptions);

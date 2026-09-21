@@ -103,6 +103,7 @@ test("manage-token access is throttled, hashed, and rejected when inactive", () 
   assert.match(lookup, /windowSeconds: 15 \* 60/);
   assert.match(lookup, /rpc\(\s*"get_appointment_by_manage_token"/);
   assert.match(lookup, /p_manage_token_hash: hashToken\(data\.manageToken\)/);
+  assert.ok(bookingFunctions.includes('const normalized = trimmed.replace(/[),.;:!?]+$/, "");'));
 
   const activePredicate = manageTokenMigration.slice(
     manageTokenMigration.indexOf(

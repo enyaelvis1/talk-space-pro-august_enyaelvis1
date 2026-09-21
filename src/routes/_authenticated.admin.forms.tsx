@@ -1,16 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import {
-  ArrowDown,
-  ArrowUp,
-  CopyPlus,
-  Loader2,
-  Mail,
-  Plus,
-  RotateCcw,
-  Save,
-  Trash2,
-} from "lucide-react";
+import { ArrowDown, ArrowUp, CopyPlus, Loader2, Mail, RotateCcw, Save } from "lucide-react";
 import { toast } from "sonner";
 
 import { AdminWorkspaceShell } from "@/components/progress/AdminSidebar";
@@ -19,13 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -36,8 +19,7 @@ import {
 } from "@/lib/form-templates";
 import { canonicalUrl } from "@/lib/seo";
 import {
-  getAdminFormTemplates,
-  listPendingIntakeSubmissions,
+  getAdminFormsWorkspace,
   updateAdminFormTemplates,
   type AdminPendingIntakeSubmission,
 } from "@/lib/admin.functions";
@@ -45,11 +27,7 @@ import { sendIntakeFormReminder } from "@/lib/email.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/forms")({
   loader: async () => {
-    const [templates, pendingForms] = await Promise.all([
-      getAdminFormTemplates(),
-      listPendingIntakeSubmissions(),
-    ]);
-    return { templates, pendingForms };
+    return getAdminFormsWorkspace();
   },
   head: () => ({
     meta: [{ title: "Forms | Talk Space Admin" }, { name: "robots", content: "noindex, nofollow" }],
@@ -158,41 +136,6 @@ function FormsAdminRoute() {
           nextFields[fieldIndex],
         ];
         return { ...template, fields: nextFields };
-      }),
-    );
-
-  const addField = (templateIndex: number) =>
-    setTemplates((current) =>
-      current.map((template, index) => {
-        if (index !== templateIndex) return template;
-        const fieldNumber = template.fields.length + 1;
-        return {
-          ...template,
-          fields: [
-            ...template.fields,
-            {
-              fieldKey: `field_${fieldNumber}`,
-              label: `New question ${fieldNumber}`,
-              placeholder: "",
-              helpText: "",
-              required: false,
-              visible: true,
-              type: "text" as const,
-              options: [],
-            },
-          ],
-        };
-      }),
-    );
-
-  const removeField = (templateIndex: number, fieldIndex: number) =>
-    setTemplates((current) =>
-      current.map((template, index) => {
-        if (index !== templateIndex || template.fields.length <= 1) return template;
-        return {
-          ...template,
-          fields: template.fields.filter((_, idx) => idx !== fieldIndex),
-        };
       }),
     );
 
@@ -465,22 +408,11 @@ function FormsAdminRoute() {
                                 >
                                   <ArrowDown className="h-4 w-4" />
                                 </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => removeField(templateIndex, fieldIndex)}
-                                  disabled={template.fields.length <= 1}
-                                  aria-label={`Remove ${field.label}`}
-                                >
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
                               </div>
                             </div>
 
                             <div className="mt-4 grid gap-4 lg:grid-cols-2">
                               <Field
-                                id={`label-${template.key}-${field.fieldKey}`}
                                 label="Question label"
                                 value={field.label}
                                 onChange={(value) =>
@@ -488,7 +420,6 @@ function FormsAdminRoute() {
                                 }
                               />
                               <Field
-                                id={`placeholder-${template.key}-${field.fieldKey}`}
                                 label="Placeholder"
                                 value={field.placeholder}
                                 onChange={(value) =>
@@ -496,72 +427,6 @@ function FormsAdminRoute() {
                                 }
                               />
                             </div>
-
-                            <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                              <div className="space-y-1.5">
-                                <Label htmlFor={`type-${template.key}-${field.fieldKey}`}>
-                                  Field type
-                                </Label>
-                                <Select
-                                  value={field.type}
-                                  onValueChange={(value: FormFieldDefinition["type"]) =>
-                                    updateField(templateIndex, fieldIndex, {
-                                      type: value,
-                                      options:
-                                        value === "select" || value === "radio"
-                                          ? (field.options ?? [])
-                                          : [],
-                                    })
-                                  }
-                                >
-                                  <SelectTrigger id={`type-${template.key}-${field.fieldKey}`}>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {Object.entries(FIELD_KIND_LABELS).map(([value, label]) => (
-                                      <SelectItem key={value} value={value}>
-                                        {label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <Field
-                                id={`field-key-${template.key}-${field.fieldKey}`}
-                                label="Field key"
-                                value={field.fieldKey}
-                                onChange={(value) =>
-                                  updateField(templateIndex, fieldIndex, { fieldKey: value })
-                                }
-                                helper="Keep this stable after submissions exist."
-                              />
-                            </div>
-
-                            {field.type === "select" || field.type === "radio" ? (
-                              <div className="mt-4">
-                                <Label htmlFor={`options-${template.key}-${field.fieldKey}`}>
-                                  Options
-                                </Label>
-                                <Textarea
-                                  id={`options-${template.key}-${field.fieldKey}`}
-                                  className="mt-1"
-                                  rows={3}
-                                  value={(field.options ?? []).join("\n")}
-                                  onChange={(event) =>
-                                    updateField(templateIndex, fieldIndex, {
-                                      options: event.target.value
-                                        .split("\n")
-                                        .map((option) => option.trim())
-                                        .filter(Boolean),
-                                    })
-                                  }
-                                  placeholder="One option per line"
-                                />
-                                <p className="mt-1 text-xs text-muted-foreground">
-                                  Add one choice per line. These choices appear on the form.
-                                </p>
-                              </div>
-                            ) : null}
 
                             <div className="mt-4">
                               <Label htmlFor={`help-${template.key}-${field.fieldKey}`}>
@@ -600,14 +465,6 @@ function FormsAdminRoute() {
                             </div>
                           </section>
                         ))}
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => addField(templateIndex)}
-                        >
-                          <Plus className="mr-2 h-4 w-4" />
-                          Add question
-                        </Button>
                       </div>
                     </div>
 
@@ -812,19 +669,17 @@ function PendingFormCard({
 }
 
 function Field({
-  id: providedId,
   label,
   value,
   onChange,
   helper,
 }: {
-  id?: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
   helper?: string;
 }) {
-  const id = providedId ?? label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id}>{label}</Label>
