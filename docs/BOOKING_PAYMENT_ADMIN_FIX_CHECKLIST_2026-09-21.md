@@ -24,6 +24,9 @@ replacement.
       explicit immutable audit actions visible in Admin → Audit.
 - [x] Milestone 3e: make eligible unpaid/test deletion explicit, reasoned, and
       separate from archive in the admin bookings UI.
+- [x] Milestone 3f: make Paystack admin verification failures actionable and
+      distinguish provider, checkout, amount/currency/reference, and booking
+      review outcomes.
 
 ## Incident safety and evidence
 
@@ -46,9 +49,10 @@ replacement.
       payment/appointment reconciliation.
 - [x] Make already-succeeded and already-refunded transactions idempotent:
       checking them again must return the stored result instead of throwing.
-- [ ] Return actionable admin errors for missing references, provider
+- [x] Return actionable admin errors for missing references, provider
       failures, amount/currency mismatches, stale checkout groups, and payment
-      records that need rescheduling or refund review.
+      records that need rescheduling or refund review. Raw provider errors and
+      payloads are logged server-side only; the UI receives safe guidance.
 - [ ] Ensure a successful Paystack check creates or refreshes the booking link,
       client record, meeting-link state, and confirmation notifications exactly
       once.

@@ -576,6 +576,7 @@ test("admin payments puts unresolved Paystack transactions in pending review", (
   assert.match(paymentsAdminRoute, /Failed \(\{failed\.length\}\)/);
   assert.match(paymentsAdminRoute, /verifyPaystackPaymentForAdmin/);
   assert.match(paymentsAdminRoute, /Paystack payment confirmed/);
+  assert.match(paymentsAdminRoute, /booking needs rescheduling or refund review/);
   assert.match(paymentsAdminRoute, /updatePaymentStatusForAdmin/);
   assert.match(paymentsAdminRoute, /paymentStatusLabels/);
   assert.match(paymentsAdminRoute, /paymentLifecycleLabel/);
