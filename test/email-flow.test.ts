@@ -223,6 +223,13 @@ test("paid bookings resolve the linked therapist login and send an idempotent th
   assert.match(therapistEmail, /therapist_notification_claimed_at/);
 });
 
+test("lifecycle notices use atomic appointment claims and release failed claims", () => {
+  assert.match(bookingFunctions, /claim_appointment_notification/);
+  assert.match(bookingFunctions, /finalize_appointment_notification/);
+  assert.match(bookingFunctions, /notificationKey: "reschedule_notice"/);
+  assert.match(bookingFunctions, /notificationKey: "cancellation_notice"/);
+});
+
 test("new therapist accounts use the branded Resend invitation template", () => {
   assert.match(adminFunctions, /auth\.admin\.generateLink/);
   assert.doesNotMatch(adminFunctions, /auth\.admin\.inviteUserByEmail/);
