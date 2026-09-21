@@ -30,6 +30,8 @@ replacement.
 - [x] Milestone 3g: harden lifecycle cleanup and payment reconciliation so
       eligible unpaid/test deletion is transactional and successful-payment
       side effects remain claim/idempotence protected.
+- [x] Milestone 3h: make slot replacement an explicit operator decision and
+      keep replacement/rescheduling guarded by the transactional booking RPCs.
 
 ## Incident safety and evidence
 
@@ -102,12 +104,16 @@ replacement.
 
 - [x] Add a `Release slot` or `Cancel and release` workflow distinct from
       permanent deletion.
-- [ ] Require the operator to choose: reschedule the same client, cancel with
-      refund review, or release the slot for a new booking.
-- [ ] Prevent a new booking from occupying the slot until the original
+- [x] Require the operator to choose: reschedule the same client, cancel with
+      refund review, or release the slot for a new booking. The admin UI now
+      presents these three distinct decisions before mutating the booking.
+- [x] Prevent a new booking from occupying the slot until the original
       appointment state and payment consequence are committed transactionally.
-- [ ] Preserve the original time, therapist, service, payment, and reason in
-      the appointment timeline when a slot is released or replaced.
+      The locked reschedule/cancel RPCs roll back on unavailable replacement
+      slots.
+- [x] Preserve the original time, therapist, service, payment, and reason in
+      the appointment timeline when a slot is released or replaced. Existing
+      timeline/audit fields retain the original appointment and decision reason.
 - [x] Revoke or regenerate manage and Meet links according to the resulting
       state; do not leave an old client link active after reassignment.
 - [ ] Send the correct client and therapist notifications exactly once after a

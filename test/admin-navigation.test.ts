@@ -366,6 +366,11 @@ test("booking operations supports visible admin rescheduling and Meet status che
   assert.match(bookings, /renderDeleteButton/);
   assert.match(bookings, /Delete booking/);
   assert.match(bookings, /Cancel & release slot/);
+  assert.match(bookings, /Choose what happens to this booking/);
+  assert.match(bookings, /Reschedule the same client/);
+  assert.match(bookings, /Cancel — refund review/);
+  assert.match(bookings, /Release slot for a new booking/);
+  assert.match(bookings, /admin_release_slot_for_replacement/);
   assert.match(bookings, /renderCancelAndReleaseButton/);
   assert.match(bookings, /cancelAppointmentForAdmin/);
   assert.match(bookings, /Archived bookings/);
