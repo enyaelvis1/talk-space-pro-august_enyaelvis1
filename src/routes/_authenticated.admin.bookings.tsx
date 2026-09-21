@@ -103,6 +103,8 @@ const clockFormatter = new Intl.DateTimeFormat("en-NG", {
   timeStyle: "medium",
 });
 
+type BookingDecision = "reschedule" | "refund_review" | "release_slot";
+
 function formatTime(iso: string) {
   try {
     return clockFormatter.format(new Date(iso));
@@ -338,6 +340,8 @@ function AdminBookingsPage() {
   const [editSlots, setEditSlots] = useState<AvailableSlot[]>([]);
   const [editSlotsLoading, setEditSlotsLoading] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
+  const [decisionRow, setDecisionRow] = useState<UpcomingAppointmentRow | null>(null);
+  const [decisionSaving, setDecisionSaving] = useState(false);
 
   useEffect(() => setRows(initial), [initial]);
 
@@ -528,30 +532,55 @@ function AdminBookingsPage() {
     }
   }, []);
 
-  const onCancelAndRelease = useCallback(async (row: UpcomingAppointmentRow) => {
-    const paymentWarning = ["succeeded", "awaiting_confirmation"].includes(row.paymentStatus ?? "")
-      ? " Payment/refund review will still be required."
-      : "";
-    if (
-      !confirm(
-        `Cancel booking ${row.bookingReference} and release its slot? The booking and payment history will be kept.${paymentWarning}`,
-      )
-    ) {
-      return;
-    }
-    setDeletingId(row.id);
-    try {
-      await cancelAppointmentForAdmin({
-        data: { appointmentId: row.id, reason: "manual_admin_cancel_release" },
-      });
-      setRows((current) => current.filter((item) => item.id !== row.id));
-      toast.success("Booking cancelled and slot released.");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to cancel booking.");
-    } finally {
-      setDeletingId(null);
-    }
+  const onCancelAndRelease = useCallback((row: UpcomingAppointmentRow) => {
+    setDecisionRow(row);
   }, []);
+
+  const applyBookingDecision = useCallback(
+    async (decision: BookingDecision) => {
+      const row = decisionRow;
+      if (!row) return;
+      if (decision === "reschedule") {
+        setDecisionRow(null);
+        setEditing(row);
+        setEditDate(toLagosDateKey(row.startsAt));
+        setEditSlot("");
+        setEditSlots([]);
+        return;
+      }
+
+      const reason =
+        decision === "refund_review"
+          ? "admin_cancel_refund_review"
+          : "admin_release_slot_for_replacement";
+      const confirmation =
+        decision === "refund_review"
+          ? `Cancel ${row.bookingReference} and send it for refund review? Payment history will be preserved.`
+          : `Cancel ${row.bookingReference} and release this slot for a new booking? Payment history will be preserved.`;
+      if (!confirm(confirmation)) return;
+
+      setDecisionSaving(true);
+      setDeletingId(row.id);
+      try {
+        await cancelAppointmentForAdmin({
+          data: { appointmentId: row.id, reason },
+        });
+        setRows((current) => current.filter((item) => item.id !== row.id));
+        setDecisionRow(null);
+        toast.success(
+          decision === "refund_review"
+            ? "Booking cancelled and marked for refund review."
+            : "Booking cancelled and slot released for replacement.",
+        );
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to cancel booking.");
+      } finally {
+        setDecisionSaving(false);
+        setDeletingId(null);
+      }
+    },
+    [decisionRow],
+  );
 
   const onBulkDeleteTemporary = useCallback(async () => {
     if (!hiddenTemporaryRows.length) return;
@@ -1518,6 +1547,58 @@ function AdminBookingsPage() {
                   })}
                 </div>
               )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={Boolean(decisionRow)} onOpenChange={(open) => !open && setDecisionRow(null)}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Choose what happens to this booking</DialogTitle>
+              <DialogDescription>
+                {decisionRow?.bookingReference} · keep the payment and timeline history intact.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-3 py-4">
+              <Button
+                variant="outline"
+                className="h-auto justify-start whitespace-normal p-4 text-left"
+                disabled={decisionSaving}
+                onClick={() => void applyBookingDecision("reschedule")}
+              >
+                <span>
+                  <span className="block font-medium">Reschedule the same client</span>
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    Choose another available date, therapist, or session mode.
+                  </span>
+                </span>
+              </Button>
+              <Button
+                variant="outline"
+                className="h-auto justify-start whitespace-normal border-amber-300 p-4 text-left text-amber-800 hover:bg-amber-50"
+                disabled={decisionSaving}
+                onClick={() => void applyBookingDecision("refund_review")}
+              >
+                <span>
+                  <span className="block font-medium">Cancel — refund review</span>
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    Cancel the appointment and preserve the payment for a refund decision.
+                  </span>
+                </span>
+              </Button>
+              <Button
+                variant="outline"
+                className="h-auto justify-start whitespace-normal border-brand-blue/40 p-4 text-left text-brand-deep hover:bg-brand-blue-soft"
+                disabled={decisionSaving}
+                onClick={() => void applyBookingDecision("release_slot")}
+              >
+                <span>
+                  <span className="block font-medium">Release slot for a new booking</span>
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    Cancel this appointment and make the time available again.
+                  </span>
+                </span>
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
