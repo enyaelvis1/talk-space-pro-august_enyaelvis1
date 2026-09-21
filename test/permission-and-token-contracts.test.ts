@@ -98,6 +98,12 @@ test("admin booking and payment operations require an admin role check", () => {
   ]) {
     assert.match(exportBody(paymentFunctions, name).slice(0, 900), /requireAdmin\(\)/, name);
   }
+
+  const deletePayment = exportBody(paymentFunctions, "deletePaymentForAdmin");
+  assert.match(deletePayment, /cannot be deleted/);
+  assert.match(deletePayment, /awaiting_confirmation/);
+  assert.match(deletePayment, /refunded/);
+  assert.match(deletePayment, /in\("status", \["initiated", "failed", "cancelled"\]\)/);
 });
 
 test("manage-token access is throttled, hashed, and rejected when inactive", () => {

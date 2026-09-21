@@ -13,6 +13,10 @@ replacement.
       separation for pending review, confirmed, cancelled, refunded, and
       archived records. The archived recovery view and restore action are now
       complete; lifecycle labeling and payment-action safeguards remain.
+- [x] Milestone 3a: add the on-demand archived booking recovery view and safe
+      restore action.
+- [x] Milestone 3b: protect financial history from payment deletion and make
+      eligible versus protected payment actions explicit in the admin UI.
 
 ## Incident safety and evidence
 
@@ -50,7 +54,7 @@ replacement.
       cancelled booking, refunded payment, and archived record.
 - [ ] Ensure deleting or resolving a pending-review payment cannot remove a
       confirmed appointment or its audit history.
-- [ ] Replace destructive row actions with explicit labels and confirmation
+- [x] Replace destructive row actions with explicit labels and confirmation
       dialogs that show the booking reference, payment state, and consequences.
 - [ ] Add an audit event for every verify, resolve, archive, restore, cancel,
       delete, refund, and slot-release action.
@@ -64,9 +68,9 @@ replacement.
 - [ ] Add a clearly labelled `Delete booking` action separate from `Archive`.
 - [ ] Restrict permanent deletion to authorized administrators and require a
       typed or selected reason plus confirmation.
-- [ ] Block permanent deletion by default for paid, refunded, completed, or
-      legally/audit-relevant bookings; provide `Cancel`, `Refund review`, or
-      `Archive` instead.
+- [x] Block permanent deletion by default for paid, refunded, completed, or
+      legally/audit-relevant payment records; provide review, cancel, refund,
+      or archive workflows instead.
 - [ ] If deletion is approved for an unpaid booking, revoke its manage token,
       clear holds, remove it from availability, and record the audit event.
 - [x] For paid bookings, preserve the payment ledger and client history even if

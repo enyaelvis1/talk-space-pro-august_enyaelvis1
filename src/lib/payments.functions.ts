@@ -1670,8 +1670,29 @@ export const deletePaymentForAdmin = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await requireAdmin();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin.from("payments").delete().eq("id", data.paymentId);
+    const { data: payment, error: lookupError } = await supabaseAdmin
+      .from("payments")
+      .select("status, appointment_id")
+      .eq("id", data.paymentId)
+      .maybeSingle();
+    if (lookupError) throw lookupError;
+    if (!payment) throw new Error("Payment record not found.");
+    if (
+      ["pending", "awaiting_confirmation", "succeeded", "refunded"].includes(String(payment.status))
+    ) {
+      throw new Error(
+        "This payment is part of the financial or booking history and cannot be deleted. Use review, cancel, or refund workflows.",
+      );
+    }
+    const { data: deleted, error } = await supabaseAdmin
+      .from("payments")
+      .delete()
+      .eq("id", data.paymentId)
+      .in("status", ["initiated", "failed", "cancelled"])
+      .select("id")
+      .maybeSingle();
     if (error) throw error;
+    if (!deleted) throw new Error("Payment changed and is no longer eligible for deletion.");
     return { ok: true };
   });
 
