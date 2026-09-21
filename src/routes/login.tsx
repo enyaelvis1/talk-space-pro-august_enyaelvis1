@@ -6,7 +6,7 @@ import { SiteFooter } from "@/components/site/SiteFooter";
 import { SiteHeader } from "@/components/site/SiteHeader";
 import { Button } from "@/components/ui/button";
 import { canonicalUrl } from "@/lib/seo";
-import { getSafeRedirect, hasBrowserRole } from "@/lib/auth";
+import { getSafeRedirect, hasBrowserRoleForSession } from "@/lib/auth";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase";
 
 export const Route = createFileRoute("/login")({
@@ -86,6 +86,8 @@ function LoginPage() {
 
     const deadline = Date.now() + 5000;
     let sessionReady = false;
+    let verifiedSession: Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"] =
+      null;
     while (Date.now() < deadline) {
       const [{ data: sessionData }, { data: userData, error: userError }] = await Promise.all([
         supabase.auth.getSession(),
@@ -93,6 +95,7 @@ function LoginPage() {
       ]);
       if (sessionData.session?.access_token && userData.user && !userError) {
         sessionReady = true;
+        verifiedSession = sessionData.session;
         break;
       }
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -105,12 +108,17 @@ function LoginPage() {
     }
 
     let destination = redirectTo;
-    if (mode === "sign-in" && (await hasBrowserRole("admin"))) {
+    if (
+      mode === "sign-in" &&
+      verifiedSession &&
+      (await hasBrowserRoleForSession(verifiedSession, "admin"))
+    ) {
       destination = "/admin";
     } else if (
       mode === "sign-in" &&
       (redirectTo === "/account" || redirectTo === "/") &&
-      (await hasBrowserRole("therapist"))
+      verifiedSession &&
+      (await hasBrowserRoleForSession(verifiedSession, "therapist"))
     ) {
       destination = "/therapist";
     }

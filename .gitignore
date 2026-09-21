@@ -11,19 +11,10 @@ node_modules
 dist
 dist-ssr
 .output
-.cache/
-.parcel-cache/
-.turbo/
-coverage/
-output/
-screenshots/
-backups/
 .vinxi
 .tanstack/**
 .nitro
 .vercel/
-.netlify/
-.playwright-cli/
 *.local
 
 # Wrangler / Cloudflare
@@ -41,14 +32,9 @@ backups/
 *.sln
 *.sw?
 
-# Environment files and local secrets
-.env
-.env.*
-!.env.example
-*.env.local
-*.env.*.local
-
-# Local project metadata
-.backup-current-dir
+*.env
+*env.local
 
 *.temp
+
+.playwright-cli

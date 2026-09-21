@@ -5,8 +5,7 @@ import type { LucideIcon } from "lucide-react";
 
 import { AdminWorkspaceShell } from "@/components/progress/AdminSidebar";
 import {
-  listAdminAuditLogs,
-  listSecurityEvents,
+  getAdminAuditWorkspace,
   type AdminAuditLogRow,
   type SecurityEventRow,
 } from "@/lib/admin.functions";
@@ -15,11 +14,8 @@ import { canonicalUrl } from "@/lib/seo";
 export const Route = createFileRoute("/_authenticated/admin/audit")({
   loader: async () => {
     try {
-      const [logs, securityEvents] = await Promise.all([
-        listAdminAuditLogs(),
-        listSecurityEvents().catch(() => [] as SecurityEventRow[]),
-      ]);
-      return { logs, securityEvents };
+      const workspace = await getAdminAuditWorkspace();
+      return workspace;
     } catch {
       throw redirect({ href: "/account?error=forbidden" });
     }

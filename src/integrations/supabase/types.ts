@@ -778,7 +778,6 @@ export type Database = {
         Row: {
           description: string | null;
           display_name: string;
-          body_override: string | null;
           is_enabled: boolean;
           subject_override: string | null;
           template_key: string;
@@ -787,7 +786,6 @@ export type Database = {
         Insert: {
           description?: string | null;
           display_name: string;
-          body_override?: string | null;
           is_enabled?: boolean;
           subject_override?: string | null;
           template_key: string;
@@ -796,7 +794,6 @@ export type Database = {
         Update: {
           description?: string | null;
           display_name?: string;
-          body_override?: string | null;
           is_enabled?: boolean;
           subject_override?: string | null;
           template_key?: string;

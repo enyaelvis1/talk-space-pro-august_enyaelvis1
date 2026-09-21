@@ -26,9 +26,8 @@ import { startVisiblePolling } from "@/lib/visible-polling";
 import {
   clearGoogleClientSecret,
   disconnectTherapistGoogle,
-  getGoogleAdminSettings,
+  getGoogleAdminWorkspace,
   listGoogleSyncActivity,
-  listTherapistConnections,
   retryAppointmentSync,
   setGoogleClientSecretFn,
   startGoogleConnect,
@@ -42,11 +41,7 @@ import {
 export const Route = createFileRoute("/_authenticated/admin/google")({
   loader: async () => {
     try {
-      const [settings, connections] = await Promise.all([
-        getGoogleAdminSettings(),
-        listTherapistConnections(),
-      ]);
-      return { settings, connections };
+      return getGoogleAdminWorkspace();
     } catch {
       throw redirect({ href: "/account?error=forbidden" });
     }
@@ -74,9 +69,9 @@ function GoogleAdminPage() {
   const [retryingAppt, setRetryingAppt] = useState<string | null>(null);
 
   const reload = async () => {
-    const [s, c] = await Promise.all([getGoogleAdminSettings(), listTherapistConnections()]);
-    setSettings(s);
-    setConnections(c);
+    const workspace = await getGoogleAdminWorkspace();
+    setSettings(workspace.settings);
+    setConnections(workspace.connections);
   };
 
   const saveSettings = async () => {

@@ -3,10 +3,9 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { AdminClientDetail } from "@/components/admin/AdminClientDetail";
 import { requireBrowserAdmin } from "@/lib/auth";
 import {
-  getAdminClientDetail,
+  getAdminClientDetailWorkspace,
   type AdminClientDetail as AdminClientDetailRecord,
 } from "@/lib/clients.functions";
-import { getAdminFormTemplates } from "@/lib/admin.functions";
 import { canonicalUrl } from "@/lib/seo";
 
 export const Route = createFileRoute("/_authenticated/admin/clients/$clientId")({
@@ -14,10 +13,9 @@ export const Route = createFileRoute("/_authenticated/admin/clients/$clientId")(
     await requireBrowserAdmin(location.href);
   },
   loader: async ({ params }) => {
-    const [client, assessmentTemplates] = await Promise.all([
-      getAdminClientDetail({ data: { clientId: params.clientId } }),
-      getAdminFormTemplates(),
-    ]);
+    const { client, assessmentTemplates } = await getAdminClientDetailWorkspace({
+      data: { clientId: params.clientId },
+    });
     if (!client) throw redirect({ href: "/admin/clients?error=not-found" });
     return { client, assessmentTemplates };
   },

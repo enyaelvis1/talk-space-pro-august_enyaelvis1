@@ -20,6 +20,7 @@ import {
   isBookingTokenActive,
   type BookingTokenLifecycle,
 } from "@/lib/booking-token-lifecycle";
+import { requireRequestRole } from "@/lib/server-auth";
 
 function bag() {
   const r = createRequestSupabase(getRequest());
@@ -28,23 +29,12 @@ function bag() {
 }
 
 async function requireAdmin() {
-  const r = bag();
-  const {
-    data: { user },
-  } = await r.client.auth.getUser();
-  if (!user) {
-    r.commitCookies();
-    throw new Error("Sign in required.");
-  }
-  const { data: isAdmin, error } = await r.client.rpc("has_role", {
-    _user_id: user.id,
-    _role: "admin",
-  });
-  if (error || !isAdmin) {
-    r.commitCookies();
-    throw new Error("Admin permission required.");
-  }
-  return { userId: user.id, client: r.client, commitCookies: r.commitCookies };
+  const context = await requireRequestRole("admin");
+  return {
+    userId: context.user.id,
+    client: context.bag.client,
+    commitCookies: context.bag.commitCookies,
+  };
 }
 
 function noStore() {
@@ -432,13 +422,17 @@ export type ManualPackageLinkResult = {
   remainingSessions: number;
 };
 
+async function loadPaymentAdminData(): Promise<PaymentSettingsDTO> {
+  const { loadPaymentSettings } = await import("@/lib/payments.server");
+  const s = await loadPaymentSettings();
+  noStore();
+  return s as PaymentSettingsDTO;
+}
+
 export const getPaymentAdminData = createServerFn({ method: "GET" }).handler(
   async (): Promise<PaymentSettingsDTO> => {
     await requireAdmin();
-    const { loadPaymentSettings } = await import("@/lib/payments.server");
-    const s = await loadPaymentSettings();
-    noStore();
-    return s as PaymentSettingsDTO;
+    return loadPaymentAdminData();
   },
 );
 
@@ -460,23 +454,43 @@ export const getPublicPaymentOptions = createServerFn({ method: "GET" }).handler
   },
 );
 
+async function loadPackageServicesForAdmin(): Promise<PackageServiceOption[]> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("services")
+    .select("id, name, sessions_per_package, price_ngn")
+    .eq("is_active", true)
+    .order("display_order", { ascending: true });
+  if (error) throw error;
+  noStore();
+  return (data ?? []).map((service) => ({
+    id: service.id,
+    name: service.name,
+    sessionsPerPackage: Number(service.sessions_per_package ?? 1),
+    priceNgn: service.price_ngn == null ? null : Number(service.price_ngn),
+  }));
+}
+
 export const listPackageServicesForAdmin = createServerFn({ method: "GET" }).handler(
   async (): Promise<PackageServiceOption[]> => {
     await requireAdmin();
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin
-      .from("services")
-      .select("id, name, sessions_per_package, price_ngn")
-      .eq("is_active", true)
-      .order("display_order", { ascending: true });
-    if (error) throw error;
-    noStore();
-    return (data ?? []).map((service) => ({
-      id: service.id,
-      name: service.name,
-      sessionsPerPackage: Number(service.sessions_per_package ?? 1),
-      priceNgn: service.price_ngn == null ? null : Number(service.price_ngn),
-    }));
+    return loadPackageServicesForAdmin();
+  },
+);
+
+export type PaymentAdminSetupWorkspace = {
+  settings: PaymentSettingsDTO;
+  packageServices: PackageServiceOption[];
+};
+
+export const getPaymentAdminSetupWorkspace = createServerFn({ method: "GET" }).handler(
+  async (): Promise<PaymentAdminSetupWorkspace> => {
+    await requireAdmin();
+    const [settings, packageServices] = await Promise.all([
+      loadPaymentAdminData(),
+      loadPackageServicesForAdmin(),
+    ]);
+    return { settings, packageServices };
   },
 );
 
@@ -1554,61 +1568,81 @@ export type PaymentRow = {
   verifiedAt: string | null;
 };
 
+async function loadPaymentsForAdmin(): Promise<PaymentRow[]> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("payments")
+    .select(
+      "id, appointment_id, provider, reference, checkout_group_reference, provider_reference, amount_kobo, metadata, status, transfer_note, transfer_reference, receipt_path, failed_reason, created_at, verified_at, appointments(booking_reference, client_name, client_email, status)",
+    )
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (error) throw error;
+  noStore();
+  const { isBookingReviewRequired } = await import("@/lib/payments.server");
+  const checkoutTotals = new Map<string, number>();
+  for (const row of data ?? []) {
+    const group = (row.checkout_group_reference as string | null) ?? (row.reference as string);
+    checkoutTotals.set(group, (checkoutTotals.get(group) ?? 0) + Number(row.amount_kobo));
+  }
+  return (data ?? []).map((row): PaymentRow => {
+    const appt = row.appointments as {
+      booking_reference?: string;
+      client_name?: string;
+      client_email?: string;
+      status?: string;
+    } | null;
+    return {
+      id: row.id as string,
+      appointmentId: row.appointment_id as string,
+      bookingReference: appt?.booking_reference ?? null,
+      clientName: appt?.client_name ?? null,
+      clientEmail: appt?.client_email ?? null,
+      provider: row.provider as "paystack" | "bank_transfer",
+      reference: row.reference as string,
+      providerReference: (row.provider_reference as string | null) ?? null,
+      amountKobo: Number(row.amount_kobo),
+      checkoutGroupReference: (row.checkout_group_reference as string | null) ?? null,
+      checkoutTotalKobo:
+        checkoutTotals.get(
+          (row.checkout_group_reference as string | null) ?? (row.reference as string),
+        ) ?? Number(row.amount_kobo),
+      checkoutReceipt:
+        row.provider === "paystack" && row.status === "succeeded"
+          ? readPaymentReceipt(row.metadata)
+          : null,
+      status: row.status as string,
+      transferNote: (row.transfer_note as string | null) ?? null,
+      transferReference: (row.transfer_reference as string | null) ?? null,
+      receiptPath: (row.receipt_path as string | null) ?? null,
+      failedReason: (row.failed_reason as string | null) ?? null,
+      createdAt: row.created_at as string,
+      verifiedAt: (row.verified_at as string | null) ?? null,
+      bookingReviewRequired: isBookingReviewRequired(row.metadata),
+    };
+  });
+}
+
 export const listPaymentsForAdmin = createServerFn({ method: "GET" }).handler(
   async (): Promise<PaymentRow[]> => {
     await requireAdmin();
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin
-      .from("payments")
-      .select(
-        "id, appointment_id, provider, reference, checkout_group_reference, provider_reference, amount_kobo, metadata, status, transfer_note, transfer_reference, receipt_path, failed_reason, created_at, verified_at, appointments(booking_reference, client_name, client_email, status)",
-      )
-      .order("created_at", { ascending: false })
-      .limit(200);
-    if (error) throw error;
-    noStore();
-    const { isBookingReviewRequired } = await import("@/lib/payments.server");
-    const checkoutTotals = new Map<string, number>();
-    for (const row of data ?? []) {
-      const group = (row.checkout_group_reference as string | null) ?? (row.reference as string);
-      checkoutTotals.set(group, (checkoutTotals.get(group) ?? 0) + Number(row.amount_kobo));
-    }
-    return (data ?? []).map((row): PaymentRow => {
-      const appt = row.appointments as {
-        booking_reference?: string;
-        client_name?: string;
-        client_email?: string;
-        status?: string;
-      } | null;
-      return {
-        id: row.id as string,
-        appointmentId: row.appointment_id as string,
-        bookingReference: appt?.booking_reference ?? null,
-        clientName: appt?.client_name ?? null,
-        clientEmail: appt?.client_email ?? null,
-        provider: row.provider as "paystack" | "bank_transfer",
-        reference: row.reference as string,
-        providerReference: (row.provider_reference as string | null) ?? null,
-        amountKobo: Number(row.amount_kobo),
-        checkoutGroupReference: (row.checkout_group_reference as string | null) ?? null,
-        checkoutTotalKobo:
-          checkoutTotals.get(
-            (row.checkout_group_reference as string | null) ?? (row.reference as string),
-          ) ?? Number(row.amount_kobo),
-        checkoutReceipt:
-          row.provider === "paystack" && row.status === "succeeded"
-            ? readPaymentReceipt(row.metadata)
-            : null,
-        status: row.status as string,
-        transferNote: (row.transfer_note as string | null) ?? null,
-        transferReference: (row.transfer_reference as string | null) ?? null,
-        receiptPath: (row.receipt_path as string | null) ?? null,
-        failedReason: (row.failed_reason as string | null) ?? null,
-        createdAt: row.created_at as string,
-        verifiedAt: (row.verified_at as string | null) ?? null,
-        bookingReviewRequired: isBookingReviewRequired(row.metadata),
-      };
-    });
+    return loadPaymentsForAdmin();
+  },
+);
+
+export type PaymentAdminWorkspace = PaymentAdminSetupWorkspace & {
+  payments: PaymentRow[];
+};
+
+export const getPaymentAdminWorkspace = createServerFn({ method: "GET" }).handler(
+  async (): Promise<PaymentAdminWorkspace> => {
+    await requireAdmin();
+    const [settings, packageServices, payments] = await Promise.all([
+      loadPaymentAdminData(),
+      loadPackageServicesForAdmin(),
+      loadPaymentsForAdmin(),
+    ]);
+    return { settings, packageServices, payments };
   },
 );
 

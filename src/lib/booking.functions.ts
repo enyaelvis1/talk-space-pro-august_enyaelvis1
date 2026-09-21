@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import type { Database } from "@/integrations/supabase/types";
 import { createRequestSupabase } from "@/lib/supabase-server";
+import { requireRequestRole } from "@/lib/server-auth";
 import { canonicalUrl } from "@/lib/seo";
 import { buildIntakeConsentSnapshot } from "@/lib/intake-consent";
 import { getTemplateVersion } from "@/lib/form-templates";
@@ -1123,23 +1124,7 @@ export const expireStaleHolds = createServerFn({ method: "POST" }).handler(async
 });
 
 async function requireAdminClient() {
-  const bag = getConfiguredClient();
-  const {
-    data: { user },
-  } = await bag.client.auth.getUser();
-  if (!user) {
-    bag.commitCookies();
-    throw new Error("Sign in required.");
-  }
-  const { data: isAdmin, error } = await bag.client.rpc("has_role", {
-    _user_id: user.id,
-    _role: "admin",
-  });
-  if (error || !isAdmin) {
-    bag.commitCookies();
-    throw new Error("Admin permission required.");
-  }
-  return bag;
+  return (await requireRequestRole("admin")).bag;
 }
 
 export type AdminBookingFormData = {
@@ -1760,6 +1745,65 @@ export const getAdminAppointmentTimeline = createServerFn({ method: "POST" })
       entries,
     };
   });
+
+async function loadAdminAppointmentWindow(
+  bag: Awaited<ReturnType<typeof requireAdminClient>>,
+  scope: "today" | "upcoming",
+): Promise<UpcomingAppointmentRow[]> {
+  const nowIso = new Date().toISOString();
+  const horizonIso = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const { startIso, endIso } = getLagosDayBounds();
+  const { data: settingsRow } = await bag.client
+    .from("reminder_settings")
+    .select(
+      "reminder_24h_open_min_minutes, reminder_24h_open_max_minutes, reminder_1h_open_min_minutes, reminder_1h_open_max_minutes",
+    )
+    .eq("id", 1)
+    .maybeSingle();
+  const win24 = {
+    openMin: (settingsRow?.reminder_24h_open_min_minutes as number) ?? 1380,
+    openMax: (settingsRow?.reminder_24h_open_max_minutes as number) ?? 1470,
+  };
+  const win1 = {
+    openMin: (settingsRow?.reminder_1h_open_min_minutes as number) ?? 30,
+    openMax: (settingsRow?.reminder_1h_open_max_minutes as number) ?? 90,
+  };
+  let query = bag.client
+    .from("appointments")
+    .select(
+      "id, booking_reference, status, hold_expires_at, starts_at, ends_at, session_mode, service_id, therapist_id, client_name, client_email, manage_token, manage_token_expires_at, manage_token_revoked_at, manage_token_revocation_reason, reminder_24h_sent_at, reminder_1h_sent_at, google_synced_at, google_sync_error, google_meet_url, archived_at, archive_reason, services(name), therapists(full_name)",
+    )
+    .eq("status", "confirmed")
+    .is("archived_at", null)
+    .order("starts_at", { ascending: true })
+    .limit(200);
+  query =
+    scope === "today"
+      ? query.gte("starts_at", startIso).lt("starts_at", endIso)
+      : query.gte("starts_at", nowIso).lte("starts_at", horizonIso);
+  const { data, error } = await query;
+  if (error) throw error;
+  const now = Date.now();
+  return (data ?? []).map((row: Record<string, unknown>) =>
+    mapAdminAppointmentRow(row, now, win24, win1),
+  );
+}
+
+export const getAdminAppointmentWorkspace = createServerFn({ method: "GET" }).handler(
+  async (): Promise<{
+    todayAppointments: UpcomingAppointmentRow[];
+    upcomingAppointments: UpcomingAppointmentRow[];
+  }> => {
+    const bag = await requireAdminClient();
+    const [todayAppointments, upcomingAppointments] = await Promise.all([
+      loadAdminAppointmentWindow(bag, "today"),
+      loadAdminAppointmentWindow(bag, "upcoming"),
+    ]);
+    bag.commitCookies();
+    noStoreLocal();
+    return { todayAppointments, upcomingAppointments };
+  },
+);
 
 export const listUpcomingAppointmentsForAdmin = createServerFn({ method: "GET" }).handler(
   async (): Promise<UpcomingAppointmentRow[]> => {

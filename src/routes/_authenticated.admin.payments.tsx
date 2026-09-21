@@ -44,8 +44,8 @@ import {
   clearPaystackWebhookSecret,
   createManualPackageLink,
   getPaymentAdminData,
+  getPaymentAdminWorkspace,
   getReceiptSignedUrl,
-  listPackageServicesForAdmin,
   listPaymentsForAdmin,
   listPaymentReviews,
   listPaymentEvents,
@@ -72,12 +72,8 @@ export const Route = createFileRoute("/_authenticated/admin/payments")({
   pendingMinMs: 300,
   loader: async () => {
     try {
-      const [settings, payments, packageServices] = await Promise.all([
-        getPaymentAdminData(),
-        listPaymentsForAdmin(),
-        listPackageServicesForAdmin(),
-      ]);
-      return { settings, payments, packageServices };
+      const workspace = await getPaymentAdminWorkspace();
+      return workspace;
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       if (message === "Sign in required." || message === "Admin permission required.") {

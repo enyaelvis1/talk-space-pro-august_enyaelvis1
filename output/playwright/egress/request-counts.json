@@ -1,0 +1,175 @@
+{
+  "fixtureOnly": true,
+  "warmSsrVisits": 10,
+  "before": {
+    "/rest/v1/redirects:": 1,
+    "/rest/v1/site_settings:eq.site_details": 1,
+    "/rest/v1/site_settings:in.(home_hero,home_specialties,home_specialty_cards,google_reviews,home_pricing,home_sections,home_section_copy)": 1,
+    "/rest/v1/therapists:": 1,
+    "/rest/v1/testimonials:": 1,
+    "/rest/v1/content_entries:": 2,
+    "/rest/v1/site_settings:eq.footer_settings": 1
+  },
+  "after": {
+    "/rest/v1/redirects:": 1,
+    "/rest/v1/site_settings:eq.site_details": 1,
+    "/rest/v1/site_settings:in.(home_hero,home_specialties,home_specialty_cards,google_reviews,home_pricing,home_sections,home_section_copy)": 1,
+    "/rest/v1/therapists:": 1,
+    "/rest/v1/testimonials:": 1,
+    "/rest/v1/content_entries:": 2,
+    "/rest/v1/site_settings:eq.footer_settings": 1
+  },
+  "pageErrors": [],
+  "csrfResults": {
+    "same-origin metadata": 200,
+    "same-origin header": 200,
+    "same-origin referer": 200,
+    "cross-site metadata": 403,
+    "same-site subdomain": 403,
+    "foreign origin": 403,
+    "foreign referer": 403,
+    "missing origin metadata": 403
+  },
+  "rejectedCrossOriginPost": 403,
+  "unsignedWebhook": 401,
+  "invalidOAuthCallback": 400,
+  "fixtureRequestBudget": {
+    "total": {
+      "requests": 8,
+      "responses": 8,
+      "failedResponses": 0,
+      "bytes": 0
+    },
+    "byCategory": {
+      "auth": {
+        "requests": 0,
+        "responses": 0,
+        "failedResponses": 0,
+        "bytes": 0
+      },
+      "database": {
+        "requests": 8,
+        "responses": 8,
+        "failedResponses": 0,
+        "bytes": 0
+      },
+      "storage": {
+        "requests": 0,
+        "responses": 0,
+        "failedResponses": 0,
+        "bytes": 0
+      },
+      "realtime": {
+        "requests": 0,
+        "responses": 0,
+        "failedResponses": 0,
+        "bytes": 0
+      },
+      "serverFunction": {
+        "requests": 0,
+        "responses": 0,
+        "failedResponses": 0,
+        "bytes": 0
+      },
+      "other": {
+        "requests": 0,
+        "responses": 0,
+        "failedResponses": 0,
+        "bytes": 0
+      }
+    }
+  },
+  "requestBudget": {
+    "total": {
+      "requests": 281,
+      "responses": 281,
+      "failedResponses": 0,
+      "bytes": 28793883
+    },
+    "byCategory": {
+      "auth": {
+        "requests": 0,
+        "responses": 0,
+        "failedResponses": 0,
+        "bytes": 0
+      },
+      "database": {
+        "requests": 0,
+        "responses": 0,
+        "failedResponses": 0,
+        "bytes": 0
+      },
+      "storage": {
+        "requests": 0,
+        "responses": 0,
+        "failedResponses": 0,
+        "bytes": 0
+      },
+      "realtime": {
+        "requests": 0,
+        "responses": 0,
+        "failedResponses": 0,
+        "bytes": 0
+      },
+      "serverFunction": {
+        "requests": 1,
+        "responses": 1,
+        "failedResponses": 0,
+        "bytes": 0
+      },
+      "other": {
+        "requests": 280,
+        "responses": 280,
+        "failedResponses": 0,
+        "bytes": 28793883
+      }
+    }
+  },
+  "shellBudget": {
+    "total": {
+      "requests": 2,
+      "responses": 2,
+      "failedResponses": 0,
+      "bytes": 0
+    },
+    "byCategory": {
+      "auth": {
+        "requests": 0,
+        "responses": 0,
+        "failedResponses": 0,
+        "bytes": 0
+      },
+      "database": {
+        "requests": 2,
+        "responses": 2,
+        "failedResponses": 0,
+        "bytes": 0
+      },
+      "storage": {
+        "requests": 0,
+        "responses": 0,
+        "failedResponses": 0,
+        "bytes": 0
+      },
+      "realtime": {
+        "requests": 0,
+        "responses": 0,
+        "failedResponses": 0,
+        "bytes": 0
+      },
+      "serverFunction": {
+        "requests": 0,
+        "responses": 0,
+        "failedResponses": 0,
+        "bytes": 0
+      },
+      "other": {
+        "requests": 0,
+        "responses": 0,
+        "failedResponses": 0,
+        "bytes": 0
+      }
+    }
+  },
+  "requestBudgetViolations": []
+}

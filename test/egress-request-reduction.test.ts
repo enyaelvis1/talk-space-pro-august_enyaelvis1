@@ -192,6 +192,220 @@ test("actual browser auth helper makes no Auth request for anonymous visits", as
   }
 });
 
+test("browser auth refresh is event and expiry driven instead of periodic polling", () => {
+  const source = read("src/lib/browser-auth-state.ts");
+  assert.doesNotMatch(source, /window\.setInterval/);
+  assert.match(source, /onAuthStateChange/);
+  assert.match(source, /TOKEN_REFRESHED/);
+  assert.match(source, /visibilitychange/);
+  assert.match(source, /window\.setTimeout/);
+});
+
+test("protected server guards share request-scoped auth context", () => {
+  const auth = read("src/lib/server-auth.ts");
+  assert.match(auth, /new WeakMap<Request, Promise<RequestAuthContext \| null>>/);
+  assert.match(auth, /roleChecks = new Map/);
+  assert.match(auth, /contexts\.get\(request\)/);
+  assert.match(auth, /TALKSPACE_AUTH_METRICS/);
+  assert.match(auth, /X-Talkspace-Auth-User-Lookups/);
+  assert.match(auth, /X-Talkspace-Auth-Role-Checks/);
+
+  for (const path of [
+    "src/lib/admin.functions.ts",
+    "src/lib/payments.functions.ts",
+    "src/lib/booking.functions.ts",
+    "src/lib/google.functions.ts",
+    "src/lib/email.functions.ts",
+    "src/lib/therapist.functions.ts",
+    "src/lib/availability.functions.ts",
+    "src/lib/clients.functions.ts",
+    "src/lib/progress.functions.ts",
+  ]) {
+    assert.match(read(path), /server-auth/);
+  }
+});
+
+test("role-specific browser checks reuse an already verified session", () => {
+  const auth = read("src/lib/auth.ts");
+  const login = read("src/routes/login.tsx");
+  assert.match(auth, /hasBrowserRoleForSession\(session, "admin"\)/);
+  assert.doesNotMatch(
+    auth.slice(auth.indexOf("export async function requireBrowserAdmin")),
+    /hasBrowserRole\("admin"\)/,
+  );
+  assert.match(login, /hasBrowserRoleForSession\(verifiedSession, "admin"\)/);
+  assert.match(login, /hasBrowserRoleForSession\(verifiedSession, "therapist"\)/);
+  assert.doesNotMatch(login, /hasBrowserRole\(/);
+});
+
+test("homepage admin loader consolidates its initial settings reads", () => {
+  const route = read("src/routes/_authenticated.admin.homepage.tsx");
+  const admin = read("src/lib/admin.functions.ts");
+  assert.match(route, /getAdminHomepageWorkspace\(\)/);
+  assert.doesNotMatch(route, /Promise\.all\(\[\s*getAdminHomepage/);
+  assert.match(admin, /export const getAdminHomepageWorkspace/);
+  assert.match(admin, /\.in\("key", \["home_sections", "home_section_copy", "home_pricing"\]\)/);
+});
+
+test("Google admin loader consolidates settings and therapist connections", () => {
+  const route = read("src/routes/_authenticated.admin.google.tsx");
+  const google = read("src/lib/google.functions.ts");
+  assert.match(route, /getGoogleAdminWorkspace\(\)/);
+  assert.doesNotMatch(route, /Promise\.all\(\[\s*getGoogleAdmin/);
+  assert.match(google, /export const getGoogleAdminWorkspace/);
+  assert.match(google, /await requireAdmin\(\);[\s\S]*loadGoogleAdminSettings/);
+});
+
+test("settings loader consolidates site and footer reads", () => {
+  const route = read("src/routes/_authenticated.admin.settings.tsx");
+  const workspace = read("src/lib/admin-settings.functions.ts");
+  const admin = read("src/lib/admin.functions.ts");
+  assert.match(route, /getAdminSettingsWorkspace\(\)/);
+  assert.doesNotMatch(route, /Promise\.all\(\[/);
+  assert.match(workspace, /export const getAdminSettingsWorkspace/);
+  assert.match(workspace, /requireRequestRole\("admin"\)/);
+  assert.match(workspace, /import\("@\/lib\/email\.server"\)/);
+  assert.match(workspace, /import\("@\/lib\/payments\.server"\)/);
+  assert.match(workspace, /import\("@\/lib\/google\.server"\)/);
+  assert.match(admin, /export const getAdminSiteSettingsWorkspace/);
+  assert.match(admin, /\.in\("key", \["site_details", "footer_settings"\]\)/);
+});
+
+test("email admin loader consolidates its initial protected reads", () => {
+  const route = read("src/routes/_authenticated.admin.emails.tsx");
+  const email = read("src/lib/email.functions.ts");
+  assert.match(route, /getEmailAdminWorkspace\(\)/);
+  assert.match(email, /export const getEmailAdminWorkspace/);
+  assert.match(email, /loadEmailAdminData\(\)/);
+  assert.match(email, /loadEmailDeliveryLogs\(\)/);
+  assert.match(email, /loadReminderSettings\(\)/);
+});
+
+test("admin dashboard consolidates today and upcoming appointment reads", () => {
+  const route = read("src/routes/_authenticated.admin.index.tsx");
+  const booking = read("src/lib/booking.functions.ts");
+  assert.match(route, /getAdminAppointmentWorkspace\(\)/);
+  assert.doesNotMatch(route, /listTodayAppointmentsForAdmin|listUpcomingAppointmentsForAdmin/);
+  assert.match(booking, /export const getAdminAppointmentWorkspace/);
+  assert.match(booking, /loadAdminAppointmentWindow\(bag, "today"\)/);
+  assert.match(booking, /loadAdminAppointmentWindow\(bag, "upcoming"\)/);
+});
+
+test("admin dashboard consolidates summary and failure queue reads", () => {
+  const route = read("src/routes/_authenticated.admin.index.tsx");
+  const admin = read("src/lib/admin.functions.ts");
+  assert.match(route, /getAdminOperationsWorkspace\(\)/);
+  assert.doesNotMatch(route, /getAdminDashboardSummary|getAdminFailureQueues/);
+  assert.match(admin, /export const getAdminOperationsWorkspace/);
+  assert.match(admin, /loadAdminDashboardSummary\(bag\)/);
+  assert.match(admin, /loadAdminFailureQueues\(bag\)/);
+});
+
+test("admin dashboard receives progress permission with the server payload", () => {
+  const route = read("src/routes/_authenticated.admin.index.tsx");
+  const progress = read("src/lib/progress.functions.ts");
+  assert.match(route, /getAdminProgressWorkspace\(\)/);
+  assert.doesNotMatch(route, /getVerifiedBrowserSession|hasProgressAccess/);
+  assert.match(progress, /export const getAdminProgressWorkspace/);
+  assert.match(progress, /canViewProgress: hasProgressAccess/);
+});
+
+test("admin services loader consolidates its initial service and therapist reads", () => {
+  const route = read("src/routes/_authenticated.admin.services.tsx");
+  const admin = read("src/lib/admin.functions.ts");
+  assert.match(route, /getAdminServicesWorkspace()/);
+  assert.doesNotMatch(route, /Promise\.all\(\[\s*listAdminServices\(\)/);
+  assert.match(admin, /export const getAdminServicesWorkspace/);
+  assert.match(admin, /loadAdminServices\(bag\)/);
+  assert.match(admin, /loadAdminTherapists\(bag\)/);
+});
+
+test("admin forms loader consolidates templates and pending intake reads", () => {
+  const route = read("src/routes/_authenticated.admin.forms.tsx");
+  const admin = read("src/lib/admin.functions.ts");
+  assert.match(route, /getAdminFormsWorkspace\(\)/);
+  assert.doesNotMatch(route, /getAdminFormTemplates\(\)|listPendingIntakeSubmissions\(\)/);
+  assert.match(admin, /export const getAdminFormsWorkspace/);
+  assert.match(admin, /loadAdminFormTemplates\(bag\)/);
+  assert.match(admin, /loadPendingIntakeSubmissions\(bag\)/);
+});
+
+test("content editor consolidates entry and category reads", () => {
+  const route = read("src/routes/_authenticated.admin.content.$id.edit.tsx");
+  const admin = read("src/lib/admin.functions.ts");
+  assert.match(route, /getAdminContentEditWorkspace\(\{ data: \{ id \} \}\)/);
+  assert.doesNotMatch(route, /Promise\.all\(\[/);
+  assert.match(admin, /export const getAdminContentEditWorkspace/);
+  assert.match(admin, /loadAdminContentEntry\(bag, data\.id\)/);
+  assert.match(admin, /loadAdminCategories\(bag\)/);
+});
+
+test("audit loader consolidates audit and security reads with a fallback", () => {
+  const route = read("src/routes/_authenticated.admin.audit.tsx");
+  const admin = read("src/lib/admin.functions.ts");
+  assert.match(route, /getAdminAuditWorkspace\(\)/);
+  assert.doesNotMatch(route, /listAdminAuditLogs\(\)|listSecurityEvents\(\)/);
+  assert.match(admin, /export const getAdminAuditWorkspace/);
+  assert.match(admin, /loadAdminAuditLogs\(bag\)/);
+  assert.match(admin, /loadSecurityEvents\(bag\)\.catch/);
+});
+
+test("client detail loader consolidates the record and assessment templates", () => {
+  const route = read("src/routes/_authenticated.admin.clients.$clientId.tsx");
+  const clients = read("src/lib/clients.functions.ts");
+  assert.match(route, /getAdminClientDetailWorkspace/);
+  assert.doesNotMatch(route, /Promise\.all\(\[/);
+  assert.match(clients, /export const getAdminClientDetailWorkspace/);
+  assert.match(clients, /loadAdminClientDetail\(client, data\.clientId\)/);
+  assert.match(clients, /from\("site_settings"\)/);
+});
+
+test("client directory pagination and reminder batches are bounded", () => {
+  const clients = read("src/lib/clients.functions.ts");
+  const clientScreen = read("src/components/admin/AdminClients.tsx");
+  const reminders = read("src/routes/api/public/hooks/send-reminders.ts");
+  assert.match(clients, /const ADMIN_CLIENT_PAGE_SIZE = 100/);
+  assert.match(clients, /\.range\(start, end\)/);
+  assert.match(clients, /export const getAdminClientsPage/);
+  assert.match(clientScreen, /getAdminClientsPage/);
+  assert.match(clientScreen, /Load more clients/);
+  assert.match(reminders, /\.limit\(100\)/);
+});
+
+test("payments loader consolidates settings, package setup, and payment reads", () => {
+  const route = read("src/routes/_authenticated.admin.payments.tsx");
+  const payments = read("src/lib/payments.functions.ts");
+  assert.match(route, /getPaymentAdminWorkspace\(\)/);
+  assert.doesNotMatch(route, /const \[setup, payments\] = await Promise\.all/);
+  assert.match(payments, /export const getPaymentAdminWorkspace/);
+  assert.match(payments, /const \[settings, packageServices, payments\] = await Promise\.all/);
+  assert.match(payments, /async function loadPaymentsForAdmin/);
+  assert.match(payments, /loadPaymentAdminData\(\)/);
+  assert.match(payments, /loadPackageServicesForAdmin\(\)/);
+});
+
+test("admin media initial reads are paged and storage signing is bounded", () => {
+  const route = read("src/routes/_authenticated.admin.media.tsx");
+  const admin = read("src/lib/admin.functions.ts");
+  assert.match(route, /listAdminMediaPage\(\{ data: \{ page: 1, pageSize: 100 \} \}\)/);
+  assert.match(route, /Load more media/);
+  assert.match(admin, /export const listAdminMediaPage/);
+  assert.match(admin, /pageSize: z\.number\(\)\.int\(\)\.min\(20\)\.max\(100\)/);
+  assert.match(admin, /\.range\(start, start \+ data\.pageSize - 1\)/);
+});
+
+test("authoritative private reads do not use the public read cache", () => {
+  for (const path of [
+    "src/lib/availability.functions.ts",
+    "src/lib/booking.functions.ts",
+    "src/lib/clients.functions.ts",
+    "src/lib/payments.functions.ts",
+    "src/lib/therapist.functions.ts",
+  ]) {
+    assert.doesNotMatch(read(path), /createPublicReadCache/);
+  }
+});
+
 test("shell reuses root details and only public reads use the bounded cache", () => {
   for (const path of ["src/components/site/SiteHeader.tsx", "src/components/site/SiteFooter.tsx"]) {
     const source = read(path);

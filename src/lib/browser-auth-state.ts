@@ -29,11 +29,36 @@ let snapshot = initialSnapshot;
 let started = false;
 let refreshPromise: Promise<void> | null = null;
 let lastRefreshAt = 0;
+let expiryTimer: number | undefined;
 const listeners = new Set<() => void>();
 
 function emit(next: BrowserAuthSnapshot) {
   snapshot = next;
   listeners.forEach((listener) => listener());
+}
+
+function clearExpiryTimer() {
+  if (expiryTimer === undefined) return;
+  window.clearTimeout(expiryTimer);
+  expiryTimer = undefined;
+}
+
+function scheduleSessionExpiry(session: Session | null) {
+  clearExpiryTimer();
+  if (!session) return;
+
+  const { expiresInMs } = getSessionExpiryState(session);
+  if (expiresInMs === null || !Number.isFinite(expiresInMs)) return;
+
+  const refreshLeadTime = 5 * 60 * 1000;
+  const delay = Math.max(
+    1_000,
+    expiresInMs > refreshLeadTime ? expiresInMs - refreshLeadTime : expiresInMs,
+  );
+  expiryTimer = window.setTimeout(() => {
+    expiryTimer = undefined;
+    void refreshBrowserAuthState(true);
+  }, delay);
 }
 
 function snapshotForSession(
@@ -77,6 +102,7 @@ export async function refreshBrowserAuthState(force = false) {
       const session = await getVerifiedBrowserSession();
       if (!session) {
         emit(snapshotForSession(null));
+        clearExpiryTimer();
         return;
       }
 
@@ -86,6 +112,7 @@ export async function refreshBrowserAuthState(force = false) {
       ]);
       const next = snapshotForSession(session);
       emit({ ...next, isAdmin, isTherapist });
+      scheduleSessionExpiry(session);
     } catch (error) {
       console.error("Browser auth refresh failed.", error);
       emit({ ...snapshot, status: "error", checkedAt: Date.now() });
@@ -107,12 +134,25 @@ function startBrowserAuthState() {
     return;
   }
 
-  supabase.auth.onAuthStateChange((_event, nextSession) => {
+  supabase.auth.onAuthStateChange((event, nextSession) => {
     if (!nextSession) {
       lastRefreshAt = Date.now();
       emit(snapshotForSession(null));
+      clearExpiryTimer();
       return;
     }
+
+    if (event === "TOKEN_REFRESHED" && snapshot.session?.user.id === nextSession.user.id) {
+      const next = snapshotForSession(nextSession);
+      emit({
+        ...next,
+        isAdmin: snapshot.isAdmin,
+        isTherapist: snapshot.isTherapist,
+      });
+      scheduleSessionExpiry(nextSession);
+      return;
+    }
+
     void refreshBrowserAuthState(true);
   });
 
@@ -121,7 +161,6 @@ function startBrowserAuthState() {
   };
 
   void refreshBrowserAuthState(true);
-  window.setInterval(refreshWhenVisible, 60_000);
   window.addEventListener("focus", refreshWhenVisible);
   document.addEventListener("visibilitychange", refreshWhenVisible);
 }

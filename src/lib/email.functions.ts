@@ -1,23 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequest, setResponseHeader } from "@tanstack/react-start/server";
+import { setResponseHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 
-import { createRequestSupabase } from "@/lib/supabase-server";
+import { requireRequestRole } from "@/lib/server-auth";
 
 async function requireAdmin() {
-  const bag = createRequestSupabase(getRequest());
-  if (!bag) throw new Error("Supabase is not configured.");
-  const {
-    data: { user },
-  } = await bag.client.auth.getUser();
-  bag.commitCookies();
-  if (!user) throw new Error("Sign in required.");
-  const { data: isAdmin, error } = await bag.client.rpc("has_role", {
-    _user_id: user.id,
-    _role: "admin",
-  });
-  if (error || !isAdmin) throw new Error("Admin permission required.");
-  return { userId: user.id, email: user.email ?? null };
+  const context = await requireRequestRole("admin");
+  return { userId: context.user.id, email: context.user.email ?? null };
 }
 
 function noStore() {
@@ -43,15 +32,19 @@ export type EmailTemplateDTO = {
   description: string | null;
   isEnabled: boolean;
   subjectOverride: string | null;
-  bodyOverride: string | null;
 };
+
+async function loadEmailAdminData() {
+  const { loadEmailSettings, loadTemplateSettings } = await import("@/lib/email.server");
+  const [settings, templates] = await Promise.all([loadEmailSettings(), loadTemplateSettings()]);
+  return { settings: settings as EmailSettingsDTO, templates: templates as EmailTemplateDTO[] };
+}
 
 export const getEmailAdminData = createServerFn({ method: "GET" }).handler(async () => {
   await requireAdmin();
-  const { loadEmailSettings, loadTemplateSettings } = await import("@/lib/email.server");
-  const [settings, templates] = await Promise.all([loadEmailSettings(), loadTemplateSettings()]);
+  const data = await loadEmailAdminData();
   noStore();
-  return { settings: settings as EmailSettingsDTO, templates: templates as EmailTemplateDTO[] };
+  return data;
 });
 
 const settingsInput = z
@@ -136,7 +129,6 @@ const templateInput = z.object({
   templateKey: z.string().min(1).max(64),
   isEnabled: z.boolean(),
   subjectOverride: z.string().trim().max(200).nullable().optional(),
-  bodyOverride: z.string().trim().max(12000).nullable().optional(),
 });
 
 export const updateEmailTemplate = createServerFn({ method: "POST" })
@@ -149,7 +141,6 @@ export const updateEmailTemplate = createServerFn({ method: "POST" })
       .update({
         is_enabled: data.isEnabled,
         subject_override: data.subjectOverride?.trim() || null,
-        body_override: data.bodyOverride?.trim() || null,
       })
       .eq("template_key", data.templateKey);
     if (error) throw error;
@@ -333,27 +324,18 @@ export const previewEmailTemplate = createServerFn({ method: "POST" })
   .validator((data: z.infer<typeof previewInput>) => previewInput.parse(data))
   .handler(async ({ data }) => {
     await requireAdmin();
-    const { renderEmailTemplate, renderEmailTemplateWithOverrides } =
-      await import("@/lib/email-templates.server");
+    const { renderEmailTemplate } = await import("@/lib/email-templates.server");
     const { loadTemplateSettings } = await import("@/lib/email.server");
     const rendered = renderEmailTemplate(data.templateKey, sampleDataFor(data.templateKey));
     const settings = (await loadTemplateSettings()) as EmailTemplateDTO[];
-    const override = settings.find((s) => s.templateKey === data.templateKey);
-    const configured = renderEmailTemplateWithOverrides(
-      data.templateKey,
-      sampleDataFor(data.templateKey),
-      {
-        subjectOverride: override?.subjectOverride,
-        bodyOverride: override?.bodyOverride,
-      },
-    );
+    const override = settings.find((s) => s.templateKey === data.templateKey)?.subjectOverride;
     noStore();
     return {
       templateKey: data.templateKey,
-      subject: configured.subject,
+      subject: override?.trim() || rendered.subject,
       defaultSubject: rendered.subject,
-      overrideSubject: override?.subjectOverride?.trim() || null,
-      html: configured.html,
+      overrideSubject: override?.trim() || null,
+      html: rendered.html,
     };
   });
 
@@ -362,27 +344,16 @@ export const sendTestEmail = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await requireAdmin();
     const { sendRawEmail } = await import("@/lib/email.server");
-    const { renderEmailTemplateWithOverrides } = await import("@/lib/email-templates.server");
-    const { loadTemplateSettings } = await import("@/lib/email.server");
-    const template = (await loadTemplateSettings()).find(
-      (item) => item.templateKey === "booking_confirmation",
-    );
-    const rendered = renderEmailTemplateWithOverrides(
-      "booking_confirmation",
-      {
-        clientName: "Talk Space Admin",
-        reference: "TS-TEST-0001",
-        serviceName: "Test service",
-        therapistName: "Talk Space team",
-        startsAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        mode: "online",
-        meetingLink: "https://meet.google.com/abc-defg-hij",
-      },
-      {
-        subjectOverride: template?.subjectOverride,
-        bodyOverride: template?.bodyOverride,
-      },
-    );
+    const { renderEmailTemplate } = await import("@/lib/email-templates.server");
+    const rendered = renderEmailTemplate("booking_confirmation", {
+      clientName: "Talk Space Admin",
+      reference: "TS-TEST-0001",
+      serviceName: "Test service",
+      therapistName: "Talk Space team",
+      startsAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      mode: "online",
+      meetingLink: "https://meet.google.com/abc-defg-hij",
+    });
     const result = await sendRawEmail({
       to: data.to,
       subject: `[Test] ${rendered.subject}`,
@@ -457,8 +428,7 @@ export type EmailLogRow = {
   canRetry: boolean;
 };
 
-export const listEmailDeliveryLogs = createServerFn({ method: "GET" }).handler(async () => {
-  await requireAdmin();
+async function loadEmailDeliveryLogs(): Promise<EmailLogRow[]> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("email_delivery_logs")
@@ -483,7 +453,6 @@ export const listEmailDeliveryLogs = createServerFn({ method: "GET" }).handler(a
     for (const row of retryable ?? []) retryableIds.add(row.id as string);
   }
 
-  noStore();
   return (data ?? []).map((row): EmailLogRow => ({
     id: row.id as string,
     templateKey: (row.template_key as string | null) ?? null,
@@ -500,6 +469,13 @@ export const listEmailDeliveryLogs = createServerFn({ method: "GET" }).handler(a
     retryTrigger: (row.retry_trigger as "initial" | "automatic" | "manual") ?? "initial",
     canRetry: retryableIds.has(row.id as string),
   }));
+}
+
+export const listEmailDeliveryLogs = createServerFn({ method: "GET" }).handler(async () => {
+  await requireAdmin();
+  const logs = await loadEmailDeliveryLogs();
+  noStore();
+  return logs;
 });
 
 export const retryEmailDeliveryLog = createServerFn({ method: "POST" })
@@ -530,26 +506,51 @@ export type ReminderSettingsDTO = {
   updatedAt: string;
 };
 
+async function loadReminderSettings(): Promise<ReminderSettingsDTO> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("reminder_settings")
+    .select(
+      "reminder_24h_open_min_minutes, reminder_24h_open_max_minutes, reminder_1h_open_min_minutes, reminder_1h_open_max_minutes, updated_at",
+    )
+    .eq("id", 1)
+    .maybeSingle();
+  if (error) throw error;
+  return {
+    reminder24hOpenMinMinutes: (data?.reminder_24h_open_min_minutes as number) ?? 1380,
+    reminder24hOpenMaxMinutes: (data?.reminder_24h_open_max_minutes as number) ?? 1470,
+    reminder1hOpenMinMinutes: (data?.reminder_1h_open_min_minutes as number) ?? 30,
+    reminder1hOpenMaxMinutes: (data?.reminder_1h_open_max_minutes as number) ?? 90,
+    updatedAt: (data?.updated_at as string) ?? new Date().toISOString(),
+  };
+}
+
 export const getReminderSettings = createServerFn({ method: "GET" }).handler(
   async (): Promise<ReminderSettingsDTO> => {
     await requireAdmin();
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin
-      .from("reminder_settings")
-      .select(
-        "reminder_24h_open_min_minutes, reminder_24h_open_max_minutes, reminder_1h_open_min_minutes, reminder_1h_open_max_minutes, updated_at",
-      )
-      .eq("id", 1)
-      .maybeSingle();
-    if (error) throw error;
+    const settings = await loadReminderSettings();
     noStore();
-    return {
-      reminder24hOpenMinMinutes: (data?.reminder_24h_open_min_minutes as number) ?? 1380,
-      reminder24hOpenMaxMinutes: (data?.reminder_24h_open_max_minutes as number) ?? 1470,
-      reminder1hOpenMinMinutes: (data?.reminder_1h_open_min_minutes as number) ?? 30,
-      reminder1hOpenMaxMinutes: (data?.reminder_1h_open_max_minutes as number) ?? 90,
-      updatedAt: (data?.updated_at as string) ?? new Date().toISOString(),
-    };
+    return settings;
+  },
+);
+
+export type EmailAdminWorkspace = {
+  settings: EmailSettingsDTO;
+  templates: EmailTemplateDTO[];
+  logs: EmailLogRow[];
+  reminder: ReminderSettingsDTO;
+};
+
+export const getEmailAdminWorkspace = createServerFn({ method: "GET" }).handler(
+  async (): Promise<EmailAdminWorkspace> => {
+    await requireAdmin();
+    const [admin, logs, reminder] = await Promise.all([
+      loadEmailAdminData(),
+      loadEmailDeliveryLogs(),
+      loadReminderSettings(),
+    ]);
+    noStore();
+    return { ...admin, logs, reminder };
   },
 );
 

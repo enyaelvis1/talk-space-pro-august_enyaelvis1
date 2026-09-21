@@ -2,32 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest, setResponseHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 
-import { createRequestSupabase } from "@/lib/supabase-server";
-
-function bag() {
-  const r = createRequestSupabase(getRequest());
-  if (!r) throw new Error("Supabase is not configured.");
-  return r;
-}
+import { requireRequestRole } from "@/lib/server-auth";
 
 async function requireAdmin() {
-  const r = bag();
-  const {
-    data: { user },
-  } = await r.client.auth.getUser();
-  if (!user) {
-    r.commitCookies();
-    throw new Error("Sign in required.");
-  }
-  const { data: isAdmin, error } = await r.client.rpc("has_role", {
-    _user_id: user.id,
-    _role: "admin",
-  });
-  if (error || !isAdmin) {
-    r.commitCookies();
-    throw new Error("Admin permission required.");
-  }
-  return { userId: user.id };
+  const context = await requireRequestRole("admin");
+  return { userId: context.user.id };
 }
 
 function noStore() {
@@ -44,16 +23,20 @@ export type GoogleAdminSettings = {
   updatedAt: string;
 };
 
+async function loadGoogleAdminSettings(): Promise<GoogleAdminSettings> {
+  const { loadGoogleOAuthSettings, absoluteOrigin } = await import("@/lib/google.server");
+  const s = await loadGoogleOAuthSettings();
+  return {
+    ...s,
+    redirectUri: `${absoluteOrigin(getRequest())}${s.redirectPath}`,
+  };
+}
+
 export const getGoogleAdminSettings = createServerFn({ method: "GET" }).handler(
   async (): Promise<GoogleAdminSettings> => {
     await requireAdmin();
-    const { loadGoogleOAuthSettings, absoluteOrigin } = await import("@/lib/google.server");
-    const s = await loadGoogleOAuthSettings();
     noStore();
-    return {
-      ...s,
-      redirectUri: `${absoluteOrigin(getRequest())}${s.redirectPath}`,
-    };
+    return loadGoogleAdminSettings();
   },
 );
 
@@ -126,63 +109,84 @@ export type TherapistConnectionRow = {
   failingAppointmentCount: number;
 };
 
+async function loadTherapistConnections(): Promise<TherapistConnectionRow[]> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: therapists, error } = await supabaseAdmin
+    .from("therapists")
+    .select("id, full_name")
+    .order("full_name", { ascending: true });
+  if (error) throw error;
+  const { data: conns } = await supabaseAdmin
+    .from("therapist_google_connections")
+    .select(
+      "therapist_id, google_email, token_expires_at, last_sync_at, last_sync_error, sync_expires_at",
+    );
+  const { data: activeConns } = await supabaseAdmin
+    .from("therapist_google_connections")
+    .select("therapist_id")
+    .not("access_token_ciphertext", "is", null);
+  const connectedIds = new Set((activeConns ?? []).map((row) => row.therapist_id as string));
+  const map = new Map<
+    string,
+    {
+      google_email: string | null;
+      token_expires_at: string | null;
+      last_sync_at: string | null;
+      last_sync_error: string | null;
+      sync_expires_at: string | null;
+    }
+  >();
+  for (const c of conns ?? []) map.set(c.therapist_id as string, c as never);
+
+  // Count appointments in a failing sync state per therapist.
+  const { data: failing } = await supabaseAdmin
+    .from("appointments")
+    .select("therapist_id")
+    .not("google_sync_error", "is", null);
+  const failCounts = new Map<string, number>();
+  for (const row of failing ?? []) {
+    const id = row.therapist_id as string;
+    failCounts.set(id, (failCounts.get(id) ?? 0) + 1);
+  }
+
+  return (therapists ?? []).map((t) => {
+    const c = map.get(t.id as string);
+    return {
+      therapistId: t.id as string,
+      therapistName: (t.full_name as string) ?? "",
+      connected: connectedIds.has(t.id as string),
+      googleEmail: c?.google_email ?? null,
+      tokenExpiresAt: c?.token_expires_at ?? null,
+      lastSyncAt: c?.last_sync_at ?? null,
+      lastSyncError: c?.last_sync_error ?? null,
+      watchExpiresAt: c?.sync_expires_at ?? null,
+      failingAppointmentCount: failCounts.get(t.id as string) ?? 0,
+    };
+  });
+}
+
 export const listTherapistConnections = createServerFn({ method: "GET" }).handler(
   async (): Promise<TherapistConnectionRow[]> => {
     await requireAdmin();
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: therapists, error } = await supabaseAdmin
-      .from("therapists")
-      .select("id, full_name")
-      .order("full_name", { ascending: true });
-    if (error) throw error;
-    const { data: conns } = await supabaseAdmin
-      .from("therapist_google_connections")
-      .select(
-        "therapist_id, google_email, token_expires_at, last_sync_at, last_sync_error, sync_expires_at",
-      );
-    const { data: activeConns } = await supabaseAdmin
-      .from("therapist_google_connections")
-      .select("therapist_id")
-      .not("access_token_ciphertext", "is", null);
-    const connectedIds = new Set((activeConns ?? []).map((row) => row.therapist_id as string));
-    const map = new Map<
-      string,
-      {
-        google_email: string | null;
-        token_expires_at: string | null;
-        last_sync_at: string | null;
-        last_sync_error: string | null;
-        sync_expires_at: string | null;
-      }
-    >();
-    for (const c of conns ?? []) map.set(c.therapist_id as string, c as never);
-
-    // Count appointments in a failing sync state per therapist.
-    const { data: failing } = await supabaseAdmin
-      .from("appointments")
-      .select("therapist_id")
-      .not("google_sync_error", "is", null);
-    const failCounts = new Map<string, number>();
-    for (const row of failing ?? []) {
-      const id = row.therapist_id as string;
-      failCounts.set(id, (failCounts.get(id) ?? 0) + 1);
-    }
-
     noStore();
-    return (therapists ?? []).map((t) => {
-      const c = map.get(t.id as string);
-      return {
-        therapistId: t.id as string,
-        therapistName: (t.full_name as string) ?? "",
-        connected: connectedIds.has(t.id as string),
-        googleEmail: c?.google_email ?? null,
-        tokenExpiresAt: c?.token_expires_at ?? null,
-        lastSyncAt: c?.last_sync_at ?? null,
-        lastSyncError: c?.last_sync_error ?? null,
-        watchExpiresAt: c?.sync_expires_at ?? null,
-        failingAppointmentCount: failCounts.get(t.id as string) ?? 0,
-      };
-    });
+    return loadTherapistConnections();
+  },
+);
+
+export type GoogleAdminWorkspace = {
+  settings: GoogleAdminSettings;
+  connections: TherapistConnectionRow[];
+};
+
+export const getGoogleAdminWorkspace = createServerFn({ method: "GET" }).handler(
+  async (): Promise<GoogleAdminWorkspace> => {
+    await requireAdmin();
+    const [settings, connections] = await Promise.all([
+      loadGoogleAdminSettings(),
+      loadTherapistConnections(),
+    ]);
+    noStore();
+    return { settings, connections };
   },
 );
 

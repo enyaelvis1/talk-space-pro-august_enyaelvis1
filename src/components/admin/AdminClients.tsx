@@ -42,6 +42,7 @@ import {
   createAdminLegacyClient,
   deleteAdminClient,
   createAdminExportAllClients,
+  getAdminClientsPage,
   importAdminClients,
   type AdminClientRecord,
   type ClientSessionMode,
@@ -201,6 +202,10 @@ function ClientCard({
 
 export function AdminClients({ clients }: { clients: AdminClientRecord[] }) {
   const router = useRouter();
+  const [loadedClients, setLoadedClients] = useState(clients);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextPage, setNextPage] = useState(2);
+  const [hasMore, setHasMore] = useState(clients.length >= 100);
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<ClientModeFilter>("all");
   const [therapist, setTherapist] = useState("all");
@@ -372,7 +377,7 @@ export function AdminClients({ clients }: { clients: AdminClientRecord[] }) {
 
   const filteredClients = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    return clients.filter((client) => {
+    return loadedClients.filter((client) => {
       const matchesQuery = normalizedQuery
         ? [
             client.fullName,
@@ -388,7 +393,22 @@ export function AdminClients({ clients }: { clients: AdminClientRecord[] }) {
       const matchesTherapist = therapist === "all" || client.assignedTherapistId === therapist;
       return matchesQuery && matchesMode && matchesTherapist;
     });
-  }, [clients, mode, query, therapist]);
+  }, [loadedClients, mode, query, therapist]);
+
+  async function loadMoreClients() {
+    setLoadingMore(true);
+    try {
+      const page = await getAdminClientsPage({ data: { page: nextPage } });
+      if (!page) throw new Error("Could not load more clients.");
+      setLoadedClients((current) => [...current, ...page.clients]);
+      setHasMore(page.hasMore);
+      setNextPage((current) => current + 1);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not load more clients.");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   const hasFilters = Boolean(query || mode !== "all" || therapist !== "all");
 
@@ -757,8 +777,8 @@ export function AdminClients({ clients }: { clients: AdminClientRecord[] }) {
                   Client records
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Showing {filteredClients.length} of {clients.length} client
-                  {clients.length === 1 ? "" : "s"}
+                  Showing {filteredClients.length} of {loadedClients.length} loaded client
+                  {loadedClients.length === 1 ? "" : "s"}
                 </p>
               </div>
             </div>
@@ -832,6 +852,18 @@ export function AdminClients({ clients }: { clients: AdminClientRecord[] }) {
                 ) : null}
               </div>
             )}
+            {hasMore ? (
+              <div className="mt-5 flex justify-center">
+                <Button
+                  variant="outline"
+                  onClick={() => void loadMoreClients()}
+                  disabled={loadingMore}
+                >
+                  {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+                  {loadingMore ? "Loading clients..." : "Load more clients"}
+                </Button>
+              </div>
+            ) : null}
           </section>
         </div>
       </main>

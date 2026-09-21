@@ -24,8 +24,8 @@ import { useSensitiveActionGate } from "@/hooks/useSensitiveActionGate";
 import {
   createService,
   deleteService,
+  getAdminServicesWorkspace,
   listAdminServices,
-  listAdminTherapists,
   setServiceActive,
   updateService,
   type AdminServiceRow,
@@ -40,11 +40,7 @@ type LoaderData = {
 export const Route = createFileRoute("/_authenticated/admin/services")({
   loader: async (): Promise<LoaderData> => {
     try {
-      const [services, therapists] = await Promise.all([
-        listAdminServices(),
-        listAdminTherapists(),
-      ]);
-      return { services, therapists };
+      return await getAdminServicesWorkspace();
     } catch {
       throw redirect({ href: "/account?error=forbidden" });
     }
