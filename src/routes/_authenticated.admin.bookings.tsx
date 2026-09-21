@@ -177,7 +177,13 @@ function paymentBadge(row: UpcomingAppointmentRow) {
         paymentTone[status] ?? "bg-muted text-muted-foreground"
       }`}
     >
-      {status.replaceAll("_", " ")}
+      {row.paymentNeedsReview
+        ? "Verified payment · booking review required"
+        : status === "succeeded"
+          ? "Verified payment · booking confirmed"
+          : status === "awaiting_confirmation"
+            ? "Pending payment review"
+            : status.replaceAll("_", " ")}
       {row.paidAmountKobo ? ` · ${formatAmount(row.paidAmountKobo)}` : ""}
     </span>
   );

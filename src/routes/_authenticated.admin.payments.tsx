@@ -152,6 +152,16 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function paymentLifecycleLabel(row: PaymentRow) {
+  if (row.bookingReviewRequired) return "Verified payment · booking review required";
+  if (row.status === "awaiting_confirmation") return "Pending payment review";
+  if (row.status === "succeeded") return "Verified payment · booking confirmed";
+  if (row.status === "refunded") return "Refunded payment";
+  if (row.status === "cancelled") return "Cancelled payment";
+  if (row.status === "failed") return "Failed payment";
+  return "Payment not verified";
+}
+
 const paymentStatusLabels: Record<ManualPaymentStatus, string> = {
   initiated: "Not verified",
   awaiting_confirmation: "Pending review",
@@ -1142,11 +1152,13 @@ function PaymentsAdminScreen({
                     </td>
                     <td className="py-3 pr-3">
                       <StatusBadge status={row.status} />
-                      {row.bookingReviewRequired ? (
-                        <p className="mt-1 text-xs text-destructive">
-                          Paid; booking needs rescheduling/refund review
-                        </p>
-                      ) : null}
+                      <p
+                        className={`mt-1 text-xs ${
+                          row.bookingReviewRequired ? "text-destructive" : "text-muted-foreground"
+                        }`}
+                      >
+                        {paymentLifecycleLabel(row)}
+                      </p>
                     </td>
                     <td className="py-3 pr-3 text-xs text-muted-foreground">
                       {formatDateTime(row.createdAt)}

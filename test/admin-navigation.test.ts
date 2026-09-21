@@ -371,6 +371,9 @@ test("booking operations supports visible admin rescheduling and Meet status che
   assert.match(bookings, /listArchivedAppointmentsForAdmin/);
   assert.match(bookings, /restoreAppointmentForAdmin/);
   assert.match(bookings, /Restore booking/);
+  assert.match(bookings, /Verified payment · booking review required/);
+  assert.match(bookings, /Verified payment · booking confirmed/);
+  assert.match(bookings, /Pending payment review/);
   assert.match(bookingFunctions, /listArchivedAppointmentsForAdmin/);
   assert.match(bookingFunctions, /restoreAppointmentForAdmin/);
   assert.match(bookings, /DELETE TEST BOOKINGS/);
