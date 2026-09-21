@@ -174,6 +174,21 @@ test("rescheduling the same committed slot is an idempotent no-op", async () => 
   );
 });
 
+test("slot lifecycle coverage keeps therapist identity and replacement safety explicit", async () => {
+  const notificationMigration = await readFile(
+    new URL(
+      "../supabase/migrations/20260922100000_therapist_lifecycle_email_templates.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.match(bookingFunctions, /therapistName: ctx\.therapists\?\.full_name/);
+  assert.match(bookingFunctions, /therapist_cancellation_notice/);
+  assert.match(bookingFunctions, /reason: data\.reason \?\? "Not provided"/);
+  assert.match(notificationMigration, /therapist_reschedule_notice/);
+  assert.match(notificationMigration, /therapist_cancellation_notice/);
+});
+
 test("manage-token lifecycle revokes access for terminal appointment states", () => {
   assert.match(manageTokenLifecycleMigration, /appointment_manage_token_is_active/);
   assert.match(manageTokenLifecycleMigration, /manage_token_revoked_at is null/);

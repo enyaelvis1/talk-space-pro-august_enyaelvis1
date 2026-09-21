@@ -153,6 +153,8 @@ const templateKeySchema = z.enum([
   "booking_confirmation",
   "booking_admin_notice",
   "therapist_booking_notice",
+  "therapist_reschedule_notice",
+  "therapist_cancellation_notice",
   "therapist_account_invitation",
   "booking_reminder_24h",
   "booking_reminder_1h",
@@ -197,6 +199,8 @@ function sampleDataFor(key: PreviewTemplateKey): Record<string, unknown> {
         adminUrl: `${(process.env.SITE_URL ?? "https://talkspace.ng").replace(/\/$/, "")}/admin/bookings`,
       };
     case "therapist_booking_notice":
+    case "therapist_reschedule_notice":
+    case "therapist_cancellation_notice":
       return {
         ...base,
         clientEmail: "ada.okoro@example.com",

@@ -9,6 +9,8 @@ export type EmailTemplateKey =
   | "booking_confirmation"
   | "booking_admin_notice"
   | "therapist_booking_notice"
+  | "therapist_reschedule_notice"
+  | "therapist_cancellation_notice"
   | "therapist_account_invitation"
   | "booking_reminder_24h"
   | "booking_reminder_1h"
@@ -241,6 +243,43 @@ export function renderEmailTemplate(key: EmailTemplateKey, data: Data): Rendered
             onlineMeetingBlock(data) +
             physicalLocationBlock(data),
           "A paid Talk Space session has been assigned to you.",
+        ),
+      };
+    }
+    case "therapist_reschedule_notice": {
+      return {
+        subject: `Session rescheduled: ${pick(data, "reference", "Talk Space session")}`,
+        html: shell(
+          heading(`Hi ${esc(pick(data, "therapistName", "there"))},`) +
+            p("A Talk Space session assigned to you has been rescheduled.") +
+            detailList([
+              ["Reference", esc(pick(data, "reference"))],
+              ["Client", esc(pick(data, "clientName"))],
+              ["Service", esc(pick(data, "serviceName", "Session"))],
+              ["New time", esc(formatDateTime(pick(data, "startsAt")))],
+              ["Mode", esc(pick(data, "mode") === "in_person" ? "In person" : "Online")],
+            ]) +
+            onlineMeetingBlock(data) +
+            physicalLocationBlock(data),
+          "A Talk Space session assigned to you was rescheduled.",
+        ),
+      };
+    }
+    case "therapist_cancellation_notice": {
+      return {
+        subject: `Session cancelled: ${pick(data, "reference", "Talk Space session")}`,
+        html: shell(
+          heading(`Hi ${esc(pick(data, "therapistName", "there"))},`) +
+            p(
+              "A Talk Space session assigned to you has been cancelled and the time is no longer held.",
+            ) +
+            detailList([
+              ["Reference", esc(pick(data, "reference"))],
+              ["Client", esc(pick(data, "clientName"))],
+              ["Was scheduled for", esc(formatDateTime(pick(data, "startsAt")))],
+              ["Reason", esc(pick(data, "reason", "Not provided"))],
+            ]),
+          "A Talk Space session assigned to you was cancelled.",
         ),
       };
     }

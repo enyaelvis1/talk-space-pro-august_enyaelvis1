@@ -22,6 +22,19 @@ async function fireGoogleSync(appointmentId: string) {
   }
 }
 
+async function fireTherapistLifecycleEmail(
+  appointmentId: string,
+  templateKey: "therapist_reschedule_notice" | "therapist_cancellation_notice",
+  data: Record<string, unknown>,
+) {
+  try {
+    const { sendTherapistLifecycleEmail } = await import("@/lib/therapist-email.server");
+    await sendTherapistLifecycleEmail(appointmentId, templateKey, data);
+  } catch (err) {
+    console.error(`[booking] therapist lifecycle email failed (${templateKey}):`, err);
+  }
+}
+
 async function fireEmail(
   key:
     "booking_confirmation" | "booking_admin_notice" | "reschedule_notice" | "cancellation_notice",
@@ -1084,20 +1097,36 @@ export const rescheduleAppointment = createServerFn({ method: "POST" })
       if (result.status !== "confirmed") return;
       await fireGoogleSync(result.id);
       const ctx = await loadAppointmentContext(result.id);
-      if (!ctx?.client_email) return;
-      await fireEmail(
-        "reschedule_notice",
-        ctx.client_email,
-        {
-          clientName: ctx.client_name,
-          reference: result.bookingReference,
-          startsAt: result.startsAt,
-          serviceName: ctx.services?.name ?? "",
-          meetingLink: ctx.google_meet_url ?? "",
-          manageUrl: buildActiveManageUrl(result.bookingReference, ctx),
-        },
-        { appointmentId: result.id, notificationKey: "reschedule_notice", recipientRole: "client" },
-      );
+      if (!ctx) return;
+      if (ctx.client_email) {
+        await fireEmail(
+          "reschedule_notice",
+          ctx.client_email,
+          {
+            clientName: ctx.client_name,
+            reference: result.bookingReference,
+            startsAt: result.startsAt,
+            serviceName: ctx.services?.name ?? "",
+            meetingLink: ctx.google_meet_url ?? "",
+            manageUrl: buildActiveManageUrl(result.bookingReference, ctx),
+          },
+          {
+            appointmentId: result.id,
+            notificationKey: "reschedule_notice",
+            recipientRole: "client",
+          },
+        );
+      }
+      await fireTherapistLifecycleEmail(result.id, "therapist_reschedule_notice", {
+        clientName: ctx.client_name,
+        reference: result.bookingReference,
+        serviceName: ctx.services?.name ?? "",
+        startsAt: result.startsAt,
+        mode: ctx.session_mode,
+        meetingLink: ctx.google_meet_url ?? "",
+        location: ctx.therapists?.location ?? "",
+        therapistName: ctx.therapists?.full_name ?? "",
+      });
     })();
     return result;
   });
@@ -1125,22 +1154,31 @@ export const cancelAppointment = createServerFn({ method: "POST" })
     void (async () => {
       if (before?.status !== "confirmed") return;
       const ctx = await loadAppointmentContext(result.id);
-      if (!ctx?.client_email) return;
-      await fireEmail(
-        "cancellation_notice",
-        ctx.client_email,
-        {
-          clientName: ctx.client_name,
-          reference: ctx.booking_reference,
-          startsAt: ctx.starts_at,
-          manageUrl: buildActiveManageUrl(ctx.booking_reference, ctx),
-        },
-        {
-          appointmentId: result.id,
-          notificationKey: "cancellation_notice",
-          recipientRole: "client",
-        },
-      );
+      if (!ctx) return;
+      if (ctx.client_email) {
+        await fireEmail(
+          "cancellation_notice",
+          ctx.client_email,
+          {
+            clientName: ctx.client_name,
+            reference: ctx.booking_reference,
+            startsAt: ctx.starts_at,
+            manageUrl: buildActiveManageUrl(ctx.booking_reference, ctx),
+          },
+          {
+            appointmentId: result.id,
+            notificationKey: "cancellation_notice",
+            recipientRole: "client",
+          },
+        );
+      }
+      await fireTherapistLifecycleEmail(result.id, "therapist_cancellation_notice", {
+        clientName: ctx.client_name,
+        reference: ctx.booking_reference,
+        startsAt: ctx.starts_at,
+        reason: data.reason ?? "Not provided",
+        therapistName: ctx.therapists?.full_name ?? "",
+      });
     })();
     if (before?.status === "confirmed") void fireGoogleSync(result.id);
     return result;
@@ -2039,6 +2077,13 @@ export const cancelAppointmentForAdmin = createServerFn({ method: "POST" })
           },
         );
       }
+      void fireTherapistLifecycleEmail(data.appointmentId, "therapist_cancellation_notice", {
+        clientName: before.client_name,
+        reference: before.booking_reference,
+        startsAt: before.starts_at,
+        reason: data.reason ?? "Not provided",
+        therapistName: before.therapists?.full_name ?? "",
+      });
     }
     return { id: String(row.id), status: String(row.status) };
   });

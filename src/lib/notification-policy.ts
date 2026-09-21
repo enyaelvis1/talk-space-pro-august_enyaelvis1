@@ -25,6 +25,7 @@ export async function notificationSuppressionReason(
       "booking_admin_notice",
       "booking_confirmation",
       "therapist_booking_notice",
+      "therapist_reschedule_notice",
       "booking_reminder_24h",
       "booking_reminder_1h",
       "reschedule_notice",
