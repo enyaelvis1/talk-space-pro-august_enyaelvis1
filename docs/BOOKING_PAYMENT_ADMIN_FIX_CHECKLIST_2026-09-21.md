@@ -17,6 +17,9 @@ replacement.
       restore action.
 - [x] Milestone 3b: protect financial history from payment deletion and make
       eligible versus protected payment actions explicit in the admin UI.
+- [x] Milestone 3c: expose explicit payment and booking lifecycle labels so
+      pending review, verified booking, verified payment needing review,
+      cancelled, refunded, and archived states are not conflated.
 
 ## Incident safety and evidence
 
@@ -50,8 +53,9 @@ replacement.
 
 ## Confirmed versus pending-review records
 
-- [ ] Define separate lifecycle states for payment review, confirmed booking,
-      cancelled booking, refunded payment, and archived record.
+- [x] Define separate lifecycle labels for payment review, confirmed booking,
+      cancelled booking, refunded payment, and archived record in the admin
+      payment and booking views.
 - [ ] Ensure deleting or resolving a pending-review payment cannot remove a
       confirmed appointment or its audit history.
 - [x] Replace destructive row actions with explicit labels and confirmation
