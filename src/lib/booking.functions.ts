@@ -2001,11 +2001,12 @@ export const cancelAppointmentForAdmin = createServerFn({ method: "POST" })
   });
 
 export const deleteTemporaryAppointmentsForAdmin = createServerFn({ method: "POST" })
-  .validator((data: { appointmentIds: string[]; confirmation: string }) =>
+  .validator((data: { appointmentIds: string[]; confirmation: string; reason: string }) =>
     z
       .object({
         appointmentIds: z.array(z.string().uuid()).min(1).max(100),
         confirmation: z.literal("DELETE TEST BOOKINGS"),
+        reason: z.string().trim().min(3).max(200),
       })
       .parse(data),
   )

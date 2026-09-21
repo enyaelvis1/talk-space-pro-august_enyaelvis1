@@ -22,6 +22,8 @@ replacement.
       cancelled, refunded, and archived states are not conflated.
 - [x] Milestone 3d: classify high-risk booking and payment changes with
       explicit immutable audit actions visible in Admin → Audit.
+- [x] Milestone 3e: make eligible unpaid/test deletion explicit, reasoned, and
+      separate from archive in the admin bookings UI.
 
 ## Incident safety and evidence
 
@@ -72,9 +74,9 @@ replacement.
 
 ## Safe booking deletion and cancellation
 
-- [ ] Add a clearly labelled `Delete booking` action separate from `Archive`.
-- [ ] Restrict permanent deletion to authorized administrators and require a
-      typed or selected reason plus confirmation.
+- [x] Add a clearly labelled `Delete booking` action separate from `Archive`.
+- [x] Restrict permanent deletion to authorized administrators and require a
+      typed confirmation plus a server-validated cleanup reason.
 - [x] Block permanent deletion by default for paid, refunded, completed, or
       legally/audit-relevant payment records; provide review, cancel, refund,
       or archive workflows instead.
