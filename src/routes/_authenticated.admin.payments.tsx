@@ -160,6 +160,10 @@ const paymentStatusLabels: Record<ManualPaymentStatus, string> = {
   cancelled: "Cancelled",
 };
 
+function canDeletePayment(row: PaymentRow) {
+  return ["initiated", "failed", "cancelled"].includes(row.status);
+}
+
 function manualStatusOptionsFor(row: PaymentRow): ManualPaymentStatus[] {
   const unresolved = row.provider === "bank_transfer" ? "awaiting_confirmation" : "initiated";
   return [unresolved, "succeeded", "failed", "cancelled"];
@@ -1222,20 +1226,24 @@ function PaymentsAdminScreen({
                             Check Paystack
                           </Button>
                         ) : null}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-destructive"
-                          disabled={deletingId === row.id}
-                          onClick={() => void onDeletePayment(row)}
-                        >
-                          {deletingId === row.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-4 w-4" />
-                          )}
-                          Delete
-                        </Button>
+                        {canDeletePayment(row) ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive"
+                            disabled={deletingId === row.id}
+                            onClick={() => void onDeletePayment(row)}
+                          >
+                            {deletingId === row.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                            Delete eligible record
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">History protected</span>
+                        )}
                       </div>
                     </td>
                   </tr>
