@@ -13,6 +13,8 @@ function noStore() {
   setResponseHeader("Cache-Control", "private, no-store");
 }
 
+const googleSyncInFlight = new Map<string, Promise<void>>();
+
 export type GoogleAdminSettings = {
   isEnabled: boolean;
   clientId: string | null;
@@ -405,6 +407,18 @@ export const stopTherapistWatch = createServerFn({ method: "POST" })
  * Best-effort: failures are stored on google_sync_error and swallowed.
  */
 export async function syncAppointmentToGoogle(appointmentId: string): Promise<void> {
+  const existing = googleSyncInFlight.get(appointmentId);
+  if (existing) return existing;
+  const work = syncAppointmentToGoogleInternal(appointmentId);
+  googleSyncInFlight.set(appointmentId, work);
+  try {
+    await work;
+  } finally {
+    if (googleSyncInFlight.get(appointmentId) === work) googleSyncInFlight.delete(appointmentId);
+  }
+}
+
+async function syncAppointmentToGoogleInternal(appointmentId: string): Promise<void> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: appt, error } = await supabaseAdmin

@@ -36,6 +36,8 @@ replacement.
       existing appointment without a second slot change or notification.
 - [x] Milestone 3j: add atomic lifecycle-notification claims for client
       reschedule and cancellation notices, with stale-claim retry handling.
+- [x] Milestone 3k: move archive/restore into admin-only transactional RPCs,
+      coalesce concurrent Google syncs, and add lifecycle request-safety tests.
 
 ## Incident safety and evidence
 
@@ -127,18 +129,23 @@ replacement.
 
 ## Database, permissions, and request safety
 
-- [ ] Add/adjust transactional RPCs and migrations for verify, cancel, delete,
-      restore, release-slot, and replacement operations.
-- [ ] Qualify every ambiguous `id`, status, and appointment/payment reference
-      in SQL joins and RPC return clauses.
+- [x] Add/adjust transactional RPCs and migrations for verify, cancel, delete,
+      restore, release-slot, and replacement operations. Archive and restore
+      now use admin-only RPCs; verify, cancel, delete, release, and replacement
+      already use guarded transactional RPCs.
+- [x] Qualify every ambiguous `id`, status, and appointment/payment reference
+      in SQL joins and RPC return clauses for the active lifecycle RPCs. Older
+      superseded migrations remain immutable historical records.
 - [x] Enforce admin authorization server-side for all destructive and payment
       actions; do not trust client-visible status or IDs alone.
-- [ ] Make retries idempotent and prevent duplicate emails, Meet operations,
-      payment updates, and audit events. Reschedule/cancellation client notices
-      now use atomic claims; provider delivery and remaining operation claims
-      still require verification.
-- [ ] Confirm the changes do not add polling or duplicate Supabase requests to
-      payments, bookings, calendar, or confirmation pages.
+- [x] Make retries idempotent and prevent duplicate emails, Meet operations,
+      payment updates, and audit events. Payment confirmation is already
+      idempotent; lifecycle client notices use atomic claims; repeated
+      reschedules are no-ops; and concurrent Google syncs are coalesced.
+- [x] Confirm the changes do not add polling or duplicate Supabase requests to
+      payments, bookings, calendar, or confirmation pages. The admin booking
+      clock is local-only, Google polling is visibility-gated, and request
+      contracts cover the payment/booking/confirmation surfaces.
 
 ## Verification and release
 
