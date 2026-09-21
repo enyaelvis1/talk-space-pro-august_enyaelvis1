@@ -292,7 +292,11 @@ function PaymentsAdminScreen({
       const result = await verifyPaystackPaymentForAdmin({ data: { paymentId: row.id } });
       await refresh();
       if (result.status === "succeeded") {
-        toast.success("Paystack payment confirmed.");
+        toast.success(
+          result.bookingReviewRequired
+            ? "Paystack payment confirmed; booking needs rescheduling or refund review."
+            : "Paystack payment confirmed.",
+        );
       } else if (result.status === "failed") {
         toast.error("Paystack marked this payment as failed.");
       } else {
