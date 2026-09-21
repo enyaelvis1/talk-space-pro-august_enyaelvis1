@@ -50,6 +50,7 @@ test("admin booking and payment operations require an admin role check", () => {
     "listUpcomingAppointmentsForAdmin",
     "listTodayAppointmentsForAdmin",
     "archiveAppointmentForAdmin",
+    "cancelAppointmentForAdmin",
     "deleteTemporaryAppointmentsForAdmin",
     "revokeAppointmentManageToken",
     "resendReminder",
@@ -60,6 +61,10 @@ test("admin booking and payment operations require an admin role check", () => {
   const archiveBody = exportBody(bookingFunctions, "archiveAppointmentForAdmin");
   assert.match(archiveBody, /archived_at/);
   assert.match(archiveBody, /archive_reason/);
+  const cancelBody = exportBody(bookingFunctions, "cancelAppointmentForAdmin");
+  assert.match(cancelBody, /requireAdminClient\(\)/);
+  assert.match(cancelBody, /cancel_appointment/);
+  assert.match(cancelBody, /manual_admin_cancel_release/);
   assert.match(bulkDeleteBody, /confirmation: z\.literal\("DELETE TEST BOOKINGS"\)/);
   assert.match(bulkDeleteBody, /status === "hold"/);
   assert.match(bulkDeleteBody, /status === "cancelled"/);

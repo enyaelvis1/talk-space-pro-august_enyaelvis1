@@ -1921,6 +1921,42 @@ export const archiveAppointmentForAdmin = createServerFn({ method: "POST" })
     return { ok: true, archivedAt: new Date().toISOString() };
   });
 
+export const cancelAppointmentForAdmin = createServerFn({ method: "POST" })
+  .validator((data: { appointmentId: string; reason?: string }) =>
+    z
+      .object({
+        appointmentId: z.string().uuid(),
+        reason: z.string().trim().max(500).optional(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const bag = await requireAdminClient();
+    const before = await loadAppointmentContext(data.appointmentId);
+    const { data: rows, error } = await bag.client.rpc("cancel_appointment", {
+      p_appointment_id: data.appointmentId,
+      p_reason: data.reason ?? "manual_admin_cancel_release",
+      p_manage_token_hash: null,
+    });
+    bag.commitCookies();
+    if (error) throwBookingError(error);
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    if (!row) throw new Error("Appointment not found or already cancelled.");
+
+    if (before?.status === "confirmed") {
+      void fireGoogleSync(data.appointmentId);
+      if (before.client_email) {
+        void fireEmail("cancellation_notice", before.client_email, {
+          clientName: before.client_name,
+          reference: before.booking_reference,
+          startsAt: before.starts_at,
+          manageUrl: buildActiveManageUrl(before.booking_reference, before),
+        });
+      }
+    }
+    return { id: String(row.id), status: String(row.status) };
+  });
+
 export const deleteTemporaryAppointmentsForAdmin = createServerFn({ method: "POST" })
   .validator((data: { appointmentIds: string[]; confirmation: string }) =>
     z
