@@ -34,6 +34,8 @@ replacement.
       keep replacement/rescheduling guarded by the transactional booking RPCs.
 - [x] Milestone 3i: make identical committed reschedule retries return the
       existing appointment without a second slot change or notification.
+- [x] Milestone 3j: add atomic lifecycle-notification claims for client
+      reschedule and cancellation notices, with stale-claim retry handling.
 
 ## Incident safety and evidence
 
@@ -132,8 +134,9 @@ replacement.
 - [x] Enforce admin authorization server-side for all destructive and payment
       actions; do not trust client-visible status or IDs alone.
 - [ ] Make retries idempotent and prevent duplicate emails, Meet operations,
-      payment updates, and audit events. Identical committed reschedule retries
-      are now guarded at the RPC layer; provider/email claim coverage remains.
+      payment updates, and audit events. Reschedule/cancellation client notices
+      now use atomic claims; provider delivery and remaining operation claims
+      still require verification.
 - [ ] Confirm the changes do not add polling or duplicate Supabase requests to
       payments, bookings, calendar, or confirmation pages.
 

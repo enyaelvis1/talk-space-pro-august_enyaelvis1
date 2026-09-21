@@ -27,10 +27,43 @@ async function fireEmail(
     "booking_confirmation" | "booking_admin_notice" | "reschedule_notice" | "cancellation_notice",
   to: string,
   data: Record<string, unknown>,
+  claim?: { appointmentId: string; notificationKey: string; recipientRole: string },
 ) {
   try {
     const { sendTemplateEmail } = await import("@/lib/email.server");
-    await sendTemplateEmail(key, to, data);
+    const { supabaseAdmin } = claim
+      ? await import("@/integrations/supabase/client.server")
+      : { supabaseAdmin: null };
+    const rpcClient = claim
+      ? (supabaseAdmin as unknown as {
+          rpc: (
+            functionName: string,
+            args: Record<string, unknown>,
+          ) => Promise<{ data: boolean | null; error: Error | null }>;
+        })
+      : null;
+    if (claim) {
+      const { data: claimed, error: claimError } = await rpcClient!.rpc(
+        "claim_appointment_notification",
+        {
+          p_appointment_id: claim.appointmentId,
+          p_notification_key: claim.notificationKey,
+          p_recipient_role: claim.recipientRole,
+        },
+      );
+      if (claimError) throw claimError;
+      if (!claimed) return;
+    }
+    const result = await sendTemplateEmail(key, to, data);
+    if (claim) {
+      const { error: finalizeError } = await rpcClient!.rpc("finalize_appointment_notification", {
+        p_appointment_id: claim.appointmentId,
+        p_notification_key: claim.notificationKey,
+        p_recipient_role: claim.recipientRole,
+        p_sent: result.sent,
+      });
+      if (finalizeError) throw finalizeError;
+    }
   } catch (err) {
     console.error(`[booking] email send failed (${key}):`, err);
   }
@@ -1052,14 +1085,19 @@ export const rescheduleAppointment = createServerFn({ method: "POST" })
       await fireGoogleSync(result.id);
       const ctx = await loadAppointmentContext(result.id);
       if (!ctx?.client_email) return;
-      await fireEmail("reschedule_notice", ctx.client_email, {
-        clientName: ctx.client_name,
-        reference: result.bookingReference,
-        startsAt: result.startsAt,
-        serviceName: ctx.services?.name ?? "",
-        meetingLink: ctx.google_meet_url ?? "",
-        manageUrl: buildActiveManageUrl(result.bookingReference, ctx),
-      });
+      await fireEmail(
+        "reschedule_notice",
+        ctx.client_email,
+        {
+          clientName: ctx.client_name,
+          reference: result.bookingReference,
+          startsAt: result.startsAt,
+          serviceName: ctx.services?.name ?? "",
+          meetingLink: ctx.google_meet_url ?? "",
+          manageUrl: buildActiveManageUrl(result.bookingReference, ctx),
+        },
+        { appointmentId: result.id, notificationKey: "reschedule_notice", recipientRole: "client" },
+      );
     })();
     return result;
   });
@@ -1088,12 +1126,21 @@ export const cancelAppointment = createServerFn({ method: "POST" })
       if (before?.status !== "confirmed") return;
       const ctx = await loadAppointmentContext(result.id);
       if (!ctx?.client_email) return;
-      await fireEmail("cancellation_notice", ctx.client_email, {
-        clientName: ctx.client_name,
-        reference: ctx.booking_reference,
-        startsAt: ctx.starts_at,
-        manageUrl: buildActiveManageUrl(ctx.booking_reference, ctx),
-      });
+      await fireEmail(
+        "cancellation_notice",
+        ctx.client_email,
+        {
+          clientName: ctx.client_name,
+          reference: ctx.booking_reference,
+          startsAt: ctx.starts_at,
+          manageUrl: buildActiveManageUrl(ctx.booking_reference, ctx),
+        },
+        {
+          appointmentId: result.id,
+          notificationKey: "cancellation_notice",
+          recipientRole: "client",
+        },
+      );
     })();
     if (before?.status === "confirmed") void fireGoogleSync(result.id);
     return result;
@@ -1989,12 +2036,21 @@ export const cancelAppointmentForAdmin = createServerFn({ method: "POST" })
     if (before?.status === "confirmed") {
       void fireGoogleSync(data.appointmentId);
       if (before.client_email) {
-        void fireEmail("cancellation_notice", before.client_email, {
-          clientName: before.client_name,
-          reference: before.booking_reference,
-          startsAt: before.starts_at,
-          manageUrl: buildActiveManageUrl(before.booking_reference, before),
-        });
+        void fireEmail(
+          "cancellation_notice",
+          before.client_email,
+          {
+            clientName: before.client_name,
+            reference: before.booking_reference,
+            startsAt: before.starts_at,
+            manageUrl: buildActiveManageUrl(before.booking_reference, before),
+          },
+          {
+            appointmentId: data.appointmentId,
+            notificationKey: "cancellation_notice",
+            recipientRole: "client",
+          },
+        );
       }
     }
     return { id: String(row.id), status: String(row.status) };
