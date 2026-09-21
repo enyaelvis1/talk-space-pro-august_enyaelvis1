@@ -41,12 +41,14 @@ import { Label } from "@/components/ui/label";
 import { canonicalUrl } from "@/lib/seo";
 import {
   getAdminAppointmentTimeline,
+  listArchivedAppointmentsForAdmin,
   listAvailableSlots,
   listAppointmentsForAdmin,
   archiveAppointmentForAdmin,
   cancelAppointmentForAdmin,
   deleteTemporaryAppointmentsForAdmin,
   revokeAppointmentManageToken,
+  restoreAppointmentForAdmin,
   rescheduleAppointment,
   resendBookingConfirmation,
   resendReminder,
@@ -303,6 +305,10 @@ function AdminBookingsRoute() {
 function AdminBookingsPage() {
   const initial = Route.useLoaderData();
   const [rows, setRows] = useState<UpcomingAppointmentRow[]>(initial);
+  const [archivedRows, setArchivedRows] = useState<UpcomingAppointmentRow[]>([]);
+  const [archivedOpen, setArchivedOpen] = useState(false);
+  const [archivedLoading, setArchivedLoading] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [sendingKey, setSendingKey] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -430,6 +436,36 @@ function AdminBookingsPage() {
       setRefreshing(false);
     }
   }, []);
+
+  const openArchivedBookings = useCallback(async () => {
+    setArchivedOpen(true);
+    setArchivedLoading(true);
+    try {
+      setArchivedRows(await listArchivedAppointmentsForAdmin());
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load archived bookings.");
+    } finally {
+      setArchivedLoading(false);
+    }
+  }, []);
+
+  const restoreArchivedBooking = useCallback(
+    async (row: UpcomingAppointmentRow) => {
+      if (!confirm(`Restore booking ${row.bookingReference} to the active admin calendar?`)) return;
+      setRestoringId(row.id);
+      try {
+        await restoreAppointmentForAdmin({ data: { appointmentId: row.id } });
+        setArchivedRows((current) => current.filter((item) => item.id !== row.id));
+        toast.success("Booking restored to the active calendar.");
+        await refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to restore booking.");
+      } finally {
+        setRestoringId(null);
+      }
+    },
+    [refresh],
+  );
 
   const onResend = useCallback(
     async (
@@ -803,6 +839,10 @@ function AdminBookingsPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => void openArchivedBookings()}>
+              <Archive className="h-4 w-4" aria-hidden />
+              Archived bookings
+            </Button>
             <Button asChild size="sm">
               <Link to="/admin/bookings/new">
                 <CalendarPlus className="h-4 w-4" aria-hidden />
@@ -824,6 +864,58 @@ function AdminBookingsPage() {
             </Button>
           </div>
         </header>
+
+        <Dialog open={archivedOpen} onOpenChange={setArchivedOpen}>
+          <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Archived bookings</DialogTitle>
+              <DialogDescription>
+                Archived bookings are hidden from the active calendar. Payment and booking history
+                are preserved; restore a booking when it should return to operations.
+              </DialogDescription>
+            </DialogHeader>
+            {archivedLoading ? (
+              <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                Loading archived bookings...
+              </div>
+            ) : archivedRows.length ? (
+              <div className="space-y-3">
+                {archivedRows.map((row) => (
+                  <article
+                    key={row.id}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 p-4"
+                  >
+                    <div>
+                      <p className="font-medium text-brand-deep">{row.bookingReference}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {row.clientName} · {formatDate(row.startsAt)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {row.status} · {row.paymentStatus ?? "No payment recorded"}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={restoringId === row.id}
+                      onClick={() => void restoreArchivedBooking(row)}
+                    >
+                      {restoringId === row.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                      ) : null}
+                      Restore booking
+                    </Button>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                No archived bookings found.
+              </p>
+            )}
+          </DialogContent>
+        </Dialog>
 
         <section className="rounded-2xl border border-border/70 bg-card p-4 sm:p-6">
           {calendarRows.length === 0 ? (
