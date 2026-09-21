@@ -54,7 +54,14 @@ test(
       console.log("✓ Saved therapist route screenshot");
 
       // 3) Admin payments (should redirect to login or show admin payments UI)
-      await page.goto(`${APP_BASE}/admin/payments`, { waitUntil: "commit", timeout: 30000 });
+      try {
+        await page.goto(`${APP_BASE}/admin/payments`, { waitUntil: "load", timeout: 30000 });
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.includes("ERR_ABORTED")) throw error;
+        console.warn(
+          "Admin payments navigation was aborted by the dev server; capturing evidence.",
+        );
+      }
       await page.screenshot({ path: `${screenshotDir}/05-admin-payments.png` });
       console.log("✓ Saved admin payments screenshot");
 

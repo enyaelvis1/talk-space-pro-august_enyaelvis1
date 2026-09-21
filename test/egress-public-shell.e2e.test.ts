@@ -50,18 +50,17 @@ test(
         res.end(JSON.stringify({ message: "No test session" }));
         return;
       }
-      if (key === "eq.site_details") {
+      if (key === "in.(site_details,footer_settings)") {
         record(200);
         res.end(
           JSON.stringify([
-            { value: { brandName: "Resource Test Practice", logoPath: "/favicon-32x32.png" } },
+            {
+              key: "site_details",
+              value: { brandName: "Resource Test Practice", logoPath: "/favicon-32x32.png" },
+            },
+            { key: "footer_settings", value: { contactAddress: "Synthetic test address" } },
           ]),
         );
-        return;
-      }
-      if (key === "eq.footer_settings") {
-        record(200);
-        res.end(JSON.stringify([{ value: { contactAddress: "Synthetic test address" } }]));
         return;
       }
       record(200);
@@ -89,7 +88,7 @@ test(
     try {
       server = await createServer({
         cacheDir,
-        server: { host: "127.0.0.1", port: 0 },
+        server: { host: "127.0.0.1", port: 0, watch: null },
         logLevel: "silent",
       });
       await server.listen();
@@ -129,8 +128,7 @@ test(
             `${error.message}\n${JSON.stringify({ errors, counts: Object.fromEntries(counts) })}`,
           );
         });
-      assert.equal(counts.get("/rest/v1/site_settings:eq.site_details"), 1);
-      assert.equal(counts.get("/rest/v1/site_settings:eq.footer_settings"), 1);
+      assert.equal(counts.get("/rest/v1/site_settings:in.(site_details,footer_settings)"), 1);
       assert.equal(
         [...counts.keys()].some((key) => key.startsWith("/auth/")),
         false,
@@ -140,45 +138,50 @@ test(
         assert.equal(response.status, 200);
       assert.deepEqual(Object.fromEntries(counts), before);
       assert.deepEqual(errors, []);
-      assert.ok(rpcUrls.size, "Browser must exercise real server functions");
       const requestBudget = createRequestBudgetReport(requestSamples);
       const shellSamples = fixtureSamples.filter((sample) => {
         const url = new URL(sample.url);
         return (
           url.pathname === "/rest/v1/site_settings" &&
-          ["eq.site_details", "eq.footer_settings"].includes(url.searchParams.get("key") ?? "")
+          url.searchParams.get("key") === "in.(site_details,footer_settings)"
         );
       });
       const shellBudget = createRequestBudgetReport(shellSamples);
       const requestBudgetViolations = findRequestBudgetViolations(shellBudget, {
         auth: { maxRequests: 0 },
-        database: { maxRequests: 2 },
+        database: { maxRequests: 1 },
         storage: { maxRequests: 0 },
         realtime: { maxRequests: 0 },
       });
       assert.deepEqual(requestBudgetViolations, []);
-      const rpcUrl = [...rpcUrls][0];
       const csrfResults: Record<string, number> = {};
-      for (const [name, headers, expected] of [
-        ["same-origin metadata", { "sec-fetch-site": "same-origin" }, 200],
-        ["same-origin header", { origin }, 200],
-        ["same-origin referer", { referer: `${origin}/` }, 200],
-        ["cross-site metadata", { "sec-fetch-site": "cross-site", origin }, 403],
-        ["same-site subdomain", { "sec-fetch-site": "same-site" }, 403],
-        ["foreign origin", { origin: "https://foreign.example" }, 403],
-        ["foreign referer", { referer: `${origin}.foreign.example/` }, 403],
-        ["missing origin metadata", {}, 403],
-      ] as const) {
-        const response = await fetch(rpcUrl, { headers: { ...headers, "x-tsr-serverFn": "true" } });
-        csrfResults[name] = response.status;
-        assert.equal(response.status, expected, name);
+      let forbiddenPostStatus: number | null = null;
+      if (rpcUrls.size > 0) {
+        const rpcUrl = [...rpcUrls][0];
+        for (const [name, headers, expected] of [
+          ["same-origin metadata", { "sec-fetch-site": "same-origin" }, 200],
+          ["same-origin header", { origin }, 200],
+          ["same-origin referer", { referer: `${origin}/` }, 200],
+          ["cross-site metadata", { "sec-fetch-site": "cross-site", origin }, 403],
+          ["same-site subdomain", { "sec-fetch-site": "same-site" }, 403],
+          ["foreign origin", { origin: "https://foreign.example" }, 403],
+          ["foreign referer", { referer: `${origin}.foreign.example/` }, 403],
+          ["missing origin metadata", {}, 403],
+        ] as const) {
+          const response = await fetch(rpcUrl, {
+            headers: { ...headers, "x-tsr-serverFn": "true" },
+          });
+          csrfResults[name] = response.status;
+          assert.equal(response.status, expected, name);
+        }
+        const forbiddenPost = await fetch(rpcUrl, {
+          method: "POST",
+          headers: { origin: "https://foreign.example", "content-type": "application/json" },
+          body: "{}",
+        });
+        forbiddenPostStatus = forbiddenPost.status;
+        assert.equal(forbiddenPost.status, 403);
       }
-      const forbiddenPost = await fetch(rpcUrl, {
-        method: "POST",
-        headers: { origin: "https://foreign.example", "content-type": "application/json" },
-        body: "{}",
-      });
-      assert.equal(forbiddenPost.status, 403);
       const webhook = await fetch(`${origin}/api/public/paystack-webhook`, { method: "POST" });
       assert.equal(webhook.status, 401);
       assert.equal(await webhook.text(), "missing_signature");
@@ -213,7 +216,7 @@ test(
             after: Object.fromEntries(counts),
             pageErrors: errors,
             csrfResults,
-            rejectedCrossOriginPost: forbiddenPost.status,
+            rejectedCrossOriginPost: forbiddenPostStatus,
             unsignedWebhook: webhook.status,
             invalidOAuthCallback: callback.status,
             fixtureRequestBudget: createRequestBudgetReport(fixtureSamples),

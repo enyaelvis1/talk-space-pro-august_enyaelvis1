@@ -37,7 +37,7 @@ test("therapist dashboard is protected and scoped to the linked therapist profil
 
   const dashboardBody = exportBody(functions, "getTherapistDashboard");
   assert.match(dashboardBody, /requireTherapist\(\)/);
-  assert.match(functions, /_role: "therapist"/);
+  assert.match(functions, /requireRequestRole\("therapist"\)/);
   assert.match(functions, /\.eq\("user_id", user\.id\)/);
   assert.doesNotMatch(functions, /!therapist\.is_active/);
   assert.match(functions, /\.eq\("therapist_id", ctx\.therapistId\)/);
@@ -121,7 +121,7 @@ test("therapist users are kept out of the client account experience", () => {
   assert.match(accountRoute, /withTimeout\(hasBrowserRole\("therapist"\), false\)/);
   assert.match(accountRoute, /window\.location\.replace\("\/therapist"\)/);
   assert.match(accountRoute, /checkingDestination/);
-  assert.match(loginRoute, /hasBrowserRole\("therapist"\)/);
+  assert.match(loginRoute, /hasBrowserRoleForSession\(verifiedSession, "therapist"\)/);
   assert.match(loginRoute, /destination = "\/therapist"/);
 });
 
