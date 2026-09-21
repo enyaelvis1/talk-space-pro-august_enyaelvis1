@@ -862,7 +862,10 @@ export type ManagedAppointment = {
 };
 
 function hashToken(token: string) {
-  return createHash("sha256").update(token.trim()).digest("hex");
+  const trimmed = token.trim();
+  const normalized = trimmed.replace(/[),.;:!?]+$/, "");
+  const canonical = /^[a-f0-9]{64}$/i.test(normalized) ? normalized : trimmed;
+  return createHash("sha256").update(canonical).digest("hex");
 }
 
 const tokenSchema = z.object({ manageToken: z.string().trim().min(16).max(128) });
