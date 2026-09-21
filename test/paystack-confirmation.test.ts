@@ -232,6 +232,18 @@ function fixture(
       async requireAdmin() {
         calls.auth++;
       },
+      throwPaystackAdminVerificationError(
+        phase: "checkout" | "provider" | "validation",
+        error: unknown,
+      ): never {
+        const raw = error instanceof Error ? error.message : String(error);
+        if (phase === "validation" && raw.includes("amount")) {
+          throw new Error(
+            "Paystack amount does not match the stored booking total. Do not confirm this payment; review the provider transaction and booking.",
+          );
+        }
+        throw new Error("Paystack verification failed safely.");
+      },
       async syncClientRecordsForSuccessfulPayment() {
         calls.sync++;
       },
@@ -302,6 +314,24 @@ test("admin verifies a child row against the parent checkout, including already-
   assert.equal(f.calls.auth, 1);
   assert.deepEqual(f.calls.verify, []);
   assert.deepEqual(f.calls.rpc, []);
+});
+
+test("admin Paystack recheck explains payment mismatches without exposing provider details", async () => {
+  const f = fixture({ admin: true, underpaid: true });
+  await assert.rejects(
+    f.run,
+    /Paystack amount does not match the stored booking total.*Do not confirm this payment/,
+  );
+  assert.equal(f.calls.rpc.length, 0);
+});
+
+test("admin Paystack verification has safe actionable error branches", () => {
+  const source = readFileSync("src/lib/payments.functions.ts", "utf8");
+  assert.match(source, /Paystack reference is missing from this payment/);
+  assert.match(source, /Paystack checkout could not be matched to this payment/);
+  assert.match(source, /Paystack could not find this reference/);
+  assert.match(source, /Paystack currency does not match the stored booking currency/);
+  assert.match(source, /Do not confirm this payment/);
 });
 
 test("webhook and scheduled recheck use group totals and persist provider receipts", () => {

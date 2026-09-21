@@ -41,6 +41,49 @@ function noStore() {
   setResponseHeader("Cache-Control", "private, no-store");
 }
 
+function throwPaystackAdminVerificationError(
+  phase: "checkout" | "provider" | "validation",
+  error: unknown,
+): never {
+  const raw = error instanceof Error ? error.message : String(error);
+  console.error("[payments] admin Paystack verification failed", { phase, error: raw });
+
+  if (phase === "checkout") {
+    throw new Error(
+      "Paystack checkout could not be matched to this payment. Confirm the stored reference and review the checkout record before retrying.",
+    );
+  }
+  if (phase === "validation") {
+    if (raw.includes("amount")) {
+      throw new Error(
+        "Paystack amount does not match the stored booking total. Do not confirm this payment; review the provider transaction and booking.",
+      );
+    }
+    if (raw.includes("currency")) {
+      throw new Error(
+        "Paystack currency does not match the stored booking currency. Do not confirm this payment; review the provider transaction and booking.",
+      );
+    }
+    if (raw.includes("reference")) {
+      throw new Error(
+        "Paystack reference does not match the stored checkout. Do not confirm this payment; review the provider transaction.",
+      );
+    }
+    throw new Error(
+      "Paystack verification details do not match the stored booking. Do not confirm this payment; review it manually.",
+    );
+  }
+
+  if (raw.includes("paystack_verify_failed:401") || raw.includes("paystack_verify_failed:404")) {
+    throw new Error(
+      "Paystack could not find this reference. Confirm the stored secret key belongs to the same test/live Paystack account that created the payment.",
+    );
+  }
+  throw new Error(
+    "Paystack could not verify this payment right now. Confirm the provider reference and retry, or review it manually.",
+  );
+}
+
 function hashToken(token: string) {
   return createHash("sha256").update(token.trim()).digest("hex");
 }
@@ -1165,7 +1208,17 @@ export const verifyPaystackPaymentForAdmin = createServerFn({ method: "POST" })
 
     if (payment.provider !== "paystack") throw new Error("This is not a Paystack payment.");
     const reference = payment.checkout_group_reference ?? payment.reference;
-    const checkout = await loadPaystackCheckout(reference);
+    if (!reference?.trim()) {
+      throw new Error(
+        "Paystack reference is missing from this payment. Review the payment record before retrying.",
+      );
+    }
+    let checkout;
+    try {
+      checkout = await loadPaystackCheckout(reference);
+    } catch (error) {
+      throwPaystackAdminVerificationError("checkout", error);
+    }
     const storedReceipt = readPaymentReceipt(checkout.payment.metadata);
     if (
       checkout.alreadySucceeded &&
@@ -1186,13 +1239,22 @@ export const verifyPaystackPaymentForAdmin = createServerFn({ method: "POST" })
       };
     }
 
-    const verify = await paystackVerify({ secretKey: secret, reference });
-    validateProviderPayment({
-      expectedAmountKobo: checkout.amountKobo,
-      expectedCurrency: checkout.currency,
-      expectedReference: reference,
-      result: verify,
-    });
+    let verify;
+    try {
+      verify = await paystackVerify({ secretKey: secret, reference });
+    } catch (error) {
+      throwPaystackAdminVerificationError("provider", error);
+    }
+    try {
+      validateProviderPayment({
+        expectedAmountKobo: checkout.amountKobo,
+        expectedCurrency: checkout.currency,
+        expectedReference: reference,
+        result: verify,
+      });
+    } catch (error) {
+      throwPaystackAdminVerificationError("validation", error);
+    }
     const newStatus =
       verify.status === "success"
         ? "succeeded"
