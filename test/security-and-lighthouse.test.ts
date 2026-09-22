@@ -13,7 +13,8 @@ test("server responses enforce CSP and HSTS", () => {
   assert.match(headers, /object-src 'none'/);
   assert.match(headers, /https:\/\/\*\.supabase\.co/);
   assert.match(headers, /https:\/\/\*\.googleusercontent\.com/);
-  assert.match(server, /applySecurityHeaders\(await normalizeCatastrophicSsrResponse/);
+  assert.match(server, /const normalized = await normalizeCatastrophicSsrResponse/);
+  assert.match(server, /applySecurityHeaders\(applyPublicDocumentCache\(normalized/);
   assert.match(server, /getLoggedOutProtectedRedirect/);
   assert.match(server, /sb-\[\^=\]\*auth-token/);
   assert.match(server, /url\.pathname\.startsWith\("\/admin\/"\)/);
