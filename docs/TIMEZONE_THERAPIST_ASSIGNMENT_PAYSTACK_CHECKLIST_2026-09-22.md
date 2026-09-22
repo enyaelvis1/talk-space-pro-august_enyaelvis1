@@ -100,22 +100,32 @@ store real client details, payment references, tokens, or credentials here.
 
 - [ ] Query the affected therapist’s active recurring rules and exceptions,
       grouped by weekday, local start/end time, timezone, service, mode,
-      duration, buffer, and source record ID.
+      duration, buffer, and source record ID. The linked SQL query endpoint
+      returned HTTP 403, so live rows still require an approved read-only
+      database session.
 - [ ] Compare the database rows with the admin availability UI and the public
       booking slot response; identify whether the duplicate is data, timezone
       conversion, date formatting, or UI key/grouping behavior.
-- [ ] Confirm that two different therapists can share an instant while the
-      same therapist cannot receive duplicate slots for the same instant.
-- [ ] Confirm availability is generated in `Africa/Lagos` and converted to UTC
-      only for storage/comparison, with no double conversion on display.
-- [ ] Add a unique/idempotent rule or migration safeguard for duplicate
-      therapist/time definitions where the business rule permits it.
-- [ ] Do not delete the affected availability row until its source, linked
+- [x] Confirm in the local contract path that two different therapists can
+      share an instant while the same therapist/mode cannot receive duplicate
+      slots for the same instant.
+- [x] Confirm availability is generated in the rule timezone (the operational
+      policy is `Africa/Lagos`) and converted to UTC only for
+      storage/comparison, with no double conversion on display.
+- [x] Add a transactional migration safeguard for new active same-mode
+      overlapping rules. Existing rows are preserved for audited cleanup.
+- [x] Do not delete the affected availability row until its source, linked
       bookings, exceptions, and audit history are identified.
 - [ ] Verify 10:30 and all other daily slots across daylight-independent WAT,
-      booking duration, buffer, service, and session mode combinations.
-- [ ] Add regression tests for repeated daily slots, duplicate UI keys,
-      multiple therapists at one instant, and concurrent booking attempts.
+      booking duration, buffer, service, and session mode combinations against
+      live Tunbi data.
+- [x] Add regression tests for repeated daily slots, duplicate UI keys,
+      multiple therapists at one instant, WAT 10:30 display, and concurrent
+      booking attempts.
+- [x] Deduplicate identical `(therapist, instant, mode)` rows at the
+      `list_available_slots` SQL result boundary before legacy rule cleanup.
+- [ ] Apply the new migration to the linked project after PR/UAT approval;
+      `supabase migration list` shows `20260922143000` as local-only.
 
 ## Milestone 4 — Paystack verification error
 

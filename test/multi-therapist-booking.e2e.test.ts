@@ -19,6 +19,39 @@ test("slot identity deduplicates only the same therapist, mode and instant", () 
   const b = { ...a, therapistId: "B" };
   assert.equal(uniqueBookingSlots([a, b, a]).length, 2);
   assert.equal(slotKey(a), slotKey({ ...a, startsAt: "2030-10-01T10:00:00+01:00" }));
+  assert.equal(
+    uniqueBookingSlots([
+      a,
+      { ...a, mode: "in_person" },
+      { ...a, startsAt: "2030-10-01T10:00:00+01:00" },
+    ]).length,
+    2,
+  );
+});
+
+test("10:30 WAT retains one slot per therapist and mode", () => {
+  const slots = [
+    {
+      therapistId: "A",
+      startsAt: "2030-10-01T09:30:00Z",
+      endsAt: "2030-10-01T10:30:00Z",
+      mode: "online" as const,
+    },
+    {
+      therapistId: "A",
+      startsAt: "2030-10-01T09:30:00Z",
+      endsAt: "2030-10-01T10:30:00Z",
+      mode: "online" as const,
+    },
+    {
+      therapistId: "B",
+      startsAt: "2030-10-01T09:30:00Z",
+      endsAt: "2030-10-01T10:30:00Z",
+      mode: "online" as const,
+    },
+  ];
+  assert.match(formatSlotTime(slots[0]), /10:30/);
+  assert.equal(uniqueBookingSlots(slots).length, 2);
 });
 
 test("public availability labels do not expose therapist names", () => {
