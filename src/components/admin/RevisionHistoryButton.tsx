@@ -19,6 +19,7 @@ import {
   type JsonValue,
 } from "@/lib/admin.functions";
 import { diffSnapshotSections } from "@/lib/section-diff";
+import { formatWATDateTime } from "@/lib/time";
 
 const FAQ_FIELDS: [string, string][] = [
   ["category", "Category"],
@@ -230,7 +231,7 @@ export function RevisionHistoryButton({
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-medium capitalize">{r.changeType}</span>
                           <span className="text-[10px] text-muted-foreground">
-                            {new Date(r.createdAt).toLocaleString()}
+                            {formatWATDateTime(r.createdAt)}
                           </span>
                         </div>
                         <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
@@ -250,7 +251,7 @@ export function RevisionHistoryButton({
                 {selected ? (
                   <>
                     <p className="text-xs text-muted-foreground">
-                      Saved {new Date(selected.createdAt).toLocaleString()} by{" "}
+                      Saved {formatWATDateTime(selected.createdAt)} by{" "}
                       {selected.changedByEmail ?? "system"}
                     </p>
                     {sectionDiff ? (

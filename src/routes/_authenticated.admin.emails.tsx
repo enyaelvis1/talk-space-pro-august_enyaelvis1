@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { formatWATDateTime } from "@/lib/time";
 import {
   Dialog,
   DialogContent,
@@ -691,7 +692,7 @@ function EmailAdminScreen({
                   {logs.map((log) => (
                     <tr key={log.id} className="border-t border-border/70 align-top">
                       <td className="py-2 pr-3 whitespace-nowrap text-xs text-muted-foreground">
-                        {new Date(log.createdAt).toLocaleString()}
+                        {formatWATDateTime(log.createdAt)}
                       </td>
                       <td className="py-2 pr-3">
                         <StatusBadge status={log.status} />
@@ -712,7 +713,7 @@ function EmailAdminScreen({
                           <span className="text-danger">
                             {log.error ?? log.reason ?? "failed"}
                             {log.nextRetryAt
-                              ? ` · retry ${log.retryCount + 1} due ${new Date(log.nextRetryAt).toLocaleString()}`
+                              ? ` · retry ${log.retryCount + 1} due ${formatWATDateTime(log.nextRetryAt)}`
                               : log.retryCount
                                 ? ` · ${log.retryCount} retries attempted`
                                 : ""}

@@ -7,6 +7,7 @@ import { AdminWorkspaceShell } from "@/components/progress/AdminSidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { canonicalUrl } from "@/lib/seo";
+import { formatWATDateTime } from "@/lib/time";
 import {
   deleteContactSubmission,
   listContactSubmissions,
@@ -124,7 +125,7 @@ function MessagesScreen({ initialSubmissions }: { initialSubmissions: ContactSub
                       </p>
                     </div>
                     <time className="text-xs text-muted-foreground">
-                      {new Date(submission.createdAt).toLocaleString()}
+                      {formatWATDateTime(submission.createdAt)}
                     </time>
                   </div>
                   <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-foreground">

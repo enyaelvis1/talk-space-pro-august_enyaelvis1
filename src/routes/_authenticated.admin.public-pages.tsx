@@ -33,6 +33,7 @@ import { PageCanvas } from "@/components/admin/PageCanvas";
 import { PageBuilder } from "@/components/admin/PageBuilder";
 import { readDraftSectionsFromMetadata, readSectionsFromMetadata } from "@/lib/page-sections";
 import { ContentHtml } from "@/components/content/ContentHtml";
+import { formatWATDateTime, formatWATTime } from "@/lib/time";
 import { MediaPicker } from "@/components/admin/MediaPicker";
 import { MediaUploadInput } from "@/components/admin/MediaUploadInput";
 import { RevisionHistoryButton } from "@/components/admin/RevisionHistoryButton";
@@ -515,7 +516,7 @@ function PublicPagesAdminRoute() {
                   ) : (
                     <span className="text-muted-foreground">
                       All changes saved
-                      {lastSavedAt ? ` · ${lastSavedAt.toLocaleTimeString()}` : ""}
+                      {lastSavedAt ? ` · ${formatWATTime(lastSavedAt)}` : ""}
                     </span>
                   )}
                   {canEdit ? (
@@ -713,11 +714,11 @@ function PublicPagesAdminRoute() {
                         ) : null}
                         <span className="text-xs text-muted-foreground">
                           {entry.scheduledPublishAt
-                            ? `Publishes ${new Date(entry.scheduledPublishAt).toLocaleString()}`
+                            ? `Publishes ${formatWATDateTime(entry.scheduledPublishAt)}`
                             : "No publish time set"}
                           {" · "}
                           {entry.scheduledUnpublishAt
-                            ? `Unpublishes ${new Date(entry.scheduledUnpublishAt).toLocaleString()}`
+                            ? `Unpublishes ${formatWATDateTime(entry.scheduledUnpublishAt)}`
                             : "No unpublish time set"}
                         </span>
                       </div>

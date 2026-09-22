@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { EditablePublicPage } from "@/components/site/EditablePublicPage";
 import { getContentEntryPreview, type ContentEntryPreview } from "@/lib/admin.functions";
 import { canonicalUrl } from "@/lib/seo";
+import { formatWATDateTime } from "@/lib/time";
 
 export const Route = createFileRoute("/_authenticated/admin/preview/$kind/$slug")({
   head: () => ({
@@ -41,7 +42,7 @@ function DraftPreviewRoute() {
           </span>
           {preview?.updatedAt ? (
             <span className="text-amber-800/80">
-              Last edited {new Date(preview.updatedAt).toLocaleString()}
+              Last edited {formatWATDateTime(preview.updatedAt)}
             </span>
           ) : null}
           <div className="ml-auto flex items-center gap-2">

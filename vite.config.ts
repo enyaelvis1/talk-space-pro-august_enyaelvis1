@@ -20,6 +20,11 @@ export default defineConfig({
   },
   vite: {
     css: { transformer: "postcss" },
+    resolve: {
+      // Keep route components and shared hooks on the same React dispatcher in
+      // both the client bundle and TanStack Start's SSR/dev dependency graph.
+      dedupe: ["react", "react-dom"],
+    },
     optimizeDeps: {
       include: [
         "@radix-ui/react-alert-dialog",
