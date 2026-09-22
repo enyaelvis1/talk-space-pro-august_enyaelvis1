@@ -7,6 +7,7 @@ import { EditablePublicPage } from "@/components/site/EditablePublicPage";
 import { SiteHeader } from "@/components/site/SiteHeader";
 import { SiteBreadcrumbs } from "@/components/site/SiteBreadcrumbs";
 import { SiteFooter } from "@/components/site/SiteFooter";
+import { PublicRouteSkeleton } from "@/components/site/PublicRouteSkeleton";
 import { SectionBadge } from "@/components/site/SectionBadge";
 import { Reveal } from "@/components/site/Reveal";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,13 @@ export const Route = createFileRoute("/pricing")({
     const entry = await getPublishedEntry({ data: { kind: "page", slug: "pricing" } });
     return { entry };
   },
+  pendingMs: 0,
+  pendingMinMs: 250,
+  pendingComponent: () => (
+    <main className="min-h-screen bg-background px-4 py-6 sm:px-6 lg:px-8">
+      <PublicRouteSkeleton pathname="/pricing" />
+    </main>
+  ),
   validateSearch: z.object({
     service: z.string().trim().optional(),
   }),

@@ -55,6 +55,14 @@ test("router navigation does not turn hover intent into Vercel requests", () => 
   assert.match(router, /defaultPreloadStaleTime:\s*30_000/);
 });
 
+test("public CMS pages do not probe admin permissions or categories anonymously", () => {
+  const page = read("src/components/site/EditablePublicPage.tsx");
+  const content = read("src/lib/content.functions.ts");
+  assert.doesNotMatch(page, /getCmsPermissions/);
+  assert.match(page, /useBrowserAuthState/);
+  assert.match(content, /data\.kind === "post" \? await getCategories/);
+});
+
 test("publishing during a pending read prevents old data repopulating the cache", async () => {
   const cache = createPublicReadCache<string>(60_000);
   let resolveOld!: (value: string) => void;

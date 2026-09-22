@@ -58,6 +58,10 @@ themselves prove that the database is overloaded.
 
 - [ ] Consolidate duplicate public shell and CMS reads into bounded server
       functions with request coalescing.
+- [x] Remove the anonymous `getCmsPermissions` probe from public CMS pages;
+      signed-in admin state now comes from the shared browser auth snapshot.
+- [x] Avoid the second categories query for published page entries; category
+      lookup remains only for post entries that display categories.
 - [ ] Confirm the public read cache works across the deployed runtime strategy;
       do not assume an in-process cache is shared across Vercel instances.
 - [ ] Group Supabase API Gateway logs by exact path and identify the top three
@@ -95,5 +99,21 @@ verification rather than a Postgres query loop.
   navigation 25, hover-only 0; HTML remained `MISS` with `no-store`.
 - Router policy now explicitly disables speculative preloads in
   `src/router.tsx`.
+- Public CMS pages no longer send an anonymous permission server-function
+  request, and published page loaders no longer issue an unnecessary category
+  query. About and Pricing now show a route skeleton while their loader runs.
 - Authenticated browser trace, Vercel metrics, and Supabase path-level logs
   still require a controlled UAT measurement window.
+
+## Load-time investigation — 22 September 2026
+
+- Production `/about` browser sample: DOM content loaded in approximately
+  2.5 seconds and network idle in approximately 3.9 seconds.
+- Production `/pricing` browser sample: DOM content loaded in approximately
+  2.1 seconds and network idle in approximately 3.9 seconds.
+- Local Vite development `/about` sample took approximately 6 seconds to
+  compile and hydrate on a cold dev server; that is not representative of the
+  production bundle.
+- The production traces showed repeated signed brand-image requests and
+  `no-store` HTML. Query strings and signed tokens were intentionally excluded
+  from evidence.
