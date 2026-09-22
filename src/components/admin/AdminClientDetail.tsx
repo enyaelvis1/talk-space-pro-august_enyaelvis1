@@ -97,9 +97,11 @@ function DetailItem({
 export function AdminClientDetail({
   client,
   assessmentTemplates,
+  therapists,
 }: {
   client: AdminClientDetailRecord;
   assessmentTemplates: FormTemplateDefinition[];
+  therapists: Array<{ id: string; fullName: string }>;
 }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -114,6 +116,7 @@ export function AdminClientDetail({
     weddingAnniversaryDate: client.weddingAnniversaryDate ?? "",
     occupation: client.occupation ?? "",
     preferredMode: client.preferredMode ?? "",
+    assignedTherapistId: client.assignedTherapistId ?? "",
   });
 
   const saveProfile = async () => {
@@ -121,6 +124,17 @@ export function AdminClientDetail({
     if (!form.fullName || !form.email || !form.phone) {
       toast.error("Full name, email and phone are required.");
       return;
+    }
+
+    const therapistChanged = form.assignedTherapistId !== (client.assignedTherapistId ?? "");
+    if (therapistChanged) {
+      const newTherapistName =
+        therapists.find((therapist) => therapist.id === form.assignedTherapistId)?.fullName ??
+        "Unassigned";
+      const confirmed = window.confirm(
+        `Change ${client.fullName ?? "this client"}'s default therapist to ${newTherapistName}? This does not move existing appointments.`,
+      );
+      if (!confirmed) return;
     }
 
     setSaving(true);
@@ -138,7 +152,7 @@ export function AdminClientDetail({
           weddingAnniversaryDate: form.weddingAnniversaryDate || null,
           occupation: form.occupation || null,
           preferredMode: (form.preferredMode || null) as ClientSessionMode | null,
-          assignedTherapistId: client.assignedTherapistId,
+          assignedTherapistId: form.assignedTherapistId || null,
         },
       });
       toast.success("Client profile updated.");
@@ -323,6 +337,30 @@ export function AdminClientDetail({
                         <option value="in_person">In person</option>
                         <option value="phone">Phone</option>
                       </select>
+                    </label>
+                    <label className="space-y-2 text-sm font-medium text-brand-deep">
+                      Assigned therapist
+                      <select
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                        value={form.assignedTherapistId}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            assignedTherapistId: event.target.value,
+                          }))
+                        }
+                      >
+                        <option value="">Unassigned</option>
+                        {therapists.map((therapist) => (
+                          <option key={therapist.id} value={therapist.id}>
+                            {therapist.fullName}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-xs font-normal text-muted-foreground">
+                        Changes the client’s default therapist. Use Edit booking to move a specific
+                        appointment after availability is checked.
+                      </span>
                     </label>
                     <div className="sm:col-span-2">
                       <Button onClick={() => void saveProfile()} disabled={saving}>

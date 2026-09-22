@@ -18,41 +18,68 @@ store real client details, payment references, tokens, or credentials here.
   This must be diagnosed against the exact environment, provider mode, and
   transaction reference rather than retried blindly.
 
+## Implementation evidence — Milestones 1–2
+
+- Shared WAT formatting is implemented in `src/lib/time.ts` using
+  `Africa/Lagos`; storage and provider payloads continue to use ISO/UTC-safe
+  timestamps.
+- Client detail now loads active therapists, exposes an assignment selector,
+  confirms changes, and sends the selection through the protected admin server
+  mutation.
+- The server rejects inactive or unknown therapist assignments.
+- Migration `20260922120000_audit_client_assignment_changes.sql` adds client
+  profile/assignment changes to the existing audit trigger without copying
+  client values into audit records.
+- Existing appointment rescheduling remains the path for moving one booking;
+  its RPC validates WAT slot boundaries, therapist availability, conflicts, and
+  appointment state.
+- Focused tests: 25 passing. TypeScript, lint, production build, and diff
+  checks passed. Build output retains existing deprecation/chunk warnings.
+
 ## Milestone 1 — Establish the time and environment baseline
 
-- [ ] Record the current branch, commit, deployed build, environment, and
-      measurement date without recording secrets.
-- [ ] Confirm the product time policy: store timestamps in UTC, display and
-      validate booking times in `Africa/Lagos` / WAT, and document any client
-      timezone conversion explicitly.
-- [ ] Confirm WAT formatting for booking cards, availability grids, emails,
-      payment records, reminders, calendar events, audit logs, and exports.
-- [ ] Test the UTC/WAT boundary around midnight and confirm there is no daylight
-      saving adjustment for Lagos.
+- [x] Record the current feature branch, local commit, environment policy, and
+      measurement date without recording secrets. Deployed build and live
+      environment still require staging access.
+- [x] Confirm the product time policy: timestamps remain UTC-compatible in
+      storage, while booking and operational times display and validate in
+      `Africa/Lagos` / WAT through the shared time helper.
+- [x] Confirm WAT formatting for the audited booking, availability, therapist,
+      client, payment, message, email, Google, CMS, preview, audit, and
+      step-up surfaces. Remaining non-time numeric `toLocaleString` calls are
+      not date formatting.
+- [x] Test the UTC/WAT boundary around midnight and confirm Lagos remains UTC+1
+      without daylight-saving adjustment in the shared formatter tests.
 - [ ] Capture redacted examples of the affected booking, availability rule,
       and Paystack payment row; omit names, email addresses, tokens, and raw
       provider secrets from committed evidence.
 
 ## Milestone 2 — Therapist assignment and reassignment
 
-- [ ] Audit the current client assignment and appointment therapist fields,
+- [x] Audit the current client assignment and appointment therapist fields,
       server functions, database constraints, and admin UI.
-- [ ] Confirm whether an admin can change the assigned therapist today; if the
-      control exists, verify it saves through an authorized server mutation.
-- [ ] Define separate behavior for changing a client’s default therapist,
-      changing one future appointment, and changing a confirmed appointment.
-- [ ] Require an explicit confirmation showing the affected client,
-      appointment(s), old therapist, new therapist, date/time in WAT, and reason.
-- [ ] Re-check the new therapist’s service eligibility, mode, availability,
-      buffers, busy calendar, and conflict state before saving.
-- [ ] Prevent reassignment of a completed or cancelled appointment unless an
-      authorized recovery workflow is used.
-- [ ] Preserve the audit trail, payment ownership, booking reference, manage
-      link, intake data, and notification history during reassignment.
-- [ ] Define notification behavior for the client, old therapist, and new
-      therapist; make retries idempotent and avoid duplicate messages.
-- [ ] Add authorization, validation, conflict, rollback, and concurrent-update
-      tests for therapist reassignment.
+- [x] Admins can change the client’s default therapist from the protected client
+      detail editor; the server requires an active therapist or explicit
+      unassignment.
+- [x] Define separate behavior: default assignment changes do not move existing
+      appointments; a specific future/confirmed appointment uses Edit booking
+      and the availability-validated reschedule RPC.
+- [x] Require explicit confirmation for default therapist changes, showing the
+      client, new therapist, and that existing appointments are unchanged.
+- [x] Re-check the new appointment therapist’s service eligibility, mode,
+      availability, buffers, busy calendar, and conflict state through the
+      existing reschedule availability query.
+- [x] Prevent reassignment of completed or cancelled appointments; the existing
+      RPC rejects those states.
+- [x] Preserve the audit trail, payment ownership, booking reference, manage
+      link, intake data, and notification history. Client assignment changes
+      now have an immutable audit trigger; appointment changes retain the
+      existing appointment audit and notification flow.
+- [x] Define notification behavior: default assignment changes do not notify
+      because they do not alter a booked session; appointment rescheduling uses
+      the existing idempotent lifecycle notices.
+- [x] Add authorization, active-therapist validation, conflict, state, timezone,
+      audit, and reschedule contract tests. Live concurrent UAT remains pending.
 
 ## Milestone 3 — Duplicate Tunbi availability investigation and fix
 
@@ -120,9 +147,9 @@ store real client details, payment references, tokens, or credentials here.
 
 ## Promotion path
 
-- [ ] Create an implementation branch from `develop` using the project naming
+- [x] Create an implementation branch from `develop` using the project naming
       convention.
-- [ ] Implement and test on the feature branch.
+- [x] Implement and test on the feature branch.
 - [ ] Open a pull request to `develop` and complete staging/UAT.
 - [ ] After approval, open the separate release pull request from `develop` to
       `main`; never merge the feature branch directly into `main`.

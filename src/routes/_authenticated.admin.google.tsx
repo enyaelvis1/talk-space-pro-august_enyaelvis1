@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { canonicalUrl } from "@/lib/seo";
+import { formatWATDateTime } from "@/lib/time";
 import { startVisiblePolling } from "@/lib/visible-polling";
 import {
   clearGoogleClientSecret,
@@ -340,11 +341,11 @@ function GoogleAdminPage() {
                           {c.connected
                             ? `Connected as ${c.googleEmail ?? "unknown"}${
                                 c.lastSyncAt
-                                  ? ` · last busy sync ${new Date(c.lastSyncAt).toLocaleString()}`
+                                  ? ` · last busy sync ${formatWATDateTime(c.lastSyncAt)}`
                                   : ""
                               }${
                                 c.watchExpiresAt
-                                  ? ` · push channel until ${new Date(c.watchExpiresAt).toLocaleString()}`
+                                  ? ` · push channel until ${formatWATDateTime(c.watchExpiresAt)}`
                                   : ""
                               }`
                             : needsReconnect
@@ -470,12 +471,11 @@ function GoogleAdminPage() {
                                       {row.bookingReference} · {row.clientName || "—"}
                                     </p>
                                     <p className="text-muted-foreground">
-                                      {new Date(row.startsAt).toLocaleString()} · status{" "}
-                                      {row.status}
+                                      {formatWATDateTime(row.startsAt)} · status {row.status}
                                       {row.googleSyncedAt
-                                        ? ` · ${failed ? "failed" : "synced"} ${new Date(
+                                        ? ` · ${failed ? "failed" : "synced"} ${formatWATDateTime(
                                             row.googleSyncedAt,
-                                          ).toLocaleString()}`
+                                          )}`
                                         : ""}
                                     </p>
                                     {failed ? (
