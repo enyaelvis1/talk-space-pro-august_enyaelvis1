@@ -43,21 +43,29 @@ themselves prove that the database is overloaded.
 
 ## Milestone 3 — Make anonymous content CDN-cacheable safely
 
-- [ ] Identify public-only routes and server functions that contain no user,
+- [x] Identify public-only routes and server functions that contain no user,
       draft, payment, or authorization data.
-- [ ] Replace broad `no-store` headers only on those public responses with a
-      short CDN TTL and stale-while-revalidate policy.
-- [ ] Keep authenticated, draft/editor, booking, payment, webhook, and OAuth
-      responses `private, no-store`.
-- [ ] Add publish-triggered cache invalidation or an acceptable freshness
-      window for CMS edits.
+- [x] Add a short CDN TTL and stale-while-revalidate policy only to the
+      anonymous public document allowlist. `Cache-Control: no-store` remains in
+      place for browsers/private execution; `CDN-Cache-Control` is limited to
+      query-free, cookie-free public routes and `/content/*` documents.
+- [x] Keep authenticated, draft/editor, booking, payment, webhook, and OAuth
+      responses `private, no-store`; the new CDN helper rejects cookies,
+      query strings, non-GET requests, and admin paths.
+- [x] Add publish-triggered cache invalidation and a bounded 60-second
+      freshness window for published CMS entries. Content edits, publishing,
+      scheduling, archiving, SEO, section publishing, bulk changes, and deletes
+      clear the in-process published-entry cache.
 - [ ] Verify `x-vercel-cache` changes from `BYPASS`/`MISS` to `HIT`/`STALE` on
-      anonymous pages without caching private responses.
+      anonymous pages without caching private responses. This requires a
+      deployed UAT sample; it cannot be proven from the local build.
 
 ## Milestone 4 — Reduce Supabase REST/API Gateway traffic
 
-- [ ] Consolidate duplicate public shell and CMS reads into bounded server
-      functions with request coalescing.
+- [x] Consolidate duplicate public shell and CMS reads into bounded server
+      functions with request coalescing. Public shell data and each published
+      CMS entry now use 60-second in-process caches; concurrent reads share one
+      pending request.
 - [x] Remove the anonymous `getCmsPermissions` probe from public CMS pages;
       signed-in admin state now comes from the shared browser auth snapshot.
 - [x] Avoid the second categories query for published page entries; category
@@ -93,8 +101,10 @@ verification rather than a Postgres query loop.
 
 ## Evidence recorded
 
-- Existing request-reduction contract tests: 70 passing.
-- Focused request-reduction tests after this milestone: 52 passing.
+- Existing request-reduction contract tests: 70 passing before this milestone.
+- Focused request-reduction tests after this milestone: 75 passing.
+- TypeScript, lint, production build, and `git diff --check` passed. Build
+  output retains existing deprecation and large-chunk warnings only.
 - Production public trace: cold 26 responses, warm reload 26, internal SPA
   navigation 25, hover-only 0; HTML remained `MISS` with `no-store`.
 - Router policy now explicitly disables speculative preloads in
@@ -104,6 +114,11 @@ verification rather than a Postgres query loop.
   query. About and Pricing now show a route skeleton while their loader runs.
 - Authenticated browser trace, Vercel metrics, and Supabase path-level logs
   still require a controlled UAT measurement window.
+- The public document cache policy is implemented in
+  `src/lib/public-document-cache.ts`; production must confirm the expected
+  `CDN-Cache-Control`, `x-vercel-cache`, and Supabase request reduction after
+  deployment. The published-entry cache is process-local and is not assumed to
+  be shared between Vercel instances.
 
 ## Load-time investigation — 22 September 2026
 

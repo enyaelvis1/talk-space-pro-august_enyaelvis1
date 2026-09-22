@@ -3,6 +3,10 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import { createPublicReadCache } from "../src/lib/public-read-cache.ts";
+import {
+  PUBLIC_DOCUMENT_CDN_CACHE_CONTROL,
+  isPublicDocumentRequest,
+} from "../src/lib/public-document-cache.ts";
 import { claimAutomaticRouteRetry, routeRecoveryKey } from "../src/lib/route-recovery.ts";
 import { startVisiblePolling } from "../src/lib/visible-polling.ts";
 
@@ -61,6 +65,36 @@ test("public CMS pages do not probe admin permissions or categories anonymously"
   assert.doesNotMatch(page, /getCmsPermissions/);
   assert.match(page, /useBrowserAuthState/);
   assert.match(content, /data\.kind === "post" \? await getCategories/);
+});
+
+test("public document CDN caching excludes private and tokenized requests", () => {
+  const publicRequest = new Request("https://talkspace.ng/about");
+  const queryRequest = new Request("https://talkspace.ng/about?edit=1");
+  const privateRequest = new Request("https://talkspace.ng/about", {
+    headers: { cookie: "session=redacted" },
+  });
+  const adminRequest = new Request("https://talkspace.ng/admin/bookings");
+
+  assert.equal(isPublicDocumentRequest(publicRequest), true);
+  assert.equal(isPublicDocumentRequest(queryRequest), false);
+  assert.equal(isPublicDocumentRequest(privateRequest), false);
+  assert.equal(isPublicDocumentRequest(adminRequest), false);
+  assert.match(PUBLIC_DOCUMENT_CDN_CACHE_CONTROL, /s-maxage=60/);
+  assert.match(PUBLIC_DOCUMENT_CDN_CACHE_CONTROL, /stale-while-revalidate=300/);
+  assert.match(read("src/server.ts"), /applyPublicDocumentCache/);
+  assert.match(read("src/server.ts"), /contentType\.includes\("text\/html"\)/);
+  assert.match(read("src/server.ts"), /response\.headers\.has\("set-cookie"\)/);
+});
+
+test("published CMS entries use bounded caching and admin writes invalidate it", () => {
+  const content = read("src/lib/content.functions.ts");
+  const admin = read("src/lib/admin.functions.ts");
+  assert.match(content, /publicPublishedEntryCaches/);
+  assert.match(content, /getPublicPublishedEntryCache\(`\$\{data\.kind\}:\$\{data\.slug\}`\)/);
+  assert.match(content, /export function clearPublicContentEntryCache/);
+  assert.match(admin, /clearPublicContentEntryCache/);
+  assert.match(admin, /export const setContentStatus/);
+  assert.match(admin, /export const setContentArchived/);
 });
 
 test("publishing during a pending read prevents old data repopulating the cache", async () => {
