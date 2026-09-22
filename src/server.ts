@@ -7,6 +7,10 @@ import { consumeLastCapturedError } from "./lib/error-capture";
 import { describeError, renderErrorPage } from "./lib/error-page";
 import { getLegacyRedirect } from "./lib/legacy-redirects";
 import { applySecurityHeaders } from "./lib/security-headers";
+import {
+  PUBLIC_DOCUMENT_CDN_CACHE_CONTROL,
+  isPublicDocumentRequest,
+} from "./lib/public-document-cache";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -70,6 +74,22 @@ function hasSupabaseAuthCookie(request: Request): boolean {
   return /(?:^|;\s*)sb-[^=]*auth-token(?:\.\d+)?=/.test(cookie);
 }
 
+function applyPublicDocumentCache(response: Response, request: Request): Response {
+  const contentType = response.headers.get("content-type") ?? "";
+  if (
+    response.status !== 200 ||
+    !contentType.includes("text/html") ||
+    response.headers.has("set-cookie") ||
+    !isPublicDocumentRequest(request)
+  ) {
+    return response;
+  }
+
+  const headers = new Headers(response.headers);
+  headers.set("CDN-Cache-Control", PUBLIC_DOCUMENT_CDN_CACHE_CONTROL);
+  return new Response(response.body, { status: response.status, headers });
+}
+
 function getLoggedOutProtectedRedirect(request: Request): Response | null {
   const url = new URL(request.url);
   const isProtectedRoute =
@@ -105,7 +125,8 @@ const serverHandler: ServerEntry = {
 
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
-      return applySecurityHeaders(await normalizeCatastrophicSsrResponse(response, request));
+      const normalized = await normalizeCatastrophicSsrResponse(response, request);
+      return applySecurityHeaders(applyPublicDocumentCache(normalized, request));
     } catch (error) {
       console.error(error);
       let path: string | undefined;

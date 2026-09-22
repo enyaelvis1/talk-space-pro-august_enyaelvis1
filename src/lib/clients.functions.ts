@@ -530,24 +530,43 @@ export const getAdminClientDetail = createServerFn({ method: "GET" })
 export type AdminClientDetailWorkspace = {
   client: AdminClientDetail | null;
   assessmentTemplates: FormTemplateDefinition[];
+  therapists: Array<{ id: string; fullName: string }>;
 };
 
 export const getAdminClientDetailWorkspace = createServerFn({ method: "GET" })
   .validator((data: { clientId: string }) => data)
   .handler(async ({ data }): Promise<AdminClientDetailWorkspace> => {
     const client = await getAdminClient();
-    if (!client) return { client: null, assessmentTemplates: [] };
+    if (!client) return { client: null, assessmentTemplates: [], therapists: [] };
 
-    const [detail, templateResult] = await Promise.all([
+    const [detail, templateResult, therapistsResult] = await Promise.all([
       loadAdminClientDetail(client, data.clientId),
       client.from("site_settings").select("value").eq("key", "form_templates").maybeSingle(),
+      client.from("therapists").select("id, full_name").eq("is_active", true).order("full_name"),
     ]);
     if (templateResult.error) throw templateResult.error;
+    if (therapistsResult.error) throw therapistsResult.error;
+    const therapists = (therapistsResult.data ?? []).map((therapist) => ({
+      id: therapist.id,
+      fullName: therapist.full_name,
+    }));
+    if (
+      detail?.assignedTherapistId &&
+      detail.assignedTherapistName &&
+      !therapists.some((therapist) => therapist.id === detail.assignedTherapistId)
+    ) {
+      therapists.unshift({
+        id: detail.assignedTherapistId,
+        fullName: `${detail.assignedTherapistName} (inactive — keep current)`,
+      });
+    }
+
     return {
       client: detail,
       assessmentTemplates: normalizeFormTemplates(
         templateResult.data?.value ?? cloneFormTemplates(DEFAULT_FORM_TEMPLATES),
       ),
+      therapists,
     };
   });
 
@@ -604,6 +623,18 @@ export const updateAdminClient = createServerFn({ method: "POST" })
     // Ensure required fields are present
     if (!data.fullName || !data.email || !data.phone)
       throw new Error("Full name, email and phone are required.");
+
+    if (data.assignedTherapistId) {
+      const { data: therapist, error: therapistError } = await client
+        .from("therapists")
+        .select("id, is_active")
+        .eq("id", data.assignedTherapistId)
+        .maybeSingle();
+      if (therapistError) throw therapistError;
+      if (!therapist?.is_active) {
+        throw new Error("Choose an active therapist or leave the client unassigned.");
+      }
+    }
 
     const { error } = await client
       .from("clients")

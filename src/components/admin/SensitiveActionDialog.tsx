@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import type { SensitiveActionGateState } from "@/hooks/useSensitiveActionGate";
+import { formatWATTime } from "@/lib/time";
 
 function getAalLabel(level: SensitiveActionGateState["currentLevel"]) {
   if (level === "aal2") return "MFA verified";
@@ -43,14 +44,7 @@ export function SensitiveActionDialog({
 
   const unlockLabel = useMemo(() => {
     if (!state.stepUpExpiresAt) return "Until you leave this tab";
-    try {
-      return new Date(state.stepUpExpiresAt).toLocaleTimeString([], {
-        hour: "numeric",
-        minute: "2-digit",
-      });
-    } catch {
-      return "this session";
-    }
+    return formatWATTime(state.stepUpExpiresAt);
   }, [state.stepUpExpiresAt]);
 
   return (

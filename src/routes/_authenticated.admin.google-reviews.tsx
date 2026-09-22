@@ -4,6 +4,7 @@ import { Download, ExternalLink, Loader2, Plus, RefreshCw, Save, Star, Trash2 } 
 import { toast } from "sonner";
 
 import { AdminWorkspaceShell } from "@/components/progress/AdminSidebar";
+import { formatWATDateTime } from "@/lib/time";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -263,9 +264,7 @@ function GoogleReviewsAdminRoute() {
             <p>
               Last sync:{" "}
               <span className="font-medium text-brand-deep">
-                {form.lastSyncedAt
-                  ? new Date(form.lastSyncedAt).toLocaleString()
-                  : "Not synced yet"}
+                {form.lastSyncedAt ? formatWATDateTime(form.lastSyncedAt) : "Not synced yet"}
               </span>
               {form.lastSyncSource ? ` via ${form.lastSyncSource}` : ""}
             </p>

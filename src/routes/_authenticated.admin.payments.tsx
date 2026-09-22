@@ -13,6 +13,7 @@ import {
 import { toast } from "sonner";
 
 import { AdminWorkspaceShell } from "@/components/progress/AdminSidebar";
+import { formatWATDateTime } from "@/lib/time";
 import { AdminPageSkeleton } from "@/components/admin/AdminSkeletons";
 import { PaymentReceiptDetails } from "@/components/booking/PaymentReceiptDetails";
 import { SensitiveActionDialog } from "@/components/admin/SensitiveActionDialog";
@@ -127,12 +128,7 @@ function formatNaira(kobo: number) {
 }
 
 function formatDateTime(iso: string | null) {
-  if (!iso) return "—";
-  try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return iso;
-  }
+  return formatWATDateTime(iso);
 }
 
 function StatusBadge({ status }: { status: string }) {

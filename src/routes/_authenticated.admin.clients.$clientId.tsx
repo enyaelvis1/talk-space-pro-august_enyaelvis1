@@ -13,11 +13,11 @@ export const Route = createFileRoute("/_authenticated/admin/clients/$clientId")(
     await requireBrowserAdmin(location.href);
   },
   loader: async ({ params }) => {
-    const { client, assessmentTemplates } = await getAdminClientDetailWorkspace({
+    const { client, assessmentTemplates, therapists } = await getAdminClientDetailWorkspace({
       data: { clientId: params.clientId },
     });
     if (!client) throw redirect({ href: "/admin/clients?error=not-found" });
-    return { client, assessmentTemplates };
+    return { client, assessmentTemplates, therapists };
   },
   head: ({ params }) => ({
     meta: [
@@ -30,11 +30,12 @@ export const Route = createFileRoute("/_authenticated/admin/clients/$clientId")(
 });
 
 function ClientDetailRoute() {
-  const { client, assessmentTemplates } = Route.useLoaderData();
+  const { client, assessmentTemplates, therapists } = Route.useLoaderData();
   return (
     <AdminClientDetail
       client={client as AdminClientDetailRecord}
       assessmentTemplates={assessmentTemplates}
+      therapists={therapists}
     />
   );
 }

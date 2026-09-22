@@ -43,6 +43,10 @@ const manageTokenLifecycleMigration = await readFile(
   ),
   "utf8",
 );
+const availabilityDedupMigration = await readFile(
+  new URL("../supabase/migrations/20260922143000_dedupe_availability_rules.sql", import.meta.url),
+  "utf8",
+);
 
 test("availability generation honors active services, windows, buffers, and occupied slots", () => {
   assert.match(bookingFoundation, /create or replace function public\.list_available_slots/);
@@ -70,6 +74,25 @@ test("availability generation honors active services, windows, buffers, and occu
     bookingFoundation,
     /appointment\.status <> 'hold' or appointment\.hold_expires_at > now\(\)/,
   );
+});
+
+test("availability rules reject new same-mode overlaps and deduplicate legacy output", () => {
+  assert.match(availabilityDedupMigration, /pg_advisory_xact_lock/);
+  assert.match(availabilityDedupMigration, /message = 'availability_rule_overlap'/);
+  assert.match(
+    availabilityDedupMigration,
+    /existing\.therapist_id = new\.therapist_id[\s\S]*existing\.day_of_week = new\.day_of_week/,
+  );
+  assert.match(availabilityDedupMigration, /existing\.mode = new\.mode/);
+  assert.match(availabilityDedupMigration, /existing\.timezone = new\.timezone/);
+  assert.match(availabilityDedupMigration, /create trigger availability_rules_prevent_overlap/);
+  assert.match(
+    availabilityDedupMigration,
+    /select distinct on \(candidate\.therapist_id, candidate\.starts_at, candidate\.mode\)/,
+  );
+  assert.match(availabilityDedupMigration, /at time zone rule\.timezone/);
+  assert.match(availabilityDedupMigration, /timezone\('Africa\/Lagos', exception\.starts_at\)/);
+  assert.doesNotMatch(availabilityDedupMigration, /delete from public\.availability_rules/);
 });
 
 test("hold creation writes explicit hold state and expires stale holds", () => {

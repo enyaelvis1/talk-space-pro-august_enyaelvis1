@@ -20,6 +20,7 @@ import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { AdminWorkspaceShell } from "@/components/progress/AdminSidebar";
+import { formatWATTime } from "@/lib/time";
 import { MediaUploadInput } from "@/components/admin/MediaUploadInput";
 import { SensitiveActionDialog } from "@/components/admin/SensitiveActionDialog";
 import { useSensitiveActionGate } from "@/hooks/useSensitiveActionGate";
@@ -402,10 +403,7 @@ function SettingsAdminRoute() {
               label="Step-up window"
               value={
                 stepUp.dialogState.stepUpExpiresAt
-                  ? new Date(stepUp.dialogState.stepUpExpiresAt).toLocaleTimeString([], {
-                      hour: "numeric",
-                      minute: "2-digit",
-                    })
+                  ? formatWATTime(stepUp.dialogState.stepUpExpiresAt)
                   : "Locked"
               }
               note="Changes stay unlocked for 10 minutes after reconfirmation."

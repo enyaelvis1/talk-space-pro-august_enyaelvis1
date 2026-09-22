@@ -330,8 +330,23 @@ test("admin Paystack verification has safe actionable error branches", () => {
   assert.match(source, /Paystack reference is missing from this payment/);
   assert.match(source, /Paystack checkout could not be matched to this payment/);
   assert.match(source, /Paystack could not find this reference/);
+  assert.match(source, /transaction_not_found/);
+  assert.match(source, /No payment or booking state was changed/);
   assert.match(source, /Paystack currency does not match the stored booking currency/);
   assert.match(source, /Do not confirm this payment/);
+});
+
+test("Paystack verification retries transient failures but never transaction-not-found", () => {
+  const source = readFileSync("src/lib/payments.server.ts", "utf8");
+  assert.match(source, /PAYSTACK_VERIFY_MAX_ATTEMPTS = 3/);
+  assert.match(source, /status === 408.*status === 425.*status === 429/s);
+  assert.match(source, /status >= 500/);
+  assert.match(source, /paystack_verify_failed:\$\{res\.status\}:\$\{text\}/);
+  assert.match(
+    source,
+    /if \(!retryable \|\| attempt === PAYSTACK_VERIFY_MAX_ATTEMPTS - 1\) throw error/,
+  );
+  assert.doesNotMatch(source, /status === 400/);
 });
 
 test("webhook and scheduled recheck use group totals and persist provider receipts", () => {

@@ -1,4 +1,4 @@
-import { Component, lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Component, lazy, Suspense, useMemo, useState, type ReactNode } from "react";
 import { PencilLine, RefreshCw, X } from "lucide-react";
 
 import { SiteBreadcrumbs } from "@/components/site/SiteBreadcrumbs";
@@ -8,7 +8,7 @@ import { ContentHtml } from "@/components/content/ContentHtml";
 import { OptimizedImage } from "@/components/site/OptimizedImage";
 import { SectionRenderer } from "@/components/site/sections/SectionRenderer";
 import { Button } from "@/components/ui/button";
-import { getCmsPermissions } from "@/lib/admin.functions";
+import { useBrowserAuthState } from "@/hooks/use-browser-auth-state";
 import type { RenderedContentEntry } from "@/lib/content.functions";
 
 type EditableSectionsModule = typeof import("@/components/site/EditableSections");
@@ -119,26 +119,14 @@ export function EditablePublicPage({
   const sectionsToShow =
     preferDraft && entry.draftSections.length > 0 ? entry.draftSections : entry.sections;
   const hasBuilderSections = sectionsToShow.length > 0;
-  const [canEdit, setCanEdit] = useState(false);
+  const { status: authStatus, isAdmin } = useBrowserAuthState();
+  const canEdit = authStatus === "ready" && isAdmin;
   const [editing, setEditing] = useState(preferDraft);
   const [editorAttempt, setEditorAttempt] = useState(0);
   const EditableSectionsEditor = useMemo(
     () => lazy(() => importEditor(editorAttempt)),
     [editorAttempt],
   );
-
-  useEffect(() => {
-    if (!hasBuilderSections || preferDraft) return;
-    let active = true;
-    getCmsPermissions()
-      .then((permissions) => {
-        if (active) setCanEdit(permissions.canEdit);
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, [hasBuilderSections, preferDraft]);
 
   return (
     <div className="flex min-h-screen flex-col">

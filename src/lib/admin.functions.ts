@@ -12,6 +12,7 @@ import {
 import { cleanLegacyPostBodyHtml, sanitizeContentHtml } from "@/lib/content-html";
 import {
   clearPublicHomepageCache,
+  clearPublicContentEntryCache,
   clearPublicSiteSettingsCache,
   DEFAULT_FOOTER_SETTINGS,
   DEFAULT_HOMEPAGE_SECTIONS,
@@ -1705,6 +1706,7 @@ export const updateContentFields = createServerFn({ method: "POST" })
       .maybeSingle();
     bag.commitCookies();
     if (error) throw error;
+    clearPublicContentEntryCache();
     const row: AdminContentRow | null = updated
       ? {
           id: updated.id as string,
@@ -1880,6 +1882,7 @@ export const updateContentBody = createServerFn({ method: "POST" })
     const { error } = await bag.client.from("content_entries").update(patch).eq("id", data.id);
     bag.commitCookies();
     if (error) throw error;
+    clearPublicContentEntryCache();
     return { ok: true };
   });
 
@@ -1894,6 +1897,7 @@ export const setContentStatus = createServerFn({ method: "POST" })
     const { error } = await bag.client.from("content_entries").update(patch).eq("id", data.id);
     bag.commitCookies();
     if (error) throw error;
+    clearPublicContentEntryCache();
     return { ok: true };
   });
 
@@ -1916,6 +1920,7 @@ export const bulkSetContentStatus = createServerFn({ method: "POST" })
       .in("id", data.ids);
     bag.commitCookies();
     if (error) throw error;
+    clearPublicContentEntryCache();
     return { ok: true, count: count ?? data.ids.length };
   });
 
@@ -1931,6 +1936,7 @@ export const bulkDeleteContent = createServerFn({ method: "POST" })
       .in("id", data.ids);
     bag.commitCookies();
     if (error) throw error;
+    clearPublicContentEntryCache();
     return { ok: true, count: count ?? data.ids.length };
   });
 
@@ -3198,6 +3204,7 @@ export const scheduleContentPublish = createServerFn({ method: "POST" })
     const { error } = await bag.client.from("content_entries").update(patch).eq("id", data.id);
     bag.commitCookies();
     if (error) throw error;
+    clearPublicContentEntryCache();
     return { ok: true };
   });
 
@@ -3221,6 +3228,7 @@ export const setContentArchived = createServerFn({ method: "POST" })
     const { error } = await bag.client.from("content_entries").update(patch).eq("id", data.id);
     bag.commitCookies();
     if (error) throw error;
+    clearPublicContentEntryCache();
     return { ok: true };
   });
 
@@ -3230,6 +3238,7 @@ export const runScheduledPublish = createServerFn({ method: "POST" }).handler(
     const { data, error } = await bag.client.rpc("publish_scheduled_content");
     bag.commitCookies();
     if (error) throw error;
+    clearPublicContentEntryCache();
     return { ok: true, count: Number(data ?? 0) };
   },
 );
@@ -3921,6 +3930,7 @@ export const updateContentSeo = createServerFn({ method: "POST" })
       .eq("id", data.id);
     bag.commitCookies();
     if (error) throw error;
+    clearPublicContentEntryCache();
     return { ok: true };
   });
 
@@ -4021,6 +4031,7 @@ export const updateContentSections = createServerFn({ method: "POST" })
       }
     }
 
+    clearPublicContentEntryCache();
     bag.commitCookies();
     return { ok: true };
   });
@@ -4051,6 +4062,7 @@ export const discardContentSectionsDraft = createServerFn({ method: "POST" })
       .eq("id", data.id);
     bag.commitCookies();
     if (error) throw error;
+    clearPublicContentEntryCache();
     return { ok: true };
   });
 

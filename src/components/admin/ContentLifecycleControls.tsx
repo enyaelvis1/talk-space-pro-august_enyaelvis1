@@ -3,6 +3,7 @@ import { Archive, ArchiveRestore, CalendarClock, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { formatWATDateTime } from "@/lib/time";
 import {
   Dialog,
   DialogContent,
@@ -62,7 +63,7 @@ export function LifecyclePill({ row }: { row: AdminContentRow }) {
       </span>
       {state === "scheduled" && row.scheduledPublishAt ? (
         <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-          {new Date(row.scheduledPublishAt).toLocaleString()}
+          {formatWATDateTime(row.scheduledPublishAt)}
         </span>
       ) : null}
     </div>
