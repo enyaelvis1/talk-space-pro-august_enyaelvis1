@@ -49,8 +49,9 @@ test("public route recovery allows one automatic retry per error window", () => 
   assert.equal(claimAutomaticRouteRetry(key, 30_001), true);
 });
 
-test("router preloads are reused briefly instead of duplicating Vercel requests", () => {
+test("router navigation does not turn hover intent into Vercel requests", () => {
   const router = read("src/router.tsx");
+  assert.match(router, /defaultPreload:\s*false/);
   assert.match(router, /defaultPreloadStaleTime:\s*30_000/);
 });
 

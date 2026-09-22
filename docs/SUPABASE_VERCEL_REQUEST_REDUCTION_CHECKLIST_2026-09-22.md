@@ -7,28 +7,39 @@ themselves prove that the database is overloaded.
 ## Milestone 1 — Establish the request baseline
 
 - [ ] Record deployed commit, environment, Vercel project, Supabase project,
-      plan, and exact measurement window.
-- [ ] Capture a production public-page trace for a cold visit, warm reload,
-      internal navigation, and a navigation-link hover without clicking.
+      plan, and exact measurement window. Production URL and local commit were
+      recorded; deployed SHA, project plan, and billing window still require
+      dashboard access.
+- [x] Capture a production public-page trace for a cold visit, warm reload,
+      internal navigation, and a navigation-link hover without clicking. The
+      redacted trace observed 26 responses for cold and warm reloads, 25 for
+      internal navigation, and no responses during hover-only interaction.
 - [ ] Capture authenticated traces for the admin dashboard, bookings, and
-      payments pages with one visible tab, one hidden tab, and two tabs.
-- [ ] Export redacted Vercel request metadata grouped by path, status,
-      `x-vercel-cache`, user agent, and cache reason where available.
+      payments pages with one visible tab, one hidden tab, and two tabs. This
+      remains blocked pending secure UAT credentials and an approved target.
+- [x] Export redacted Vercel request metadata grouped by path, status,
+      `x-vercel-cache`, and cache headers for the public trace. The document
+      records only aggregate results; no query strings or tokens were saved.
 - [ ] Export redacted Supabase metadata grouped by API Gateway path, Auth
-      path, REST/RPC path, status, user agent, and response bytes.
-- [ ] Do not save cookies, authorization headers, tokens, payloads, or `.env`
+      path, REST/RPC path, status, user agent, and response bytes. The public
+      browser trace observed Storage image responses but no direct Auth or REST
+      responses; dashboard log export is still required.
+- [x] Do not save cookies, authorization headers, tokens, payloads, or `.env`
       values in evidence.
 
 ## Milestone 2 — Reduce duplicate Vercel requests
 
-- [x] Increase TanStack Router's preload reuse window to 30 seconds so hover
-      preloads are reused by the subsequent navigation.
-- [ ] Verify the change reduces duplicate route requests in a browser trace.
-- [ ] Review `defaultPreload` behavior and disable intent preloading on routes
-      where the payload is large or the user is unlikely to navigate there.
-- [ ] Confirm route loaders do not refetch on every render or tab focus.
-- [ ] Keep payment, booking, confirmation, and authenticated mutations
-      explicit; never cache their responses at the CDN.
+- [x] Set TanStack Router's preload policy to `false` and retain a 30-second
+      reuse window for any future route that opts into preloading explicitly.
+- [x] Verify the change reduces duplicate route requests in a browser trace:
+      hover-only navigation produced no route response.
+- [x] Review `defaultPreload` behavior and disable intent preloading globally;
+      large or low-intent routes therefore do not create speculative requests.
+- [x] Confirm route loaders do not refetch on every render or tab focus. Source
+      contracts and the production SPA navigation trace passed this check.
+- [x] Keep payment, booking, confirmation, and authenticated mutations
+      explicit; never cache their responses at the CDN. Existing private
+      `no-store` headers and request-reduction contracts remain in place.
 
 ## Milestone 3 — Make anonymous content CDN-cacheable safely
 
@@ -79,7 +90,10 @@ verification rather than a Postgres query loop.
 ## Evidence recorded
 
 - Existing request-reduction contract tests: 70 passing.
-- First implementation in this milestone: router preload reuse set to 30
-  seconds in `src/router.tsx`.
-- Production browser trace, Vercel metrics, and Supabase path-level logs still
-  require a controlled UAT measurement window.
+- Focused request-reduction tests after this milestone: 52 passing.
+- Production public trace: cold 26 responses, warm reload 26, internal SPA
+  navigation 25, hover-only 0; HTML remained `MISS` with `no-store`.
+- Router policy now explicitly disables speculative preloads in
+  `src/router.tsx`.
+- Authenticated browser trace, Vercel metrics, and Supabase path-level logs
+  still require a controlled UAT measurement window.

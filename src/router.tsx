@@ -10,10 +10,10 @@ export const getRouter = () => {
     routeTree,
     context: { queryClient },
     scrollRestoration: true,
-    // Avoid sending a second Vercel request for the same route when a user
-    // briefly hovers a navigation link before clicking it. Public loaders are
-    // still revalidated after this short window, while protected mutations
-    // remain explicit and are not affected by this preload cache.
+    // Do not turn navigation intent/hover into a Vercel request. Route loads
+    // remain explicit, while protected mutations are unaffected by this policy.
+    defaultPreload: false,
+    // Keep a bounded reuse window if a route opts into preloading explicitly.
     defaultPreloadStaleTime: 30_000,
   });
 
