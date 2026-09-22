@@ -147,8 +147,9 @@ store real client details, payment references, tokens, or credentials here.
       rows, confirmations, booking links, emails, or audit events.
 - [x] Treat `transaction_not_found` as a non-retryable reference/environment
       error and leave payment and booking state unchanged.
-- [ ] Add safe retry/backoff only for transient provider failures; do not retry
-      `transaction_not_found` without correcting the reference or environment.
+- [x] Add safe retry/backoff only for transient provider failures (network,
+      408/425/429, and 5xx responses); 400 `transaction_not_found` remains
+      non-retryable and requires correcting the reference or environment.
 - [ ] Test a real Paystack sandbox transaction, callback, webhook, and admin
       “Check Paystack” action with matching test credentials.
 - [ ] Verify that a successful Paystack payment creates or restores the booking
@@ -177,6 +178,8 @@ Local verification complete; staging/live verification remains pending:
 
 - [x] Automated timezone, therapist assignment, Paystack confirmation,
       payment-flow, authorization, and idempotency contracts pass.
+- [x] Paystack verification retry policy is covered locally: transient failures
+      use bounded backoff, while not-found/reference errors fail immediately.
 - [x] `npx tsc --noEmit`, `npm run lint -- --quiet`, and `git diff --check`
       pass.
 - [x] Production build passed in the preceding implementation verification;

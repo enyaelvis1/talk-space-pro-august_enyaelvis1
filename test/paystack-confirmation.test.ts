@@ -336,6 +336,19 @@ test("admin Paystack verification has safe actionable error branches", () => {
   assert.match(source, /Do not confirm this payment/);
 });
 
+test("Paystack verification retries transient failures but never transaction-not-found", () => {
+  const source = readFileSync("src/lib/payments.server.ts", "utf8");
+  assert.match(source, /PAYSTACK_VERIFY_MAX_ATTEMPTS = 3/);
+  assert.match(source, /status === 408.*status === 425.*status === 429/s);
+  assert.match(source, /status >= 500/);
+  assert.match(source, /paystack_verify_failed:\$\{res\.status\}:\$\{text\}/);
+  assert.match(
+    source,
+    /if \(!retryable \|\| attempt === PAYSTACK_VERIFY_MAX_ATTEMPTS - 1\) throw error/,
+  );
+  assert.doesNotMatch(source, /status === 400/);
+});
+
 test("webhook and scheduled recheck use group totals and persist provider receipts", () => {
   for (const file of [
     "src/routes/api/public/paystack-webhook.ts",

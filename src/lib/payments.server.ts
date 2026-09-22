@@ -194,21 +194,48 @@ export async function paystackInitialize(params: {
 }
 
 /** Verify a transaction with Paystack. Returns amount (kobo) + status. */
+const PAYSTACK_VERIFY_MAX_ATTEMPTS = 3;
+const PAYSTACK_VERIFY_RETRY_DELAYS_MS = [250, 750];
+
+export function isRetryablePaystackStatus(status: number): boolean {
+  return status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+function paystackVerifyError(message: string, status?: number) {
+  const error = new Error(message) as Error & { status?: number };
+  error.status = status;
+  return error;
+}
+
 export async function paystackVerify(params: { secretKey: string; reference: string }) {
-  const res = await fetch(
-    `https://api.paystack.co/transaction/verify/${encodeURIComponent(params.reference)}`,
-    {
-      headers: { authorization: `Bearer ${params.secretKey}` },
-    },
-  );
-  const text = await res.text();
-  if (!res.ok) throw new Error(`paystack_verify_failed:${res.status}:${text}`);
-  const parsed = JSON.parse(text) as {
-    status?: boolean;
-    data?: Parameters<typeof parsePaystackVerification>[0];
-  };
-  if (!parsed.status || !parsed.data) throw new Error("paystack_verify_rejected");
-  return parsePaystackVerification(parsed.data);
+  for (let attempt = 0; attempt < PAYSTACK_VERIFY_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const res = await fetch(
+        `https://api.paystack.co/transaction/verify/${encodeURIComponent(params.reference)}`,
+        {
+          headers: { authorization: `Bearer ${params.secretKey}` },
+        },
+      );
+      const text = await res.text();
+      if (!res.ok) {
+        throw paystackVerifyError(`paystack_verify_failed:${res.status}:${text}`, res.status);
+      }
+      const parsed = JSON.parse(text) as {
+        status?: boolean;
+        data?: Parameters<typeof parsePaystackVerification>[0];
+      };
+      if (!parsed.status || !parsed.data) throw new Error("paystack_verify_rejected");
+      return parsePaystackVerification(parsed.data);
+    } catch (error) {
+      const status = (error as Error & { status?: number }).status;
+      const retryable = status === undefined || isRetryablePaystackStatus(status);
+      if (!retryable || attempt === PAYSTACK_VERIFY_MAX_ATTEMPTS - 1) throw error;
+      await new Promise((resolve) =>
+        setTimeout(resolve, PAYSTACK_VERIFY_RETRY_DELAYS_MS[attempt] ?? 750),
+      );
+    }
+  }
+  throw new Error("paystack_verify_failed:retry_exhausted");
 }
 
 export function generatePaymentReference(prefix = "TSP"): string {
