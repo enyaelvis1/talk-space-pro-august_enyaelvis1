@@ -546,15 +546,27 @@ export const getAdminClientDetailWorkspace = createServerFn({ method: "GET" })
     ]);
     if (templateResult.error) throw templateResult.error;
     if (therapistsResult.error) throw therapistsResult.error;
+    const therapists = (therapistsResult.data ?? []).map((therapist) => ({
+      id: therapist.id,
+      fullName: therapist.full_name,
+    }));
+    if (
+      detail?.assignedTherapistId &&
+      detail.assignedTherapistName &&
+      !therapists.some((therapist) => therapist.id === detail.assignedTherapistId)
+    ) {
+      therapists.unshift({
+        id: detail.assignedTherapistId,
+        fullName: `${detail.assignedTherapistName} (inactive — keep current)`,
+      });
+    }
+
     return {
       client: detail,
       assessmentTemplates: normalizeFormTemplates(
         templateResult.data?.value ?? cloneFormTemplates(DEFAULT_FORM_TEMPLATES),
       ),
-      therapists: (therapistsResult.data ?? []).map((therapist) => ({
-        id: therapist.id,
-        fullName: therapist.full_name,
-      })),
+      therapists,
     };
   });
 

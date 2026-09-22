@@ -20,6 +20,7 @@ test("admin client assignment offers active therapists and validates the selecti
   assert.match(clients, /is_active/);
   assert.match(clients, /Choose an active therapist/);
   assert.match(clients, /therapistsResult/);
+  assert.match(clients, /inactive — keep current/);
   assert.match(detail, /Assigned therapist/);
   assert.match(detail, /Changes the client’s default therapist/);
   assert.match(route, /therapists/);
