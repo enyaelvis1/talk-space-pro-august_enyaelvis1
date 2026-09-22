@@ -41,6 +41,9 @@ replacement.
 - [x] Milestone 3l: add claim-protected therapist notices for reschedules and
       cancellations, with explicit email templates/settings and slot-lifecycle
       regression coverage.
+- [x] Milestone 3m: re-apply the admin booking RPC after detecting remote
+      migration drift, qualifying its service, therapist, client, package, and
+      appointment `id` references.
 
 ## Incident safety and evidence
 
