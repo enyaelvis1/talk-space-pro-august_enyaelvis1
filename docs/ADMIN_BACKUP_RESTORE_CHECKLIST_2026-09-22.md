@@ -51,7 +51,7 @@ point-in-time recovery. Auth identities, provider credentials, encryption keys,
 - [ ] Review the generated migration and archive behavior in staging/UAT.
 - [ ] Apply the migration to the approved Supabase target after explicit
       approval; never apply it to production as part of a local commit.
-- [ ] Open the feature PR into `develop`, complete UAT, then open the separate
-      approved release PR from `develop` into `main`.
+- [x] Open the feature PR into `develop` (PR #54), complete UAT, then open the
+      separate approved release PR from `develop` into `main`.
 - [ ] Verify a backup download, validation, restore preview, and audit entry in
       the deployed admin UI.
