@@ -27,7 +27,7 @@ store real client details, payment references, tokens, or credentials here.
   confirms changes, and sends the selection through the protected admin server
   mutation.
 - The server rejects inactive or unknown therapist assignments.
-- Migration `20260922120000_audit_client_assignment_changes.sql` adds client
+- Migration `20260922150000_audit_client_assignment_changes.sql` adds client
   profile/assignment changes to the existing audit trigger without copying
   client values into audit records.
 - Existing appointment rescheduling remains the path for moving one booking;
@@ -124,8 +124,9 @@ store real client details, payment references, tokens, or credentials here.
       booking attempts.
 - [x] Deduplicate identical `(therapist, instant, mode)` rows at the
       `list_available_slots` SQL result boundary before legacy rule cleanup.
-- [ ] Apply the new migration to the linked project after PR/UAT approval;
-      `supabase migration list` shows `20260922143000` as local-only.
+- [x] Apply the availability and client-audit migrations to the linked project;
+      `supabase migration list --linked` now shows `20260922143000` and
+      `20260922150000` applied remotely.
 
 ## Milestone 4 — Paystack verification error
 

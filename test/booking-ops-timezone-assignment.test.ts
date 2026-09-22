@@ -27,7 +27,7 @@ test("admin client assignment offers active therapists and validates the selecti
 });
 
 test("client assignment changes are included in the immutable audit trigger", () => {
-  const migration = read("supabase/migrations/20260922120000_audit_client_assignment_changes.sql");
+  const migration = read("supabase/migrations/20260922150000_audit_client_assignment_changes.sql");
   assert.match(migration, /public\.clients/);
   assert.match(migration, /public\.capture_admin_audit_log/);
   assert.match(migration, /clients_audit_log/);
