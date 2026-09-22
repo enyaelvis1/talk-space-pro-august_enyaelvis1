@@ -134,6 +134,16 @@ test("public cms pages lazy-load section editing dependencies", () => {
   assert.match(viteConfig, /@radix-ui\/react-switch/);
 });
 
+test("slow public CMS routes render a visible pending skeleton", () => {
+  const about = read("src/routes/about.tsx");
+  const pricing = read("src/routes/pricing.tsx");
+  for (const route of [about, pricing]) {
+    assert.match(route, /pendingMs:\s*0/);
+    assert.match(route, /pendingComponent:/);
+    assert.match(route, /PublicRouteSkeleton/);
+  }
+});
+
 test("homepage loads inline editing tools after the visitor render path", () => {
   const home = read("src/routes/index.tsx");
 

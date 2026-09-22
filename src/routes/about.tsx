@@ -9,6 +9,7 @@ import { SectionBadge } from "@/components/site/SectionBadge";
 import { SiteHeader } from "@/components/site/SiteHeader";
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { SiteBreadcrumbs } from "@/components/site/SiteBreadcrumbs";
+import { PublicRouteSkeleton } from "@/components/site/PublicRouteSkeleton";
 import { Button } from "@/components/ui/button";
 import { getPublishedEntry, type RenderedContentEntry } from "@/lib/content.functions";
 import type { PageSection } from "@/lib/page-sections";
@@ -22,6 +23,13 @@ export const Route = createFileRoute("/about")({
     const entry = await getPublishedEntry({ data: { kind: "page", slug: "about" } });
     return { entry };
   },
+  pendingMs: 0,
+  pendingMinMs: 250,
+  pendingComponent: () => (
+    <main className="min-h-screen bg-background px-4 py-6 sm:px-6 lg:px-8">
+      <PublicRouteSkeleton pathname="/about" />
+    </main>
+  ),
   head: ({ loaderData }) => ({
     ...pageSeoHead({
       path: "/about",

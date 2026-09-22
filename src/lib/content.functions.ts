@@ -1018,6 +1018,23 @@ export function parseFooterSettings(value: unknown): PublicFooterSettings {
 const publicSiteDetailsCache = createPublicReadCache<PublicSiteDetails>(60_000);
 const publicFooterSettingsCache = createPublicReadCache<PublicFooterSettings>(60_000);
 const publicShellCache = createPublicReadCache<PublicShellData>(60_000);
+type PublicPublishedEntryCache = ReturnType<
+  typeof createPublicReadCache<RenderedContentEntry | null>
+>;
+const publicPublishedEntryCaches = new Map<string, PublicPublishedEntryCache>();
+
+function getPublicPublishedEntryCache(key: string) {
+  let cache = publicPublishedEntryCaches.get(key);
+  if (!cache) {
+    cache = createPublicReadCache<RenderedContentEntry | null>(60_000);
+    publicPublishedEntryCaches.set(key, cache);
+  }
+  return cache;
+}
+
+export function clearPublicContentEntryCache() {
+  for (const cache of publicPublishedEntryCaches.values()) cache.clear();
+}
 
 export type PublicShellData = {
   details: PublicSiteDetails;
@@ -1336,8 +1353,9 @@ export const getPublishedEntry = createServerFn({ method: "GET" })
     // an editor publishing a layout expects the change live immediately.
     setResponseHeader("Cache-Control", "no-store");
 
-    const [{ data: entry, error }, categories] = await Promise.all([
-      config.client
+    const cache = getPublicPublishedEntryCache(`${data.kind}:${data.slug}`);
+    return cache.get(async () => {
+      const { data: entry, error } = await config.client
         .from("content_entries")
         .select(
           "id, kind, slug, title, excerpt_html, body_html, author_name, published_at, featured_media_path, metadata",
@@ -1346,11 +1364,14 @@ export const getPublishedEntry = createServerFn({ method: "GET" })
         .eq("source_status", "publish")
         .is("archived_at", null)
         .eq("slug", data.slug)
-        .maybeSingle(),
-      getCategories(config.client),
-    ]);
-    if (error) throw error;
-    return entry ? renderContentEntry(entry, categories, config.url) : null;
+        .maybeSingle();
+      if (error) throw error;
+      // Published pages do not display post categories. Avoid a second
+      // content_entries query for every public CMS page; post callers still get
+      // category labels when this function is used for a post entry.
+      const categories = data.kind === "post" ? await getCategories(config.client) : new Map();
+      return entry ? renderContentEntry(entry, categories, config.url) : null;
+    });
   });
 
 export type PublicFaq = {
