@@ -49,6 +49,11 @@ test("public route recovery allows one automatic retry per error window", () => 
   assert.equal(claimAutomaticRouteRetry(key, 30_001), true);
 });
 
+test("router preloads are reused briefly instead of duplicating Vercel requests", () => {
+  const router = read("src/router.tsx");
+  assert.match(router, /defaultPreloadStaleTime:\s*30_000/);
+});
+
 test("publishing during a pending read prevents old data repopulating the cache", async () => {
   const cache = createPublicReadCache<string>(60_000);
   let resolveOld!: (value: string) => void;

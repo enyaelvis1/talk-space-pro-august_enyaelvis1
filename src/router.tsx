@@ -10,7 +10,11 @@ export const getRouter = () => {
     routeTree,
     context: { queryClient },
     scrollRestoration: true,
-    defaultPreloadStaleTime: 0,
+    // Avoid sending a second Vercel request for the same route when a user
+    // briefly hovers a navigation link before clicking it. Public loaders are
+    // still revalidated after this short window, while protected mutations
+    // remain explicit and are not affected by this preload cache.
+    defaultPreloadStaleTime: 30_000,
   });
 
   if (!router.isServer) {
