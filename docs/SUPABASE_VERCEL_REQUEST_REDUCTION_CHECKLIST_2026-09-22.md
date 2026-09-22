@@ -82,8 +82,9 @@ themselves prove that the database is overloaded.
 
 ## Milestone 5 — Verify and promote
 
-- [ ] Run focused request-budget, navigation, auth, typecheck, lint, and build
-      checks.
+- [x] Run focused request-budget, navigation, auth, typecheck, lint, and build
+      checks. The focused suite passed 75/75; TypeScript, lint, build, and
+      `git diff --check` also passed.
 - [ ] Repeat the production/UAT traces from Milestone 1 and compare requests,
       cache status, Supabase API calls, Auth calls, and bytes.
 - [ ] Verify payment, booking, confirmation, admin, and CMS editing flows.
