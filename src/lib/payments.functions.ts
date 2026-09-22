@@ -74,9 +74,17 @@ function throwPaystackAdminVerificationError(
     );
   }
 
+  if (
+    raw.includes("paystack_verify_failed:400") &&
+    (raw.includes("transaction_not_found") || raw.includes("Transaction reference not found"))
+  ) {
+    throw new Error(
+      "Paystack could not find this reference in the configured account. Confirm the payment used the same test/live environment and merchant account, then retry with the stored provider reference. No payment or booking state was changed.",
+    );
+  }
   if (raw.includes("paystack_verify_failed:401") || raw.includes("paystack_verify_failed:404")) {
     throw new Error(
-      "Paystack could not find this reference. Confirm the stored secret key belongs to the same test/live Paystack account that created the payment.",
+      "Paystack could not verify this reference. Confirm the stored secret key belongs to the same test/live Paystack account that created the payment. No payment or booking state was changed.",
     );
   }
   throw new Error(

@@ -36,6 +36,21 @@ store real client details, payment references, tokens, or credentials here.
 - Focused tests: 25 passing. TypeScript, lint, production build, and diff
   checks passed. Build output retains existing deprecation/chunk warnings.
 
+## Implementation evidence — Milestones 4–5 in progress
+
+- The protected admin Paystack action resolves the provider reference from the
+  stored payment/checkout group; it does not accept a client-supplied payment
+  reference, amount, currency, or status.
+- Paystack HTTP 400 `transaction_not_found` responses are now classified as a
+  reference/environment mismatch. The UI receives an actionable message that
+  no payment or booking state was changed; the provider response is not shown
+  to the operator.
+- Existing successful receipts short-circuit verification, payment status
+  writes use the existing RPC, and downstream email claims remain atomic. This
+  preserves idempotence for repeated admin checks.
+- Combined local contract run: 51 tests passing. Live Paystack sandbox
+  verification, webhook delivery, and staging UAT remain pending.
+
 ## Milestone 1 — Establish the time and environment baseline
 
 - [x] Record the current feature branch, local commit, environment policy, and
@@ -106,19 +121,22 @@ store real client details, payment references, tokens, or credentials here.
 
 - [ ] Capture only the redacted payment provider, environment, currency,
       amount, payment status, and reference fingerprint/last characters.
-- [ ] Confirm the reference sent to Paystack is the provider transaction
+- [x] Confirm the reference sent to Paystack is the provider transaction
       reference, not the internal payment ID, booking reference, access code,
-      email, or a client-generated value.
+      email, or a client-generated value. The admin action derives it from the
+      stored payment checkout group.
 - [ ] Confirm the admin and checkout are using the same Paystack environment
       (test versus live), key pair, merchant account, and API base URL.
 - [ ] Confirm the transaction was created successfully before verification and
       that the admin is not checking a stale, truncated, or replaced reference.
-- [ ] Make the verification action show a clear distinction between not found,
+- [x] Make the verification action show a clear distinction between not found,
       pending, failed, successful, wrong-environment, and already-verified.
-- [ ] Keep verification server-side; never expose Paystack secret keys or trust
+- [x] Keep verification server-side; never expose Paystack secret keys or trust
       client-supplied amount, currency, status, or booking ownership.
-- [ ] Make repeated verification idempotent: it must not duplicate payment
+- [x] Make repeated verification idempotent: it must not duplicate payment
       rows, confirmations, booking links, emails, or audit events.
+- [x] Treat `transaction_not_found` as a non-retryable reference/environment
+      error and leave payment and booking state unchanged.
 - [ ] Add safe retry/backoff only for transient provider failures; do not retry
       `transaction_not_found` without correcting the reference or environment.
 - [ ] Test a real Paystack sandbox transaction, callback, webhook, and admin
@@ -128,22 +146,34 @@ store real client details, payment references, tokens, or credentials here.
 
 ## Milestone 5 — UI and operational UAT
 
-- [ ] Admin can view and edit all relevant times in WAT with no duplicate
+- [x] Admin can view and edit all relevant times in WAT with no duplicate
       labels or ambiguous dates.
-- [ ] Admin can assign a therapist to a client and see the saved therapist after
+- [x] Admin can assign a therapist to a client and see the saved therapist after
       reload, with authorization and audit evidence.
-- [ ] Admin can reassign an eligible future appointment without releasing or
+- [x] Admin can reassign an eligible future appointment without releasing or
       double-booking the wrong slot.
 - [ ] Tunbi’s availability shows each valid slot once and still respects
       duration, buffer, service, mode, and calendar conflicts.
 - [ ] A valid Paystack test payment verifies successfully and produces the
       expected confirmed status, booking/manage link, and notifications.
-- [ ] An invalid or wrong-environment reference produces an actionable error
-      without changing payment or booking state.
+- [x] An invalid or wrong-environment reference produces an actionable error
+      without changing payment or booking state in the local contract path.
 - [ ] Repeat the checks with one visible tab, one hidden tab, two tabs, a page
       reload, and a slow network profile.
 - [ ] Record remaining provider, staging, calendar, email, and migration
       limitations before promotion.
+
+Local verification complete; staging/live verification remains pending:
+
+- [x] Automated timezone, therapist assignment, Paystack confirmation,
+      payment-flow, authorization, and idempotency contracts pass.
+- [x] `npx tsc --noEmit`, `npm run lint -- --quiet`, and `git diff --check`
+      pass.
+- [x] Production build passed in the preceding implementation verification;
+      existing deprecation, chunk-size, and browser externalization warnings
+      remain baseline warnings.
+- [ ] Live Paystack sandbox transaction, callback, webhook, calendar, email,
+      and deployed Vercel/Supabase request verification.
 
 ## Promotion path
 
