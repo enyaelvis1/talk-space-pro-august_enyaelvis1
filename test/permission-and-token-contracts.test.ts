@@ -42,6 +42,13 @@ const archiveRestoreMigration = await readFile(
   ),
   "utf8",
 );
+const adminBookingIdReapplyMigration = await readFile(
+  new URL(
+    "../supabase/migrations/20260922120000_reapply_admin_booking_id_qualification.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 function exportBody(source: string, name: string) {
   const start = source.indexOf(`export const ${name}`);
@@ -125,6 +132,23 @@ test("admin booking and payment operations require an admin role check", () => {
   assert.match(deletePayment, /awaiting_confirmation/);
   assert.match(deletePayment, /refunded/);
   assert.match(deletePayment, /in\("status", \["initiated", "failed", "cancelled"\]\)/);
+});
+
+test("admin booking RPC requalification covers the live migration drift", () => {
+  assert.match(
+    adminBookingIdReapplyMigration,
+    /create or replace function public\.create_admin_appointment/,
+  );
+  assert.match(adminBookingIdReapplyMigration, /public\.services\.id = p_service_id/);
+  assert.match(adminBookingIdReapplyMigration, /public\.therapists\.id = p_therapist_id/);
+  assert.match(adminBookingIdReapplyMigration, /public\.clients\.id = p_client_id/);
+  assert.match(
+    adminBookingIdReapplyMigration,
+    /public\.client_session_packages\.id = p_package_id/,
+  );
+  assert.match(adminBookingIdReapplyMigration, /public\.appointments\.id = appointment_id/);
+  assert.doesNotMatch(adminBookingIdReapplyMigration, /where id = p_service_id/);
+  assert.doesNotMatch(adminBookingIdReapplyMigration, /where id = p_therapist_id/);
 });
 
 test("archive and restore use qualified, admin-only transactional RPCs", () => {
