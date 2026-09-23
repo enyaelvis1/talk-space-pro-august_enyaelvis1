@@ -41,6 +41,10 @@ test("backup server contract requires admin, encryption, fixed scope, and signed
   assert.match(crypto, /site_settings/);
   assert.match(functions, /redactBackupRow/);
   assert.match(functions, /const BACKUP_TABLES = \[/);
+  assert.match(functions, /"clients"/);
+  assert.match(functions, /"appointments"/);
+  assert.match(functions, /"payments"/);
+  assert.match(functions, /"payment_settings"/);
   assert.match(functions, /redactBackupRow/);
   assert.match(functions, /createSignedUrl\(backup\.storage_path, 300\)/);
   assert.match(functions, /confirmation: z\.literal\("RESTORE SITE BACKUP"\)/);

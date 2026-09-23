@@ -121,8 +121,9 @@ function BackupsRoute() {
           <p className="eyebrow">Admin · Recovery</p>
           <h1 className="display-1 mt-3 text-brand-deep">Backups & restore</h1>
           <p className="mt-3 max-w-3xl text-muted-foreground">
-            Create encrypted logical backups of the application and restore the supported
-            public-site content/configuration profile. All times are shown in West African Time.
+            Create encrypted logical backups of the application, including recoverable operational
+            records. Restore currently supports the public-site content/configuration profile. All
+            times are shown in West African Time.
           </p>
         </header>
 
@@ -164,8 +165,10 @@ function BackupsRoute() {
               tokens, payment secrets, and `.env` values.
             </p>
             <p className="mt-2">
-              Restore replaces public content/configuration records only. It does not restore users,
-              payments, appointments, or Supabase physical database state.
+              The archive includes clients, appointments, payments, availability, audit/events, and
+              other recoverable application records. Restore currently replaces public
+              content/configuration records only; it does not restore Auth users or Supabase
+              physical database state.
             </p>
           </div>
         </section>

@@ -9,7 +9,7 @@ point-in-time recovery. Auth identities, provider credentials, encryption keys,
 
 - [x] Create the feature from `develop` using the project branch workflow.
 - [x] Define the archive as an encrypted logical backup of allowlisted
-      application data plus a storage-object manifest.
+      application and operational data plus a storage-object manifest.
 - [x] Exclude auth users, service keys, provider tokens, secret ciphertexts,
       manage-token hashes, and `.env` values.
 - [x] Require server-side admin authorization for every catalog, download,
@@ -34,6 +34,9 @@ point-in-time recovery. Auth identities, provider credentials, encryption keys,
 - [x] Add server functions to create an encrypted archive, list catalog rows,
       issue a signed download URL, validate an archive, and restore supported
       site content/configuration.
+- [x] Include recoverable clients, appointments, payments, availability,
+      audit/events, submissions, profiles, and application settings in the
+      encrypted archive, with sensitive fields redacted.
 - [x] Fail closed when `BACKUP_ENCRYPTION_KEY` is missing or invalid.
 - [x] Add typed restore confirmation and existing admin step-up protection in
       the UI.

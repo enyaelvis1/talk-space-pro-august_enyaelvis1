@@ -8,12 +8,26 @@ const backupLabelSchema = z.object({ label: z.string().trim().min(1).max(120) })
 const backupIdSchema = z.object({ backupId: z.string().uuid() });
 
 const BACKUP_TABLES = [
+  "admin_audit_logs",
+  "appointment_events",
+  "appointments",
   "site_settings",
+  "clients",
+  "client_notes",
+  "contact_submissions",
   "content_entries",
   "content_revisions",
   "content_media",
   "content_entry_media",
+  "email_delivery_logs",
+  "email_template_settings",
   "faqs",
+  "intake_submissions",
+  "migration_content_reviews",
+  "payment_events",
+  "payment_reviews",
+  "payments",
+  "profiles",
   "testimonials",
   "redirects",
   "services",
@@ -21,8 +35,11 @@ const BACKUP_TABLES = [
   "therapist_services",
   "availability_rules",
   "availability_exceptions",
-  "appointments",
-  "payments",
+  "reminder_settings",
+  "email_settings",
+  "payment_settings",
+  "google_oauth_settings",
+  "therapist_google_connections",
 ] as const;
 
 type BackupRow = {
@@ -133,7 +150,7 @@ export const createAdminSiteBackup = createServerFn({ method: "POST" })
       const snapshot = {
         formatVersion: BACKUP_FORMAT_VERSION,
         createdAt: new Date().toISOString(),
-        scope: "application-logical-backup",
+        scope: "application-logical-backup-with-operational-records",
         tables,
         storageManifest,
         restoreProfile: "site-content-configuration",
