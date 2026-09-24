@@ -443,3 +443,7 @@ Current support was verified from the repository:
 
 No UAT accounts were created, no seed helper was run, and no migrations or
 production changes were made for this follow-up.
+
+Use `docs/TALKSPACE_CLIENT_FEEDBACK_TRACKING_CHECKLIST.md` for checkbox-based
+tracking of every issue, UAT account requirement, clarification, evidence item,
+and release gate.

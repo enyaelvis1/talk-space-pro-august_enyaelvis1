@@ -120,6 +120,10 @@ The disposable-account UAT plan is defined in
 `docs/TALKSPACE_DISPOSABLE_UAT_ACCOUNTS.md`. It requires synthetic staging
 accounts only; no accounts were created during this audit.
 
+For execution tracking, use
+`docs/TALKSPACE_CLIENT_FEEDBACK_TRACKING_CHECKLIST.md`, which consolidates
+all 16 feedback issues and the five disposable-account requirements.
+
 ## Database-change summary
 
 Potential database work is documented in the issue register only. No migration
