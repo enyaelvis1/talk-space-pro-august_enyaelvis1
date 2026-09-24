@@ -18,8 +18,32 @@ Source: `docs/TALKSPACE_CLIENT_FEEDBACK_ISSUE_REGISTER.md`
 | Items requiring disposable staging accounts | 5: UAT-ACC-001 through UAT-ACC-005 |
 
 Statuses are intentionally not marked UAT Passed, Production Ready, or Done.
-No fixes, migrations, deployments, real messages, live Paystack requests,
-Google Calendar events, or production changes are included in this checklist.
+No migrations, deployments, real messages, live Paystack requests, Google
+Calendar events, or production changes were performed during this implementation.
+
+## P0 implementation pass — 24 September 2026
+
+Application guards and reconciliation changes are implemented on
+`feat/talkspace-booking-payment-integrity`, based on `develop` after PR #55
+(`4818daa`). The relevant P0 items below remain pending staging UAT; no test
+booking references, payment references, screenshots, or provider logs have
+been fabricated. Capture those artifacts during the disposable-account UAT
+run and replace each placeholder with the redacted evidence link.
+
+Implemented application coverage includes:
+
+- Paystack success is blocked when linked appointment contact details are
+  incomplete, preventing unnamed/unreachable confirmed clients.
+- Successful payment reconciliation creates or updates the client record,
+  including an idempotent auth-user lookup/create for anonymous paid bookings.
+- Single and grouped booking hold tokens are persisted before the hold
+  response is returned, preventing incomplete-token races.
+- Paystack webhook and payment recheck paths apply the same contact guard.
+
+Migration follow-up is documented in
+`docs/TALKSPACE_P0_BOOKING_PAYMENT_MIGRATION_REQUIRED.md`. Existing booking
+state/slot safeguards and the database invariant still require explicit
+migration approval and have not been applied.
 
 ## Client feedback checklist
 
@@ -182,7 +206,7 @@ Google Calendar events, or production changes are included in this checklist.
 - Required fix or validation: Map provider errors to safe UI guidance, distinguish test/live/account mismatch, preserve retry/review state, and prevent duplicate payment attempts.
 - Owner / role responsible: Payments engineer; support/operations owner
 - Environment: local / staging / production
-- Current status: Open
+- Current status: Ready for UAT
 - UAT steps: Use sandbox missing, delayed, duplicate, and wrong-account references; inspect error message, retry behavior, audit trail, and booking state.
 - Evidence required: Redacted provider error, UI screenshot, retry result, payment/booking timeline.
 - Evidence link or screenshot reference: — To be added during staging UAT.
@@ -227,7 +251,7 @@ Google Calendar events, or production changes are included in this checklist.
 - Required fix or validation: Verify notification ordering, recipient policy, atomic claims, retry behavior, and no misleading link-ready messaging.
 - Owner / role responsible: Notifications engineer; operations owner
 - Environment: local / staging / production
-- Current status: In Progress
+- Current status: Ready for UAT
 - UAT steps: Run confirmed online/in-person, urgent, rescheduled, cancelled, bank-transfer, and Paystack sandbox scenarios through an email sink and inspect logs.
 - Evidence required: Redacted delivery logs, claim keys/statuses, email previews, Meet sync state, duplicate-count result.
 - Evidence link or screenshot reference: — To be added during staging UAT.
@@ -242,7 +266,7 @@ Google Calendar events, or production changes are included in this checklist.
 - Required fix or validation: Validate hold/pending-payment expiry, slot release, admin visibility, notification suppression, and retry/idempotency behavior.
 - Owner / role responsible: Booking engineer; operations/notifications owner
 - Environment: local / staging / production
-- Current status: In Progress
+- Current status: Ready for UAT
 - UAT steps: Create synthetic hold and pending-payment bookings, abandon/expire them, retry callbacks, inspect public slots/admin lists/notifications, then book the released slot.
 - Evidence required: State timeline, expiry timestamps, slot response before/after, notification log, duplicate-count result.
 - Evidence link or screenshot reference: — To be added during staging UAT.
@@ -257,7 +281,7 @@ Google Calendar events, or production changes are included in this checklist.
 - Required fix or validation: Test manual approval/recovery RPCs, exact booking/payment linkage, idempotent repeat approval, Meet/email ordering, and admin review state.
 - Owner / role responsible: Payments engineer; finance/operations owner
 - Environment: local / staging / production
-- Current status: In Progress
+- Current status: Ready for UAT
 - UAT steps: Submit a synthetic bank transfer, approve once and twice, inspect booking/client/payment/audit/Meet/email state, and verify recovery of a paid booking without a link.
 - Evidence required: Synthetic transfer reference, payment/booking timeline, audit row, redacted email/Meet state, duplicate-approval result.
 - Evidence link or screenshot reference: — To be added during staging UAT.

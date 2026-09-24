@@ -9,6 +9,7 @@ import {
 } from "../src/lib/booking-token-lifecycle.ts";
 
 const bookingPage = readFileSync("src/routes/book.tsx", "utf8");
+const bookingFunctions = readFileSync("src/lib/booking.functions.ts", "utf8");
 const checkoutClockMigration = readFileSync(
   "supabase/migrations/20260916100000_booking_checkout_clock.sql",
   "utf8",
@@ -66,6 +67,18 @@ test("active checkout tokens remain valid for holds and pending payments", () =>
   assert.match(
     checkoutGuardMigration,
     /grant execute on function public\.appointment_manage_token_is_active\(public\.appointments\)\s+to anon, authenticated, service_role/,
+  );
+});
+test("new hold manage tokens persist before the hold response returns", () => {
+  const holdStart = bookingFunctions.indexOf("export const holdSlot");
+  const holdEnd = bookingFunctions.indexOf("export const holdSlots", holdStart);
+  const holdSource = bookingFunctions.slice(holdStart, holdEnd);
+  const tokenWrite = holdSource.indexOf("update({ manage_token: manageToken })");
+  const response = holdSource.indexOf("return heldResult;");
+  assert.ok(tokenWrite >= 0 && tokenWrite < response);
+  assert.match(
+    bookingFunctions,
+    /from\("appointments"\)[\s\S]*?\.update\(\{ manage_token: held\.manageToken \}/,
   );
 });
 test("missing or malformed checkout dates and closed or revoked tokens fail closed", () => {

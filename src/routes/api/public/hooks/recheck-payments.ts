@@ -65,6 +65,10 @@ async function recheckPayments(request: Request) {
             ? "failed"
             : "initiated";
       if (nextStatus !== "initiated") {
+        if (nextStatus === "succeeded") {
+          const { assertPaymentBookingContacts } = await import("@/lib/payments.functions");
+          await assertPaymentBookingContacts(reference);
+        }
         const { error: updateError } = await supabaseAdmin.rpc("mark_payment_status", {
           p_reference: reference,
           p_new_status: nextStatus,

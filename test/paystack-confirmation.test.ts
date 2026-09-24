@@ -250,6 +250,7 @@ function fixture(
       async syncGoogleForPaymentReference() {
         calls.sync++;
       },
+      async assertPaymentBookingContacts() {},
       async sendPaymentEmailsForReference() {},
       async importModule() {
         return {
@@ -369,4 +370,21 @@ test("successful Paystack reconciliation keeps downstream effects idempotent", a
   assert.match(source, /sendPaymentEmailsForReference\(\s*reference/);
   assert.match(emailSender, /payment_success_email_claimed_at/);
   assert.match(emailSender, /\.is\(claimColumn, null\)/);
+});
+
+test("successful Paystack paths gate complete contacts and reconcile repeated checks", () => {
+  const source = readFileSync("src/lib/payments.functions.ts", "utf8");
+  assert.match(source, /export async function assertPaymentBookingContacts/);
+  assert.match(
+    source,
+    /if \(newStatus === "succeeded"\) await assertPaymentBookingContacts\(reference\)/,
+  );
+  assert.match(
+    source,
+    /if \(data\.status === "succeeded"\) \{\s*await assertPaymentBookingContacts/s,
+  );
+  assert.match(
+    source,
+    /checkout\.alreadySucceeded[\s\S]*await syncClientRecordsForSuccessfulPayment\(data\.reference\)/,
+  );
 });

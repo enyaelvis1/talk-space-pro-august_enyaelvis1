@@ -242,6 +242,35 @@ async function findAuthUserIdByEmail(
   }
 }
 
+async function ensureAuthUserIdForPaymentClient(
+  client: Pick<import("@supabase/supabase-js").SupabaseClient<Database>, "auth">,
+  input: { email: string; fullName: string; phone: string },
+) {
+  const email = input.email.trim().toLowerCase();
+  if (!email) return null;
+
+  const existingUserId = await findAuthUserIdByEmail(client, email);
+  if (existingUserId) return existingUserId;
+
+  const { data, error } = await client.auth.admin.createUser({
+    email,
+    email_confirm: true,
+    user_metadata: {
+      full_name: input.fullName.trim(),
+      phone: input.phone.trim(),
+      record_source: "payment_confirmation",
+    },
+  });
+  if (!error && data.user?.id) return data.user.id;
+
+  // A concurrent payment confirmation may have created the same user between
+  // the lookup and create calls. Re-read by email before surfacing the error.
+  const concurrentUserId = await findAuthUserIdByEmail(client, email);
+  if (concurrentUserId) return concurrentUserId;
+  if (error) throw error;
+  return data.user?.id ?? null;
+}
+
 type PaymentClientMode = "online" | "in_person" | "phone";
 
 async function syncPaidClient(input: {
@@ -263,7 +292,6 @@ async function syncPaidClient(input: {
     (existingClient?.id as string | null) ??
     input.clientId ??
     (await findAuthUserIdByEmail(input.client, email));
-  if (!resolvedClientId) return null;
 
   const mergedState = getClientContactCompletionState({
     fullName: input.fullName || String(existingClient?.full_name ?? "").trim(),
@@ -282,8 +310,17 @@ async function syncPaidClient(input: {
     return null;
   }
 
+  const ensuredClientId =
+    resolvedClientId ??
+    (await ensureAuthUserIdForPaymentClient(input.client, {
+      email: mergedState.email,
+      fullName: mergedState.fullName,
+      phone: mergedState.phone,
+    }));
+  if (!ensuredClientId) return null;
+
   const payload = buildPaymentSyncClientPayload({
-    resolvedClientId,
+    resolvedClientId: ensuredClientId,
     existingClient,
     fullName: mergedState.fullName,
     email: mergedState.email,
@@ -292,7 +329,41 @@ async function syncPaidClient(input: {
   });
   const { error } = await input.client.from("clients").upsert(payload, { onConflict: "id" });
   if (error) throw error;
-  return resolvedClientId;
+  return ensuredClientId;
+}
+
+/**
+ * A payment can only commit a booking when every linked appointment contains
+ * the contact details required for the client record and confirmation flow.
+ * Keep this check before the status RPC so a valid provider payment is never
+ * converted into a confirmed booking with an unnamed or unreachable client.
+ */
+export async function assertPaymentBookingContacts(reference: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: payments, error } = await supabaseAdmin
+    .from("payments")
+    .select("payment_kind, appointment_id, appointments(client_name, client_email, client_phone)")
+    .or(`reference.eq.${reference},checkout_group_reference.eq.${reference}`);
+  if (error) throw error;
+
+  for (const payment of payments ?? []) {
+    if (payment.payment_kind === "package_purchase" || !payment.appointment_id) continue;
+    const appointment = payment.appointments as {
+      client_name?: string | null;
+      client_email?: string | null;
+      client_phone?: string | null;
+    } | null;
+    const contact = getClientContactCompletionState({
+      fullName: appointment?.client_name,
+      email: appointment?.client_email,
+      phone: appointment?.client_phone,
+    });
+    if (!contact.isComplete) {
+      throw new Error(
+        "Payment is valid, but the booking client details are incomplete. Add the client's name, email, and phone before confirming.",
+      );
+    }
+  }
 }
 
 export async function syncClientRecordsForSuccessfulPayment(reference: string) {
@@ -1102,6 +1173,9 @@ export const verifyPaystackPayment = createServerFn({ method: "POST" })
       storedReceipt.bookingAmountKobo === checkout.amountKobo &&
       storedReceipt.currency === checkout.currency
     ) {
+      await assertPaymentBookingContacts(data.reference);
+      await syncClientRecordsForSuccessfulPayment(data.reference);
+      await syncGoogleForPaymentReference(data.reference);
       const packageInfo = packagePurchase ? await loadPurchasePackage(payment.id) : null;
       return {
         ...storedReceipt,
@@ -1134,6 +1208,7 @@ export const verifyPaystackPayment = createServerFn({ method: "POST" })
 
     if (checkout.alreadySucceeded && newStatus !== "succeeded")
       throw new Error("Paystack status conflicts with the confirmed payment. Contact support.");
+    if (newStatus === "succeeded") await assertPaymentBookingContacts(data.reference);
     const receipt = paymentReceipt(verify, checkout.amountKobo);
     if (newStatus !== "initiated") {
       const { error } = await supabaseAdmin.rpc("mark_payment_status", {
@@ -1272,6 +1347,7 @@ export const verifyPaystackPaymentForAdmin = createServerFn({ method: "POST" })
 
     if (checkout.alreadySucceeded && newStatus !== "succeeded")
       throw new Error("Paystack status conflicts with the confirmed payment. Contact support.");
+    if (newStatus === "succeeded") await assertPaymentBookingContacts(reference);
     const receipt = paymentReceipt(verify, checkout.amountKobo);
     if (newStatus !== "initiated") {
       const { error } = await supabaseAdmin.rpc("mark_payment_status", {
@@ -1351,6 +1427,7 @@ export const updatePaymentStatusForAdmin = createServerFn({ method: "POST" })
     if (statusError) throw statusError;
 
     if (data.status === "succeeded") {
+      await assertPaymentBookingContacts(payment.reference as string);
       await syncClientRecordsForSuccessfulPayment(payment.reference as string);
       await syncGoogleForPaymentReference(payment.reference as string);
     }

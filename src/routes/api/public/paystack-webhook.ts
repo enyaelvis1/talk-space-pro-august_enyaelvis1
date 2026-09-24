@@ -79,6 +79,11 @@ export const Route = createFileRoute("/api/public/paystack-webhook")({
             throw new Error("Paystack status conflicts with the confirmed payment.");
           }
 
+          if (nextStatus === "succeeded") {
+            const { assertPaymentBookingContacts } = await import("@/lib/payments.functions");
+            await assertPaymentBookingContacts(reference);
+          }
+
           if (nextStatus !== "initiated") {
             const { error } = await supabaseAdmin.rpc("mark_payment_status", {
               p_reference: reference,
