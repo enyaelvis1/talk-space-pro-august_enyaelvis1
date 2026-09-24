@@ -120,3 +120,28 @@ extend the status/commitment behavior established earlier in the sequence.
 
 This is a staging plan only. No backup, restore, migration, provider request,
 or production operation was run during this review.
+
+## 24 September 2026 preflight result
+
+- [x] PR #56 is still open and unmerged.
+- [x] The requested migration order was checked against the repository
+      timestamps and recorded above.
+- [ ] Staging Supabase project confirmed: **blocked**. The local
+      `supabase/config.toml` points to the Talk Space project reference used by
+      the production environment, and no separate Talk Space staging project
+      was verified through the authenticated CLI session.
+- [ ] Staging backup/snapshot confirmed: **blocked**. No staging target was
+      confirmed, so no snapshot can be safely attributed to this work.
+- [ ] Rollback owner confirmed: **blocked** pending the staging project and
+      operator assignment.
+- [ ] Disposable UAT accounts confirmed ready: **blocked**; the repository
+      documents the accounts but none were provisioned by this run.
+- [x] No migration command was run. No remote database, provider, or account
+      state was changed.
+
+The CLI also reported no local Supabase database container for the configured
+project. The only separately listed project was named `moniger`, which was not
+treated as a Talk Space staging target. Applying migrations now would risk
+mutating the production-linked project, so migration application and UAT are
+paused until a dedicated Talk Space staging project reference, backup proof,
+rollback owner, and disposable account confirmation are supplied.

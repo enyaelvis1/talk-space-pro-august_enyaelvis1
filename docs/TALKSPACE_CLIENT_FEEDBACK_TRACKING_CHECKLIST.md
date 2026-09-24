@@ -56,6 +56,10 @@ migration approval and have not been applied.
       explicitly approved and the migrations are applied successfully.
 - [ ] Production migration, production deployment, and live provider testing
       remain prohibited until separate approval.
+- [ ] Staging project, backup/snapshot, rollback owner, and disposable account
+      readiness are confirmed. Preflight on 24 September is blocked because
+      the local Supabase link is production-associated and no dedicated Talk
+      Space staging target was verified.
 
 ### Migration readiness summary
 
@@ -66,7 +70,7 @@ migration approval and have not been applied.
 | Existing migration order | `20260912194500` → `20260913110000` → `20260913120000` → `20260913130000` → `20260916100000` → `20260917143000` → `20260921190000` |
 | Additional required migration | Reviewed additive confirmed-contact and valid-payment/package invariant, after the existing sequence. |
 | Rollback prerequisite | Recoverable staging snapshot/backup and named restore owner. |
-| Current decision | Ready for staging validation planning; blocked from P0 execution pending migration approval/application. |
+| Current decision | Blocked before staging migration application: dedicated staging project, backup proof, rollback owner, and UAT-account provisioning are still required. |
 
 See the full staging-only order and rollback plan in
 `docs/TALKSPACE_P0_BOOKING_PAYMENT_MIGRATION_REQUIRED.md`.
@@ -76,7 +80,9 @@ See the full staging-only order and rollback plan in
 Run only with the disposable accounts in
 `docs/TALKSPACE_DISPOSABLE_UAT_ACCOUNTS.md`, synthetic data, a staging email
 sink, and Paystack sandbox/test references. Each row requires redacted
-evidence before its status can move beyond `Ready for UAT`.
+evidence before its status can move beyond `Ready for UAT`. Execution is
+currently paused because the staging target and backup preflight are not
+verified.
 
 | # | Scenario and expected result | Booking reference | Payment/bank reference | Client account | Therapist | Screenshot/evidence required | Status | Notes/blocker |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
