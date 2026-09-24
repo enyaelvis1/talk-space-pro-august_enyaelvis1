@@ -318,7 +318,7 @@ export const PUBLIC_PAGE_SEED: Record<PublicPageKey, PublicPageSeed> = {
         heading: "Built in Lagos. Made for anywhere you are.",
         headingEmphasis: "",
         headingAfter: "",
-        body: "Talk Space began in 2017 with a simple observation: too many people in Nigeria who wanted therapy either could not find a therapist they trusted, could not afford the ones they did find, or were held back by stigma.\n\nToday, our care coordinators match hundreds of clients each month with licensed therapists, online across Nigeria, and in person at our rooms in Gbagada, Lagos. We keep our fees transparent, hold a limited number of sliding-scale slots, and never take payment until your session is confirmed.\n\nIf you are considering therapy for the first time, you are welcome here. The first conversation is often the hardest, and the most important.",
+        body: "Talk Space began in 2017 with a simple observation: too many people in Nigeria who wanted therapy either could not find a therapist they trusted, could not afford the ones they did find, or were held back by stigma.\n\nToday, our care coordinators match hundreds of clients each month with licensed therapists, online across Nigeria, and in person at our rooms in Allen, Ikeja, Lagos. We keep our fees transparent, hold a limited number of sliding-scale slots, and never take payment until your session is confirmed.\n\nIf you are considering therapy for the first time, you are welcome here. The first conversation is often the hardest, and the most important.",
         image: {
           src: ABOUT_STORY_IMAGE_SRC,
           alt: ABOUT_STORY_IMAGE_ALT,
@@ -814,9 +814,13 @@ export const PUBLIC_PAGE_SEED: Record<PublicPageKey, PublicPageSeed> = {
             "Plot 153A, T-Pumpy Estate\nOpp. NIU Estate, Off Saburi 1, FCT, Abuja",
             ["In-person sessions by appointment only."],
           ),
-          card("contact-lagos", "Lagos", "", "20, Estaport Avenue\nGbagada, Lagos, Nigeria", [
-            "In-person sessions by appointment only.",
-          ]),
+          card(
+            "contact-lagos",
+            "Talk Space Counseling, Lagos",
+            "",
+            "Abiodun Oshowole Cl, off Oluwaleimu Street\nAllen, Ikeja 101233, Lagos",
+            ["In-person sessions by appointment only."],
+          ),
           card("contact-hours", "Hours", "", "", [
             "Monday to Friday: 9:00 to 17:00",
             "Saturday: By appointment",
@@ -911,7 +915,7 @@ export const PUBLIC_PAGE_SEED: Record<PublicPageKey, PublicPageSeed> = {
         "You can ask us for a copy of the personal data we hold about you, correct anything inaccurate, withdraw consent, or ask us to delete data we no longer need to keep. Email privacy@talkspace.ng and we will respond within 30 days.",
       ]),
       prose("privacy-contact", "Contact", [
-        "Questions about this policy? Email privacy@talkspace.ng or write to the Data Protection Officer, Talk Space Counselling Services, 20, Estaport Avenue, Gbagada, Lagos.",
+        "Questions about this policy? Email privacy@talkspace.ng or write to the Data Protection Officer, Talk Space Counselling Services, Abiodun Oshowole Cl, off Oluwaleimu Street, Allen, Ikeja 101233, Lagos.",
       ]),
     ],
   },

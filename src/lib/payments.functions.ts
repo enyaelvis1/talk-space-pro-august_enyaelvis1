@@ -399,7 +399,12 @@ export async function syncClientRecordsForSuccessfulPayment(reference: string) {
       phone: String(appointment.client_phone ?? ""),
       preferredMode: String(appointment.session_mode ?? "online") as PaymentClientMode,
     });
-    if (!appointment.client_id && resolvedClientId) {
+    if (!resolvedClientId) {
+      throw new Error(
+        `Payment ${reference} could not be reconciled to a complete client record for appointment ${appointment.id}.`,
+      );
+    }
+    if (appointment.client_id !== resolvedClientId) {
       const { error } = await supabaseAdmin
         .from("appointments")
         .update({ client_id: resolvedClientId })
@@ -411,7 +416,7 @@ export async function syncClientRecordsForSuccessfulPayment(reference: string) {
   for (const payment of payments ?? []) {
     if (payment.payment_kind !== "package_purchase") continue;
     const metadata = (payment.metadata ?? {}) as Record<string, unknown>;
-    await syncPaidClient({
+    const resolvedClientId = await syncPaidClient({
       client: supabaseAdmin,
       clientId: typeof metadata.client_id === "string" ? metadata.client_id : null,
       fullName: String(metadata.client_name ?? ""),
@@ -419,7 +424,55 @@ export async function syncClientRecordsForSuccessfulPayment(reference: string) {
       phone: String(metadata.client_phone ?? ""),
       preferredMode: String(metadata.session_mode ?? "online") as PaymentClientMode,
     });
+    if (!resolvedClientId) {
+      throw new Error(`Payment ${reference} could not be reconciled to a complete package client.`);
+    }
   }
+}
+
+/**
+ * Shared successful-payment commit path for callbacks, webhooks, admin
+ * approval, and delayed rechecks.
+ */
+export async function reconcileSuccessfulPayment(reference: string) {
+  await assertPaymentBookingContacts(reference);
+  await syncClientRecordsForSuccessfulPayment(reference);
+  await syncGoogleForPaymentReference(reference);
+}
+
+async function sendCommittedAdminBookingNotice(
+  appointmentId: string,
+  to: string,
+  data: Record<string, unknown>,
+  replyTo?: string | null,
+) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const claim = await supabaseAdmin.rpc("claim_appointment_notification", {
+    p_appointment_id: appointmentId,
+    p_notification_key: "booking_admin_notice",
+    p_recipient_role: "admin",
+  });
+  if (claim.error) throw claim.error;
+  if (!claim.data) return;
+  let sent = false;
+  let deliveryError: unknown = null;
+  try {
+    const { sendTemplateEmail } = await import("@/lib/email.server");
+    const result = await sendTemplateEmail("booking_admin_notice", to, data, {
+      replyTo: replyTo ?? undefined,
+    });
+    sent = result.sent;
+  } catch (err) {
+    deliveryError = err;
+  }
+  const { error: finalizeError } = await supabaseAdmin.rpc("finalize_appointment_notification", {
+    p_appointment_id: appointmentId,
+    p_notification_key: "booking_admin_notice",
+    p_recipient_role: "admin",
+    p_sent: sent,
+  });
+  if (deliveryError) throw deliveryError;
+  if (finalizeError) throw finalizeError;
 }
 
 export async function sendPaymentEmailsForReference(
@@ -428,6 +481,12 @@ export async function sendPaymentEmailsForReference(
 ) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { sendPaymentEmail } = await import("@/lib/payment-email.server");
+  if (templateKey === "payment_success") {
+    // Re-run the idempotent calendar sync at the last possible point before
+    // confirmation delivery. A missing Meet link is then represented as a
+    // visible pending state by the email template instead of stale data.
+    await syncGoogleForPaymentReference(reference);
+  }
   const { data } = await supabaseAdmin
     .from("payments")
     .select(
@@ -458,12 +517,12 @@ export async function sendPaymentEmailsForReference(
       } | null;
       if (appointment?.status === "confirmed") {
         try {
-          const { loadEmailSettings, sendTemplateEmail } = await import("@/lib/email.server");
+          const { loadEmailSettings } = await import("@/lib/email.server");
           const settings = await loadEmailSettings();
           const inbox = settings.contactInbox || settings.fromEmail;
           if (inbox) {
-            await sendTemplateEmail(
-              "booking_admin_notice",
+            await sendCommittedAdminBookingNotice(
+              payment.appointment_id as string,
               inbox,
               {
                 clientName: appointment.client_name ?? "",
@@ -478,7 +537,7 @@ export async function sendPaymentEmailsForReference(
                 paymentStatus: "Paid and confirmed",
                 adminUrl: canonicalUrl("/admin/bookings"),
               },
-              { replyTo: appointment.client_email ?? settings.replyTo },
+              appointment.client_email ?? settings.replyTo,
             );
           }
         } catch (err) {
@@ -972,10 +1031,7 @@ const packagePurchaseInput = z.object({
   clientId: z.string().uuid().optional(),
   clientName: z.string().trim().min(2).max(120),
   clientEmail: z.string().trim().email().max(255),
-  clientPhone: z.preprocess(
-    (value) => (typeof value === "string" && !value.trim() ? undefined : value),
-    clientPhoneSchema.optional(),
-  ),
+  clientPhone: clientPhoneSchema,
   purchasedSessions: z.number().int().min(1).max(50),
   sessionMode: z.enum(["online", "in_person"]).optional(),
   preferredDate: z.string().trim().max(20).optional(),
@@ -998,12 +1054,22 @@ export const initPackagePurchasePayment = createServerFn({ method: "POST" })
     const secret = await loadPaystackSecret();
     if (!secret) throw new Error("Paystack secret key is not configured.");
 
-    const { data: service, error: serviceError } = await supabaseAdmin
+    let { data: service, error: serviceError } = await supabaseAdmin
       .from("services")
       .select("id, name, code, price_ngn, in_person_price_ngn, sessions_per_package")
       .eq("id", data.serviceId)
       .eq("is_active", true)
       .maybeSingle();
+    if (serviceError && isMissingInPersonPriceColumn(serviceError)) {
+      const fallback = await supabaseAdmin
+        .from("services")
+        .select("id, name, code, price_ngn, sessions_per_package")
+        .eq("id", data.serviceId)
+        .eq("is_active", true)
+        .maybeSingle();
+      service = fallback.data ? { ...fallback.data, in_person_price_ngn: null } : null;
+      serviceError = fallback.error;
+    }
     if (serviceError) throw serviceError;
     if (!service) throw new Error("Service not found.");
 
@@ -1177,6 +1243,11 @@ export const verifyPaystackPayment = createServerFn({ method: "POST" })
       await syncClientRecordsForSuccessfulPayment(data.reference);
       await syncGoogleForPaymentReference(data.reference);
       const packageInfo = packagePurchase ? await loadPurchasePackage(payment.id) : null;
+      if (packagePurchase && packageInfo) {
+        await sendPackagePurchaseEmail(payment.id, packageInfo);
+      } else if (!packagePurchase) {
+        await sendPaymentEmailsForReference(data.reference, "payment_success");
+      }
       return {
         ...storedReceipt,
         bookingReviewRequired: checkout.bookingReviewRequired,
@@ -1587,6 +1658,9 @@ type BankTransferAppointment = Pick<
   | "created_at"
   | "hold_expires_at"
   | "status"
+  | "client_name"
+  | "client_email"
+  | "client_phone"
 > & {
   services: { code: string; price_ngn: number | null; in_person_price_ngn?: number | null } | null;
 };
@@ -1602,7 +1676,7 @@ export const submitBankTransfer = createServerFn({ method: "POST" })
     let appointmentResult = await supabaseAdmin
       .from("appointments")
       .select(
-        "id, booking_reference, service_id, session_mode, manage_token_hash, manage_token_expires_at, manage_token_revoked_at, status, created_at, hold_expires_at, services(code, price_ngn, in_person_price_ngn)",
+        "id, booking_reference, service_id, session_mode, manage_token_hash, manage_token_expires_at, manage_token_revoked_at, status, created_at, hold_expires_at, client_name, client_email, client_phone, services(code, price_ngn, in_person_price_ngn)",
       )
       .in("id", appointmentIds)
       .returns<BankTransferAppointment[]>();
@@ -1610,7 +1684,7 @@ export const submitBankTransfer = createServerFn({ method: "POST" })
       appointmentResult = await supabaseAdmin
         .from("appointments")
         .select(
-          "id, booking_reference, service_id, session_mode, manage_token_hash, manage_token_expires_at, manage_token_revoked_at, status, created_at, hold_expires_at, services(code, price_ngn)",
+          "id, booking_reference, service_id, session_mode, manage_token_hash, manage_token_expires_at, manage_token_revoked_at, status, created_at, hold_expires_at, client_name, client_email, client_phone, services(code, price_ngn)",
         )
         .in("id", appointmentIds)
         .returns<BankTransferAppointment[]>();
@@ -1622,6 +1696,16 @@ export const submitBankTransfer = createServerFn({ method: "POST" })
     const first = appts[0];
     for (const appt of appts) {
       assertCheckoutOpen(appt);
+      const contact = getClientContactCompletionState({
+        fullName: appt.client_name,
+        email: appt.client_email,
+        phone: appt.client_phone,
+      });
+      if (!contact.isComplete) {
+        throw new Error(
+          "Add the client's name, email, and phone before submitting a bank transfer.",
+        );
+      }
       const groupToken = data.manageTokens?.find((item) => item.appointmentId === appt.id);
       const token = data.appointmentId ? data.manageToken : groupToken?.manageToken;
       if (!hasActiveManageToken(appt as ManageTokenLifecycle, token)) {
@@ -1890,15 +1974,8 @@ export const verifyBankTransferPayment = createServerFn({ method: "POST" })
             payment.metadata.booking_review_required === true
           );
         if (payment?.reference) {
-          await syncClientRecordsForSuccessfulPayment(payment.reference as string);
-        }
-        const appointmentIdForSync = payment?.appointment_id as string | undefined;
-        await syncGoogleBeforePaymentEmail(appointmentIdForSync);
-        try {
-          const { sendPaymentEmail } = await import("@/lib/payment-email.server");
-          await sendPaymentEmail({ paymentId: data.paymentId, templateKey: "payment_success" });
-        } catch (err) {
-          console.error("[payments] payment confirmation email failed:", err);
+          await reconcileSuccessfulPayment(payment.reference as string);
+          await sendPaymentEmailsForReference(payment.reference as string, "payment_success");
         }
       }
 
@@ -1927,13 +2004,16 @@ export const recoverPaidBankTransferBooking = createServerFn({ method: "POST" })
       throw new Error("Booking recovery did not return a manage link.");
     }
 
-    const appointmentId = String(row.id);
-    await syncGoogleBeforePaymentEmail(appointmentId);
-    try {
-      const { sendPaymentEmail } = await import("@/lib/payment-email.server");
-      await sendPaymentEmail({ paymentId: data.paymentId, templateKey: "payment_success" });
-    } catch (err) {
-      console.error("[payments] recovered booking email failed:", err);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: recoveredPayment, error: recoveredPaymentError } = await supabaseAdmin
+      .from("payments")
+      .select("reference")
+      .eq("id", data.paymentId)
+      .maybeSingle();
+    if (recoveredPaymentError) throw recoveredPaymentError;
+    if (recoveredPayment?.reference) {
+      await reconcileSuccessfulPayment(recoveredPayment.reference as string);
+      await sendPaymentEmailsForReference(recoveredPayment.reference as string, "payment_success");
     }
     const reference = String(row.booking_reference);
     return {

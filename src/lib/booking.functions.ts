@@ -82,15 +82,17 @@ async function fireEmail(
   }
 }
 
-async function fireAdminBookingNotice(data: Record<string, unknown>) {
+async function fireAdminBookingNotice(data: Record<string, unknown>, appointmentId: string) {
   if (data.status !== "confirmed") return;
   try {
-    const { loadEmailSettings, sendTemplateEmail } = await import("@/lib/email.server");
+    const { loadEmailSettings } = await import("@/lib/email.server");
     const settings = await loadEmailSettings();
     const inbox = settings.contactInbox || settings.fromEmail;
     if (!inbox) return;
-    await sendTemplateEmail("booking_admin_notice", inbox, data, {
-      replyTo: typeof data.clientEmail === "string" ? data.clientEmail : settings.replyTo,
+    await fireEmail("booking_admin_notice", inbox, data, {
+      appointmentId,
+      notificationKey: "booking_admin_notice",
+      recipientRole: "admin",
     });
   } catch (err) {
     console.error("[booking] admin email send failed:", err);
@@ -714,23 +716,26 @@ export const holdSlot = createServerFn({ method: "POST" })
           manageUrl: canonicalUrl(`/manage/${held.booking_reference}?token=${manageToken}`),
         });
       }
-      await fireAdminBookingNotice({
-        clientName: data.fullName,
-        clientEmail: data.email,
-        clientPhone: data.phone,
-        reference: held.booking_reference,
-        serviceName: ctx.services?.name ?? "",
-        therapistName: ctx.therapists?.full_name ?? "",
-        startsAt: held.starts_at,
-        mode: data.mode,
-        status: ctx.status,
-        paymentStatus: packageCredit
-          ? `Paid with package (${packageCredit.remaining_sessions} remaining session(s))`
-          : "Pending payment/confirmation",
-        notes: data.notes,
-        location: ctx.therapists?.location ?? "",
-        adminUrl: canonicalUrl("/admin/bookings"),
-      });
+      await fireAdminBookingNotice(
+        {
+          clientName: data.fullName,
+          clientEmail: data.email,
+          clientPhone: data.phone,
+          reference: held.booking_reference,
+          serviceName: ctx.services?.name ?? "",
+          therapistName: ctx.therapists?.full_name ?? "",
+          startsAt: held.starts_at,
+          mode: data.mode,
+          status: ctx.status,
+          paymentStatus: packageCredit
+            ? `Paid with package (${packageCredit.remaining_sessions} remaining session(s))`
+            : "Pending payment/confirmation",
+          notes: data.notes,
+          location: ctx.therapists?.location ?? "",
+          adminUrl: canonicalUrl("/admin/bookings"),
+        },
+        held.id,
+      );
       try {
         const { sendTherapistBookingEmail } = await import("@/lib/therapist-email.server");
         await sendTherapistBookingEmail(held.id as string);
@@ -1471,7 +1476,7 @@ export const createAdminBooking = createServerFn({ method: "POST" })
           notes: context.notes ?? data.notes,
         };
         await fireEmail("booking_confirmation", context.client_email, common);
-        await fireAdminBookingNotice(common);
+        await fireAdminBookingNotice(common, appointmentId);
         try {
           const { sendTherapistBookingEmail } = await import("@/lib/therapist-email.server");
           await sendTherapistBookingEmail(appointmentId);

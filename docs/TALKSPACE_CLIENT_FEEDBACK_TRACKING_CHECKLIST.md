@@ -42,8 +42,9 @@ Implemented application coverage includes:
 
 Migration follow-up is documented in
 `docs/TALKSPACE_P0_BOOKING_PAYMENT_MIGRATION_REQUIRED.md`. Existing booking
-state/slot safeguards and the database invariant still require explicit
-migration approval and have not been applied.
+state/slot safeguards and the new database invariant still require explicit
+migration approval and have not been applied. The local additive migration is
+`20260924120000_client_feedback_booking_payment_guards.sql`.
 
 ## PR #56 staging readiness review — 24 September 2026
 
@@ -68,7 +69,7 @@ migration approval and have not been applied.
 | Can PR #56 run as a staging smoke build without migrations? | Yes, isolated smoke/build only. |
 | Can the ten P0 scenarios be signed off without migrations? | No. Database slot, token, bank-transfer, payment-review, and cleanup safeguards are not complete. |
 | Existing migration order | `20260912194500` → `20260913110000` → `20260913120000` → `20260913130000` → `20260916100000` → `20260917143000` → `20260921190000` |
-| Additional required migration | Reviewed additive confirmed-contact and valid-payment/package invariant, after the existing sequence. |
+| Additional required migration | `20260924120000_client_feedback_booking_payment_guards.sql`, followed by `20260924121000_reconcile_canonical_lagos_content.sql`; both require staging review/application. |
 | Rollback prerequisite | Recoverable staging snapshot/backup and named restore owner. |
 | Current decision | Blocked before staging migration application: dedicated staging project, backup proof, rollback owner, and UAT-account provisioning are still required. |
 

@@ -73,10 +73,15 @@ clock, but slot commitment, bank-transfer approval, payment-review recovery,
 token expiry, and unpaid cleanup depend on the database functions/triggers in
 the migrations below. Do not use production data to validate the fallback.
 
-The additional confirmed-contact/payment invariant is also required before
-the final P0 UAT sign-off. It has not yet been created as a migration file;
-prepare it as a separate additive migration after the existing sequence and
-review it before applying.
+The additional confirmed-contact/payment invariant is now represented by the
+separate additive migration
+`20260924120000_client_feedback_booking_payment_guards.sql`. It still requires
+staging review and application before final P0 UAT sign-off.
+
+The canonical footer/CMS reconciliation is represented by
+`20260924121000_reconcile_canonical_lagos_content.sql`; review it with the
+content owner before applying if the staging CMS contains intentional custom
+office text.
 
 ## Staging-only application order
 
@@ -92,9 +97,8 @@ each step:
 5. `20260916100000_booking_checkout_clock.sql`
 6. `20260917143000_retry_paid_booking_review.sql`
 7. `20260921190000_atomic_unpaid_test_booking_cleanup.sql`
-8. A new, reviewed additive migration for the confirmed-contact and valid-
-   payment/package invariant; filename/version to be assigned only after its
-   SQL is reviewed.
+8. `20260924120000_client_feedback_booking_payment_guards.sql`
+9. `20260924121000_reconcile_canonical_lagos_content.sql`
 
 Do not skip or reorder these migrations. The two token migrations deliberately
 replace the same token-activity function, and the later payment migrations

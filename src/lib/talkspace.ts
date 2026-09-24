@@ -21,8 +21,8 @@ export const TS = {
       lines: ["Plot 153A, T-Pumpy Estate", "Opp. NIU Estate, Off Saburi 1, FCT, Abuja"],
     },
     {
-      city: "Lagos",
-      lines: ["20, Estaport Avenue", "Gbagada, Lagos, Nigeria"],
+      city: "Talk Space Counseling, Lagos",
+      lines: ["Abiodun Oshowole Cl, off Oluwaleimu Street", "Allen, Ikeja 101233, Lagos"],
     },
   ],
 
@@ -50,6 +50,9 @@ export const TS = {
     "Family & Premarital Counseling",
   ],
 } as const;
+
+export const CANONICAL_LAGOS_ADDRESS_TEXT =
+  "Talk Space Counselling - Lagos, Abiodun Oshowole Cl, off Oluwaleimu Street, Allen, Ikeja 101233, Lagos";
 
 export const WHATSAPP_MESSAGE = "Hi Talk Space, I'd like to ask about booking a session.";
 

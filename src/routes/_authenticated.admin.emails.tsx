@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { formatWATDateTime } from "@/lib/time";
 import {
   Dialog,
@@ -222,6 +223,7 @@ function EmailAdminScreen({
           templateKey: row.templateKey,
           isEnabled: next.isEnabled,
           subjectOverride: next.subjectOverride,
+          bodyOverride: next.bodyOverride,
         },
       });
     } catch (err) {
@@ -639,6 +641,32 @@ function EmailAdminScreen({
                       placeholder="Leave blank to use the default subject"
                       className="mt-1"
                     />
+                  </div>
+                  <div className="mt-3">
+                    <Label htmlFor={`b-${t.templateKey}`} className="text-xs text-muted-foreground">
+                      Plain-text body override (optional)
+                    </Label>
+                    <Textarea
+                      id={`b-${t.templateKey}`}
+                      value={t.bodyOverride ?? ""}
+                      onChange={(e) =>
+                        setTemplates((all) =>
+                          all.map((r) =>
+                            r.templateKey === t.templateKey
+                              ? { ...r, bodyOverride: e.target.value }
+                              : r,
+                          ),
+                        )
+                      }
+                      onBlur={(e) =>
+                        void onTemplateChange(t, { bodyOverride: e.target.value.trim() || null })
+                      }
+                      placeholder="Leave blank to use the code-managed body. Use {{clientName}}, {{startsAt}}, {{meetingLink}}, and other documented placeholders."
+                      className="mt-1 min-h-24"
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Unknown placeholders are removed and values are escaped before sending.
+                    </p>
                   </div>
                 </div>
               </div>

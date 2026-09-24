@@ -10,6 +10,19 @@ operations, payments, CMS, or other therapists' client records.
 - [x] Done
 - [!] Blocked / needs decision
 
+## Current implementation snapshot — 24 September 2026
+
+The therapist dashboard, role/profile linking, route guards, scoped appointment
+queries, Google connect/reconnect/disconnect flow, admin invite/revocation
+controls, Meet-link state, and cross-therapist contract coverage are implemented
+locally. The remaining unchecked rows below are either explicit product/privacy
+decisions, provider/browser UAT, or post-release smoke checks. The consolidated
+client-feedback checklist is the authoritative release summary:
+[TALKSPACE_CLIENT_FEEDBACK_IMPLEMENTATION_CHECKLIST.md](TALKSPACE_CLIENT_FEEDBACK_IMPLEMENTATION_CHECKLIST.md).
+
+Default least-privilege actions and the items that require owner approval are
+recorded in [TALKSPACE_THERAPIST_ACTIONS_POLICY.md](TALKSPACE_THERAPIST_ACTIONS_POLICY.md).
+
 ---
 
 ## 1. Product and access decisions

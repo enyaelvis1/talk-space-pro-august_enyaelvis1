@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { canonicalUrl } from "@/lib/seo";
+import { formatWATDateKey } from "@/lib/time";
 import {
   getAdminAppointmentTimeline,
   listArchivedAppointmentsForAdmin,
@@ -245,21 +246,6 @@ function formatTimeRange(startsAt: string, endsAt: string) {
   }
 }
 
-function toLagosDateKey(iso: string) {
-  try {
-    const parts = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Africa/Lagos",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).formatToParts(new Date(iso));
-    const lookup = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-    return `${lookup.year}-${lookup.month}-${lookup.day}`;
-  } catch {
-    return iso.slice(0, 10);
-  }
-}
-
 function canEditBooking(row: UpcomingAppointmentRow) {
   return (
     !["cancelled", "completed", "no_show"].includes(row.status) ||
@@ -413,11 +399,11 @@ function AdminBookingsPage() {
   const nowHighlightDates = useMemo(() => {
     const keys = new Set<string>();
     for (const appointment of [...nowSummary.live, ...nowSummary.nextUp]) {
-      keys.add(new Date(appointment.startsAt).toISOString().slice(0, 10));
+      keys.add(formatWATDateKey(appointment.startsAt));
     }
     return keys;
   }, [nowSummary]);
-  const todayDateKey = useMemo(() => toLagosDateKey(nowIso), [nowIso]);
+  const todayDateKey = useMemo(() => formatWATDateKey(nowIso), [nowIso]);
 
   useEffect(() => {
     if (!selectedDateKey && monthData.days.length) {
@@ -543,7 +529,7 @@ function AdminBookingsPage() {
       if (decision === "reschedule") {
         setDecisionRow(null);
         setEditing(row);
-        setEditDate(toLagosDateKey(row.startsAt));
+        setEditDate(formatWATDateKey(row.startsAt));
         setEditSlot("");
         setEditSlots([]);
         return;
@@ -636,8 +622,52 @@ function AdminBookingsPage() {
     }
   }, []);
 
+  const onDeleteAndRelease = useCallback(async (row: UpcomingAppointmentRow) => {
+    if (row.status !== "confirmed") return;
+    if (
+      !confirm(
+        `Delete booking ${row.bookingReference} from the active schedule and release this time for another client? Payment and audit history will remain available to admins.`,
+      )
+    ) {
+      return;
+    }
+    setDeletingId(row.id);
+    try {
+      await cancelAppointmentForAdmin({
+        data: { appointmentId: row.id, reason: "admin_delete_release_slot" },
+      });
+      await archiveAppointmentForAdmin({
+        data: { appointmentId: row.id, reason: "admin_delete_release_slot" },
+      });
+      setRows((current) => current.filter((item) => item.id !== row.id));
+      toast.success("Booking deleted from the schedule and slot released.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete this booking.");
+    } finally {
+      setDeletingId(null);
+    }
+  }, []);
+
   const renderDeleteButton = useCallback(
     (appointment: UpcomingAppointmentRow) => {
+      if (appointment.status === "confirmed") {
+        return (
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            disabled={deletingId === appointment.id}
+            onClick={() => void onDeleteAndRelease(appointment)}
+          >
+            {deletingId === appointment.id ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <Trash2 className="h-4 w-4" aria-hidden />
+            )}
+            Delete &amp; release slot
+          </Button>
+        );
+      }
       const paymentIsCommitted = ["succeeded", "awaiting_confirmation"].includes(
         appointment.paymentStatus ?? "",
       );
@@ -662,7 +692,7 @@ function AdminBookingsPage() {
         </Button>
       );
     },
-    [deletingId, onDeleteTemporary],
+    [deletingId, onDeleteAndRelease, onDeleteTemporary],
   );
 
   const renderCancelAndReleaseButton = useCallback(
@@ -798,7 +828,7 @@ function AdminBookingsPage() {
       return;
     }
     setEditing(row);
-    setEditDate(toLagosDateKey(row.startsAt));
+    setEditDate(formatWATDateKey(row.startsAt));
     setEditSlot("");
     setEditSlots([]);
   }, []);

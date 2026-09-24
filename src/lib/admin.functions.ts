@@ -2469,6 +2469,60 @@ export const resendTherapistInvitation = createServerFn({ method: "POST" })
     return { sent: true, email };
   });
 
+export const revokeTherapistLogin = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => z.object({ therapistId: z.string().uuid() }).parse(data))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const bag = await requireAdmin();
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: therapist, error: lookupError } = await supabaseAdmin
+      .from("therapists")
+      .select("user_id")
+      .eq("id", data.therapistId)
+      .maybeSingle();
+    if (lookupError) throw lookupError;
+    if (!therapist) throw new Error("Therapist profile not found.");
+
+    const userId = therapist.user_id as string | null;
+    const { data: connection } = await supabaseAdmin
+      .from("therapist_google_connections")
+      .select("sync_channel_id, sync_resource_id")
+      .eq("therapist_id", data.therapistId)
+      .maybeSingle();
+    if (connection?.sync_channel_id && connection?.sync_resource_id) {
+      try {
+        const { stopWatchCalendar } = await import("@/lib/google.server");
+        await stopWatchCalendar(
+          data.therapistId,
+          connection.sync_channel_id as string,
+          connection.sync_resource_id as string,
+        );
+      } catch (err) {
+        console.warn("[therapists] stop Google watch during access revocation failed:", err);
+      }
+    }
+    const { error: connectionError } = await supabaseAdmin
+      .from("therapist_google_connections")
+      .delete()
+      .eq("therapist_id", data.therapistId);
+    if (connectionError) throw connectionError;
+
+    const { error: profileError } = await supabaseAdmin
+      .from("therapists")
+      .update({ user_id: null })
+      .eq("id", data.therapistId);
+    if (profileError) throw profileError;
+    if (userId) {
+      const { error: roleError } = await supabaseAdmin
+        .from("user_roles")
+        .delete()
+        .eq("user_id", userId)
+        .eq("role", "therapist");
+      if (roleError) throw roleError;
+    }
+    bag.commitCookies();
+    return { ok: true };
+  });
+
 export const deleteTherapist = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data }): Promise<{ ok: true; archived: boolean }> => {

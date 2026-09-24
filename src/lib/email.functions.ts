@@ -32,6 +32,7 @@ export type EmailTemplateDTO = {
   description: string | null;
   isEnabled: boolean;
   subjectOverride: string | null;
+  bodyOverride: string | null;
 };
 
 async function loadEmailAdminData() {
@@ -129,6 +130,7 @@ const templateInput = z.object({
   templateKey: z.string().min(1).max(64),
   isEnabled: z.boolean(),
   subjectOverride: z.string().trim().max(200).nullable().optional(),
+  bodyOverride: z.string().trim().max(12000).nullable().optional(),
 });
 
 export const updateEmailTemplate = createServerFn({ method: "POST" })
@@ -141,6 +143,7 @@ export const updateEmailTemplate = createServerFn({ method: "POST" })
       .update({
         is_enabled: data.isEnabled,
         subject_override: data.subjectOverride?.trim() || null,
+        body_override: data.bodyOverride?.trim() || null,
       })
       .eq("template_key", data.templateKey);
     if (error) throw error;
@@ -330,9 +333,14 @@ export const previewEmailTemplate = createServerFn({ method: "POST" })
     await requireAdmin();
     const { renderEmailTemplate } = await import("@/lib/email-templates.server");
     const { loadTemplateSettings } = await import("@/lib/email.server");
-    const rendered = renderEmailTemplate(data.templateKey, sampleDataFor(data.templateKey));
     const settings = (await loadTemplateSettings()) as EmailTemplateDTO[];
-    const override = settings.find((s) => s.templateKey === data.templateKey)?.subjectOverride;
+    const template = settings.find((s) => s.templateKey === data.templateKey);
+    const rendered = renderEmailTemplate(
+      data.templateKey,
+      sampleDataFor(data.templateKey),
+      template?.bodyOverride,
+    );
+    const override = template?.subjectOverride;
     noStore();
     return {
       templateKey: data.templateKey,

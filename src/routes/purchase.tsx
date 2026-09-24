@@ -82,8 +82,8 @@ function PurchaseSessionsPage() {
 
   async function beginPayment() {
     setError(null);
-    if (!serviceId || !name.trim() || !email.trim()) {
-      setError("Choose a service and enter your name and email.");
+    if (!serviceId || !name.trim() || !email.trim() || !phone.trim()) {
+      setError("Choose a service and enter your name, email, and phone.");
       return;
     }
     setBusy(true);

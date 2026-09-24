@@ -40,6 +40,7 @@ import {
   listTherapistAvailability,
   reorderTherapists,
   resendTherapistInvitation,
+  revokeTherapistLogin,
   setTherapistActive,
   updateAvailabilityRule,
   updateTherapist,
@@ -154,6 +155,22 @@ function TherapistsAdminRoute() {
       toast.success(row.isActive ? "Therapist hidden from booking." : "Therapist activated.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Update failed.");
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const revokeLogin = async (row: AdminTherapistRow) => {
+    if (!row.userId) return;
+    if (!window.confirm(`Revoke dashboard and Google Calendar access for ${row.fullName}?`)) return;
+    setSavingId(row.id);
+    try {
+      await revokeTherapistLogin({ data: { therapistId: row.id } });
+      applyPatch(row.id, { userId: null, loginEmail: null });
+      if (loginFor?.id === row.id) setLoginFor(null);
+      toast.success("Therapist dashboard and Google access revoked.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not revoke therapist access.");
     } finally {
       setSavingId(null);
     }
@@ -373,6 +390,17 @@ function TherapistsAdminRoute() {
                       )}
                       {t.userId ? "Login linked" : "Invite login"}
                     </Button>
+                    {t.userId ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-destructive"
+                        disabled={savingId === t.id}
+                        onClick={() => void revokeLogin(t)}
+                      >
+                        Revoke dashboard
+                      </Button>
+                    ) : null}
                     <Button size="sm" onClick={() => setEditing(t)}>
                       <Pencil className="mr-1 h-3.5 w-3.5" /> Edit profile
                     </Button>
