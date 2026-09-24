@@ -105,8 +105,8 @@ export function SiteFooter() {
                 href={WHATSAPP_HREF}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label={`WhatsApp ${details.whatsapp}`}
-                title={`WhatsApp ${details.whatsapp}`}
+                aria-label={`Chat with Talk Space ${details.whatsapp}`}
+                title={`Chat with Talk Space ${details.whatsapp}`}
                 className="inline-flex min-h-6 items-center gap-2 transition-colors hover:text-brand-mint"
               >
                 <WhatsAppIcon className="mt-0.5 h-4 w-4 text-brand-mint" aria-hidden />

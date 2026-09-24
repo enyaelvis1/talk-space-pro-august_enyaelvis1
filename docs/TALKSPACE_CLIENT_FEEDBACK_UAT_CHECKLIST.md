@@ -1,47 +1,55 @@
 # Talk Space Client Feedback Checklist + UAT Gate
 
-Reviewed 2026-09-13 against `develop` at `754ea2b`. This is a documentation-only review of the 19 client feedback items. No fixes, migrations, staging deployment, or production release are authorized by this checklist task.
+Reviewed 2026-09-24 against the local client-feedback implementation branch. This
+document remains a UAT gate: local implementation and automated checks do not
+constitute staging acceptance, provider acceptance, or a production release.
 
 Existing IDs are retained for continuity with implementation branches. The earlier checklist marked several items Done while still requiring UAT evidence. Those completion claims are corrected below. Code presence, a passing source test, or an open PR is not staging acceptance. No item currently has sufficient linked evidence here for production approval.
 
 ## Current implementation audit
 
-The following audit compares the checklist with the current `develop` source, migrations and tests. "Implemented" means that the main code path exists; it does not mean that staging acceptance or production readiness has been demonstrated.
+The following audit compares the checklist with the local implementation source,
+migrations and tests. "Implemented" means that the main code path exists; it
+does not mean that staging acceptance or production readiness has been
+demonstrated.
 
 | ID     | Current state                       | Remaining implementation or verification work                                                                                                                                                             |
 | ------ | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| BK-001 | Partial implementation              | Verify paid-only visibility across admin lists, counters, search and therapist views; confirm the intended cancelled/no-show history behavior.                                                            |
-| BK-002 | Partial implementation              | Add or prove recovery for failed client writes, incomplete contact data and replayed callbacks; test returning-client deduplication and approved transfers.                                               |
-| BK-003 | Policy unresolved                   | Decide which lead-time, horizon, increment and timezone restrictions are actually unnecessary before changing validation; then run boundary UAT.                                                          |
-| BK-004 | Partial implementation              | Apply and verify `20260913110000_reserve_only_committed_bookings.sql`; confirm whether active holds and pending payments must remain excluded from availability, and test atomic late-payment resolution. |
-| BK-005 | Partial implementation              | Verify exact amount/currency/reference checks, duplicate approval, slot loss and direct/offline payment handling on staging.                                                                              |
-| BK-006 | Implementation present, UAT missing | Run Paystack test, callback, webhook, admin recheck and grouped-checkout cases, including the 19,900-versus-199 minor-unit negative case and replay/idempotency.                                          |
-| BK-007 | Partial implementation              | Complete end-to-end resume, expiry, revocation, replay, stale-slot and payment-after-expiry verification; keep incomplete tokens separate from management tokens.                                         |
-| BK-008 | Partial implementation              | Verify multi-therapist UI grouping, cross-service allocation, buffers, busy blocks, calendar sync and concurrent confirmation on staging.                                                                 |
-| BK-009 | Partial implementation              | Apply and verify the transfer-reference migration/RPC, mobile retry behavior, persisted receipt/reference, review copy and approval/rejection audit flow.                                                 |
-| CR-001 | Partial implementation              | Validate every booking, admin, import and payment path; create a remediation workflow for existing incomplete records without inventing contact data.                                                     |
-| CR-002 | Partial implementation              | Execute the CSV preview/import/export paths, verify multiline/quoted data, duplicate/update policy, permissions, partial-write rollback and retry behavior.                                               |
+| BK-001 | Ready for UAT                       | Verify paid-only visibility across admin lists, counters, search and therapist views; confirm the intended cancelled/no-show history behavior.                                                            |
+| BK-002 | Ready for UAT                       | Verify recovery for failed client writes, incomplete contact data and replayed callbacks; test returning-client deduplication and approved transfers.                                                   |
+| BK-003 | Ready for UAT                       | Preferred date/time fields are optional locally; run boundary UAT for valid availability, past-time, conflict, lead-time, and timezone safeguards.                                                     |
+| BK-004 | Ready for UAT                       | Verify the reviewed booking/slot migrations, active-hold lifecycle, pending-payment exclusion, expiry cleanup, and atomic late-payment resolution.                                                     |
+| BK-005 | Ready for UAT                       | Verify exact amount/currency/reference checks, duplicate approval, slot loss and direct/offline payment handling on staging.                                                                            |
+| BK-006 | Ready for UAT                       | Run Paystack test, callback, webhook, admin recheck and grouped-checkout cases, including the 19,900-versus-199 minor-unit negative case and replay/idempotency.                                        |
+| BK-007 | Ready for UAT                       | Verify end-to-end resume, expiry, revocation, replay, stale-slot and payment-after-expiry behavior; keep incomplete tokens separate from management tokens.                                             |
+| BK-008 | Ready for UAT                       | Verify multi-therapist UI grouping, cross-service allocation, buffers, busy blocks, calendar sync and concurrent confirmation on staging.                                                                 |
+| BK-009 | Ready for UAT                       | Verify the transfer-reference migration/RPC, mobile retry behavior, persisted receipt/reference, review copy and approval/rejection audit flow.                                                       |
+| CR-001 | Ready for UAT                       | Validate every booking, admin, import and payment path; verify existing incomplete records are not silently fabricated or deleted.                                                                      |
+| CR-002 | Ready for UAT                       | Execute the CSV preview/import/export paths, verify multiline/quoted data, duplicate/update policy, permissions, rollback and retry behavior.                                                          |
 | AC-001 | Ready for UAT                       | Verify save, reload, cache invalidation, public rendering, mobile wrapping and preservation of unrelated content/images.                                                                                  |
 | AC-002 | Ready for UAT                       | Verify the visible label, keyboard activation, accessible name and WhatsApp destination on mobile and desktop.                                                                                            |
-| AC-003 | Implementation present, UAT missing | Verify the exact Lagos label, map destination, fallback/CMS parity and unchanged Abuja office; confirm the external Google listing separately.                                                            |
-| TA-001 | Partial implementation              | Complete invite/recovery/revocation, therapist action scoping, role isolation, OAuth reconnect/disconnect, calendar sync and unconnected-calendar fallback tests.                                         |
-| NI-001 | Partial implementation              | Confirm suppression of incomplete internal alerts and calendar invites; agree and implement the bounded client reminder journey, deduplication and stop conditions.                                       |
+| AC-003 | Ready for UAT                       | Verify the exact Lagos label, map destination, fallback/CMS parity and unchanged Abuja office; confirm the external Google listing separately.                                                            |
+| TA-001 | Ready for UAT                       | Verify invite/recovery/revocation, therapist action scoping, role isolation, OAuth reconnect/disconnect, calendar sync and unconnected-calendar fallback tests.                                         |
+| NI-001 | Ready for UAT                       | Confirm suppression of incomplete internal alerts and calendar invites; verify the bounded client reminder journey, deduplication and stop conditions.                                                 |
 | PR-001 | Ready for UAT                       | Verify signed-out public listing/article rendering and retained editable admin metadata across mobile and desktop.                                                                                        |
-| PR-002 | Implementation incomplete           | Add paginated retrieval, stable provider identity/update handling and an explicit full-export scope; remove the 50-review ceiling only if the agreed product scope requires it.                           |
-| MP-001 | Not started                         | Establish repeated mobile baselines, image-byte/network evidence, LCP/FCP/TBT/CLS targets, responsive crop checks and custom-upload URL coverage.                                                         |
+| PR-002 | Ready for UAT                       | Verify paginated Business Profile retrieval, stable provider identity/update handling, CSV download, public rendering, authorization failure and provider-limit messaging.                               |
+| MP-001 | Ready for UAT                       | Use the repeatable mobile baseline protocol, image-byte/network evidence, agreed LCP/FCP/TBT/CLS targets, responsive crop checks and custom-upload URL coverage.                                         |
 
 No row above should be marked `UAT Passed`, `Production Ready` or `Done` until its staging evidence is attached using the gate below. The older detailed findings and item notes remain below as supporting context; this table is the current implementation-routing summary.
 
 ## Review findings and remaining work
 
-- **P0, BK-004/BK-005:** Hiding unpaid rows does not release capacity. The checked-in `list_available_slots` SQL excludes holds and pending payments, and the original exclusion constraint reserves those states. See [availability SQL](../supabase/migrations/20260718040210_8c74e8af-a1e6-452d-ab1f-62e74de43187.sql) and [booking foundation](../supabase/migrations/20260715200000_booking_foundation.sql). Database deployment state still needs staging verification.
-- **P0, BK-006:** [payment-validation.ts](../src/lib/payment-validation.ts) guesses major/minor units using divisibility by 100. A local read-only reproduction accepted an actual 199 kobo against an expected 19,900 kobo. This contradicts exact amount verification and requires a fix before UAT approval.
-- **P0, CR-002; P1, CR-001:** [client import](../src/lib/clients.functions.ts) permits missing names/phones, splits CSV by physical lines, and skips existing emails. Multiline CSV, complete contact validation, duplicate/update behavior, and safe retry need review before declaring import/export complete.
-- **P0, BK-008:** Database availability already filters by therapist ID. Investigate time-option grouping, allocation, and concurrent confirmation as well as SQL; do not assume the fault is solely a global database lock. [PR #149](https://github.com/enyasystem/talk-space-pro-august/pull/149) is open and has not been treated as accepted.
-- **P1, PR-002:** [review import](../src/lib/admin.functions.ts) fetches one page, merges by quote text, and limits stored results to 50. Full retrieval and updating an existing review are not demonstrated.
-- **Release tracking:** All 19 items still require staging evidence and approval. AC-001, AC-002, and PR-001 have code ready for UAT; 15 items have partial work or unresolved gaps; MP-001 needs a new measured performance pass.
+- **P0, BK-004/BK-005:** Local application and additive migration guards now separate committed capacity from incomplete attempts and validate direct-transfer amounts/references. Database deployment state, backup proof, rollback ownership, and late-payment resolution still need staging verification.
+- **P0, BK-006:** Exact integer minor-unit validation now rejects the 199-kobo-versus-19,900-kobo mismatch before booking mutation. Paystack callback, webhook, grouped-payment, admin-recheck, and replay evidence still require sandbox UAT.
+- **P0, CR-002; P1, CR-001:** Client CSV parsing validates required contacts, quoted/multiline fields, duplicates, date fields, formula-safe export, preview, update/skip policy, and rollback. Execute the protected admin flow on staging and verify payment links/audit history remain intact.
+- **P0, BK-008:** Availability and booking paths are therapist-scoped, and local multi-therapist contracts cover distinct simultaneous sessions. Verify time-option grouping, buffers, busy blocks, calendar sync, and concurrent confirmation on staging.
+- **P1, PR-002:** Business Profile retrieval now paginates and merges using provider identity; Places API limits and authorized source scope still require owner/provider confirmation.
+- **Release tracking:** Local implementation is ready for UAT across the functional rows above. No row is UAT Passed or Production Ready until staging evidence and named acceptance are recorded.
 
-The original workspace contains uncommitted client-management code and a CR-002 status update. They are preserved in that workspace and excluded from this documentation branch. Its local Ready for UAT claim must be reconciled with import validation and staging evidence before sign-off.
+The current implementation branch contains the client-management, booking,
+notification, therapist, content, pricing, and review changes referenced above.
+Their Ready for UAT status must still be reconciled with staging evidence before
+sign-off.
 
 ## Git workflow
 

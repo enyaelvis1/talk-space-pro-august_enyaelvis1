@@ -194,7 +194,7 @@ test("about page fallback keeps the refreshed inner-page composition", () => {
   assert.match(about, /Built in Lagos\. Made for anywhere you are\./);
   assert.match(about, /Talk Space began in 2017/);
   assert.match(about, /2017/);
-  assert.match(about, /Gbagada, Lagos/);
+  assert.match(about, /Allen, Ikeja, Lagos/);
   assert.match(about, /Explore services/);
   assert.match(about, /Talk to the care team/);
 });

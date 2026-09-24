@@ -50,7 +50,22 @@ async function recheckPayments(request: Request) {
     checked.add(reference);
     try {
       const checkout = await loadPaystackCheckout(reference);
-      if (checkout.alreadySucceeded) continue;
+      if (checkout.alreadySucceeded) {
+        const { syncClientRecordsForSuccessfulPayment } = await import("@/lib/payments.functions");
+        await syncClientRecordsForSuccessfulPayment(reference);
+        const { data: rows } = await supabaseAdmin
+          .from("payments")
+          .select("appointment_id")
+          .or(`reference.eq.${reference},checkout_group_reference.eq.${reference}`);
+        const { syncAppointmentToGoogle } = await import("@/lib/google.functions");
+        await Promise.all(
+          (rows ?? []).map((row) => syncAppointmentToGoogle(row.appointment_id as string)),
+        );
+        const { sendPaymentEmailsForReference } = await import("@/lib/payments.functions");
+        await sendPaymentEmailsForReference(reference, "payment_success");
+        results.push({ reference, status: "succeeded" });
+        continue;
+      }
       const verified = await paystackVerify({ secretKey: secret, reference });
       validateProviderPayment({
         expectedAmountKobo: checkout.amountKobo,
@@ -65,6 +80,10 @@ async function recheckPayments(request: Request) {
             ? "failed"
             : "initiated";
       if (nextStatus !== "initiated") {
+        if (nextStatus === "succeeded") {
+          const { assertPaymentBookingContacts } = await import("@/lib/payments.functions");
+          await assertPaymentBookingContacts(reference);
+        }
         const { error: updateError } = await supabaseAdmin.rpc("mark_payment_status", {
           p_reference: reference,
           p_new_status: nextStatus,
@@ -77,21 +96,17 @@ async function recheckPayments(request: Request) {
         });
         if (updateError) throw updateError;
         if (nextStatus === "succeeded") {
-          try {
-            const { syncClientRecordsForSuccessfulPayment } =
-              await import("@/lib/payments.functions");
-            await syncClientRecordsForSuccessfulPayment(reference);
-            const { data: rows } = await supabaseAdmin
-              .from("payments")
-              .select("appointment_id")
-              .or(`reference.eq.${reference},checkout_group_reference.eq.${reference}`);
-            const { syncAppointmentToGoogle } = await import("@/lib/google.functions");
-            await Promise.all(
-              (rows ?? []).map((row) => syncAppointmentToGoogle(row.appointment_id as string)),
-            );
-          } catch (err) {
-            console.error("[payments] delayed recheck google sync failed", payment.reference, err);
-          }
+          const { syncClientRecordsForSuccessfulPayment } =
+            await import("@/lib/payments.functions");
+          await syncClientRecordsForSuccessfulPayment(reference);
+          const { data: rows } = await supabaseAdmin
+            .from("payments")
+            .select("appointment_id")
+            .or(`reference.eq.${reference},checkout_group_reference.eq.${reference}`);
+          const { syncAppointmentToGoogle } = await import("@/lib/google.functions");
+          await Promise.all(
+            (rows ?? []).map((row) => syncAppointmentToGoogle(row.appointment_id as string)),
+          );
         }
         if (nextStatus === "succeeded" || nextStatus === "failed") {
           const { sendPaymentEmailsForReference } = await import("@/lib/payments.functions");

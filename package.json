@@ -10,7 +10,7 @@
     "postcss": "8.5.26"
   },
   "scripts": {
-    "dev": "vite dev --force",
+    "dev": "vite dev --force --port 8080",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",

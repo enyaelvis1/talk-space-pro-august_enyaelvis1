@@ -12,15 +12,20 @@ import { SectionBadge } from "@/components/site/SectionBadge";
 import { Reveal } from "@/components/site/Reveal";
 import { Button } from "@/components/ui/button";
 import { getPublishedEntry, type RenderedContentEntry } from "@/lib/content.functions";
+import { listBookingServices, type BookingService } from "@/lib/booking.functions";
 import type { PageSection } from "@/lib/page-sections";
+import { resolveServicePriceNgn } from "@/lib/service-pricing";
 import { cn } from "@/lib/utils";
 import { WHATSAPP_HREF } from "@/lib/talkspace";
 import { canonicalUrl, pageSeoHead } from "@/lib/seo";
 
 export const Route = createFileRoute("/pricing")({
   loader: async () => {
-    const entry = await getPublishedEntry({ data: { kind: "page", slug: "pricing" } });
-    return { entry };
+    const [entry, services] = await Promise.all([
+      getPublishedEntry({ data: { kind: "page", slug: "pricing" } }),
+      listBookingServices().catch(() => null),
+    ]);
+    return { entry, services };
   },
   pendingMs: 0,
   pendingMinMs: 250,
@@ -58,6 +63,7 @@ type PricingPlan = {
   highlight?: boolean;
   note?: string;
   serviceCode?: string;
+  mode?: "online" | "in_person";
 };
 
 type PricingGroup = {
@@ -104,6 +110,7 @@ const PRICING_GROUPS: PricingGroup[] = [
         href: "/book?service=individual&mode=online",
         action: "Start secure booking",
         serviceCode: "individual",
+        mode: "online",
       },
       {
         name: "Couple Therapy",
@@ -120,6 +127,7 @@ const PRICING_GROUPS: PricingGroup[] = [
         href: "/book?service=couple&mode=online",
         action: "Start secure booking",
         serviceCode: "couple",
+        mode: "online",
         highlight: true,
       },
       {
@@ -160,6 +168,7 @@ const PRICING_GROUPS: PricingGroup[] = [
         href: "/book?service=individual&mode=in_person",
         action: "Start secure booking",
         serviceCode: "individual",
+        mode: "in_person",
       },
       {
         name: "Couple In-person Session",
@@ -175,6 +184,7 @@ const PRICING_GROUPS: PricingGroup[] = [
         href: "/book?service=couple&mode=in_person",
         action: "Start secure booking",
         serviceCode: "couple",
+        mode: "in_person",
         highlight: true,
       },
       {
@@ -191,6 +201,7 @@ const PRICING_GROUPS: PricingGroup[] = [
         href: "/purchase?service=one_month_individual&mode=in_person",
         action: "Purchase sessions",
         serviceCode: "one_month_individual",
+        mode: "in_person",
       },
       {
         name: "One-Month Couple In-person",
@@ -206,6 +217,7 @@ const PRICING_GROUPS: PricingGroup[] = [
         href: "/purchase?service=one_month_couple&mode=in_person",
         action: "Purchase sessions",
         serviceCode: "one_month_couple",
+        mode: "in_person",
         highlight: true,
       },
     ],
@@ -231,6 +243,7 @@ const PRICING_GROUPS: PricingGroup[] = [
         href: "/purchase?service=one_month_individual&mode=online",
         action: "Purchase sessions",
         serviceCode: "one_month_individual",
+        mode: "online",
       },
       {
         name: "Couple Plan",
@@ -247,6 +260,7 @@ const PRICING_GROUPS: PricingGroup[] = [
         href: "/purchase?service=one_month_couple&mode=online",
         action: "Purchase sessions",
         serviceCode: "one_month_couple",
+        mode: "online",
         highlight: true,
       },
       {
@@ -341,6 +355,46 @@ const FAQS = [
   },
 ];
 
+function formatNgnPrice(amount: number | null) {
+  if (amount == null || !Number.isFinite(amount) || amount <= 0) {
+    return "Contact for pricing";
+  }
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: "NGN",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function resolvePricingGroups(services: BookingService[]) {
+  const serviceByCode = new Map(services.map((service) => [service.code, service]));
+  return PRICING_GROUPS.map((group) => ({
+    ...group,
+    plans: group.plans.map((plan) => {
+      if (!plan.serviceCode) return plan;
+      const service = serviceByCode.get(plan.serviceCode);
+      const price = resolveServicePriceNgn(
+        service
+          ? {
+              code: service.code,
+              price_ngn: service.priceNgn,
+              in_person_price_ngn: service.inPersonPriceNgn,
+            }
+          : null,
+        plan.mode ?? "online",
+      );
+      return {
+        ...plan,
+        price: formatNgnPrice(price),
+        note:
+          price == null
+            ? "This service is not configured for online purchase yet. Contact the care team."
+            : plan.note,
+      };
+    }),
+  }));
+}
+
 const pricingFaqSection: PageSection = {
   id: "pricing-faq",
   type: "faq",
@@ -385,7 +439,7 @@ function ensurePricingFaq(entry: RenderedContentEntry): RenderedContentEntry {
 }
 
 function RouteComponent() {
-  const { entry } = Route.useLoaderData();
+  const { entry, services } = Route.useLoaderData();
 
   if (entry) {
     return <EditablePublicPage entry={ensurePricingFaq(entry)} label="Pricing" />;
@@ -415,7 +469,7 @@ function RouteComponent() {
 
           <section className="bg-surface-page pb-16 pt-16">
             <div className="mx-auto w-full max-w-7xl space-y-10 px-4 sm:px-6 lg:px-8">
-              {PRICING_GROUPS.map((group) => (
+              {(services?.length ? resolvePricingGroups(services) : PRICING_GROUPS).map((group) => (
                 <Reveal
                   key={group.eyebrow}
                   as="section"

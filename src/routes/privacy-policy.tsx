@@ -83,8 +83,8 @@ function RouteComponent() {
               </Prose>
               <Prose title="Contact">
                 Questions about this policy? Email privacy@talkspace.ng or write to the Data
-                Protection Officer, Talk Space Counselling Services, 20, Estaport Avenue, Gbagada,
-                Lagos.
+                Protection Officer, Talk Space Counselling Services, Abiodun Oshowole Cl, off
+                Oluwaleimu Street, Allen, Ikeja 101233, Lagos.
               </Prose>
             </article>
           </section>

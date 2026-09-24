@@ -15,17 +15,19 @@ prefill, service-level mode pricing, payment ledger validation, admin audit
 surfaces, email delivery logging, and idempotent Google synchronization.
 
 The highest-risk remaining areas are not all missing features; several are
-cross-system verification gaps:
+cross-system verification gaps after the local implementation batch:
 
 - A successful payment can be committed while booking review or Google sync
   still needs operational attention.
-- The application has both CMS-managed values and code fallbacks for address,
-  location, and contact data, so stale fallback content can reappear when a CMS
-  row is missing or malformed.
-- Email bodies are rendered in server code. Admins can toggle templates and
-  override subjects, but cannot edit the body copy.
-- The admin dashboard has a WAT-aware today window, but the dashboard summary
-  also uses a generic future count and the operations surface needs staging
+- The application still has CMS-managed values and code fallbacks for address,
+  location, and contact data. The canonical fallback/seed values and the
+  source-of-truth matrix are now aligned, while already-edited CMS rows need
+  content-owner verification.
+- Email bodies now support sanitized admin-managed text overrides with a safe
+  server-rendered fallback; template rendering and recipient policy still need
+  staging email-sink verification.
+- The admin dashboard and calendar now use Africa/Lagos date keys for current
+  and drag-to-date operations; the operations surface still needs staging
   verification against current dates and archived/unpaid rows.
 - Paystack, Google, email-provider, Google Reviews, and Search Console behavior
   cannot be fully proven from static code inspection.
@@ -67,10 +69,11 @@ cross-system verification gaps:
 
 ### Partially resolved or requiring evidence
 
-- The current Lagos fallback is still `20, Estaport Avenue, Gbagada, Lagos,
-  Nigeria`, while the requested address is different.
-- Email subject overrides are editable, but email bodies remain hardcoded in
-  `src/lib/email-templates.server.ts`.
+- The local Lagos fallback and seed content now use the approved
+  `Abiodun Oshowole Cl, off Oluwaleimu Street, Allen, Ikeja 101233, Lagos`
+  wording; the additive CMS reconciliation migration is staging-only.
+- Email subject and sanitized body overrides are editable through the admin
+  email workspace, with a code fallback when no override is published.
 - Google Meet creation is best-effort and requires enabled Google settings and a
   connected therapist account. A confirmed booking can therefore remain in a
   sync-error state.
@@ -103,18 +106,15 @@ partially populated rows.
 
 ## Recommended implementation order
 
-1. P0 payment-to-booking commitment and review-state verification, including
-   Paystack grouped payments and bank-transfer approval.
-2. P0 confirmed-booking notification and Google Meet ordering/retry behavior.
-3. P0 incomplete/unpaid booking slot and admin-notification isolation.
-4. P1 canonicalize address, location, pricing, and WAT data ownership between
-   CMS, database, emails, and code fallbacks.
-5. P1 finish editable email body templates with preview, versioning, and safe
-   placeholder validation.
-6. P1 verify today/operations views and all WAT boundary cases.
-7. P1 complete Google Reviews refresh/export and document Search Console
-   responsibility.
-8. Run isolated staging/UAT journeys and attach evidence before any release PR.
+1. Run P0 payment-to-booking, grouped payment, bank-transfer, and slot
+   commitment UAT with approved staging migrations and sandbox providers.
+2. Verify confirmed-booking notification and Google Meet ordering/retry
+   behavior in an email/calendar sink.
+3. Verify incomplete/unpaid booking slot and admin-notification isolation.
+4. Validate canonical address, location, pricing, email, and WAT values against
+   the staging CMS and approved content matrix.
+5. Run Google Reviews refresh/export and Search Console ownership checks.
+6. Run isolated staging/UAT journeys and attach evidence before any release PR.
 
 The disposable-account UAT plan is defined in
 `docs/TALKSPACE_DISPOSABLE_UAT_ACCOUNTS.md`. It requires synthetic staging
@@ -126,13 +126,15 @@ all 16 feedback issues and the five disposable-account requirements.
 
 ## Database-change summary
 
-Potential database work is documented in the issue register only. No migration
-was executed during this audit.
+Potential database work is documented in the issue register and the two local
+additive migrations. No migration was executed against a remote project during
+this audit.
 
-- Likely: payment/booking commitment or review-state adjustments, email body
-  template fields/versioning, canonical site/location settings, and possibly
-  notification claim or operational query indexes.
-- Possible: Google Reviews provider ID/pagination fields and explicit booking
-  group reconciliation fields.
+- Local/staging candidates: confirmed-contact/payment guards and canonical CMS
+  reconciliation, both recorded as additive migrations that require review and
+  staging application.
+- Possible future: Google Reviews provider fields or explicit booking-group
+  reconciliation fields if staging/provider evidence demonstrates they are
+  needed.
 - Not inherently required: WAT display fixes, sitemap/robots responsibility
   documentation, or UI-only operations filtering.

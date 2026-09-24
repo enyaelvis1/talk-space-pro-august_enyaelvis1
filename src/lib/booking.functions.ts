@@ -82,15 +82,17 @@ async function fireEmail(
   }
 }
 
-async function fireAdminBookingNotice(data: Record<string, unknown>) {
+async function fireAdminBookingNotice(data: Record<string, unknown>, appointmentId: string) {
   if (data.status !== "confirmed") return;
   try {
-    const { loadEmailSettings, sendTemplateEmail } = await import("@/lib/email.server");
+    const { loadEmailSettings } = await import("@/lib/email.server");
     const settings = await loadEmailSettings();
     const inbox = settings.contactInbox || settings.fromEmail;
     if (!inbox) return;
-    await sendTemplateEmail("booking_admin_notice", inbox, data, {
-      replyTo: typeof data.clientEmail === "string" ? data.clientEmail : settings.replyTo,
+    await fireEmail("booking_admin_notice", inbox, data, {
+      appointmentId,
+      notificationKey: "booking_admin_notice",
+      recipientRole: "admin",
     });
   } catch (err) {
     console.error("[booking] admin email send failed:", err);
@@ -587,19 +589,10 @@ export const holdSlot = createServerFn({ method: "POST" })
     const held = Array.isArray(appointment) ? appointment[0] : appointment;
     if (!held) throw new Error("The booking hold could not be created.");
 
-    // Persist the plaintext manage token so subsequent transactional emails
-    // (reminders, reschedule/cancel notices) can include a ready-to-use link.
+    // Persist the plaintext manage token before returning so payment callbacks,
+    // reminders, and reschedule/cancel notices cannot race a fire-and-forget
+    // write and lose the resume/manage link.
     void (async () => {
-      try {
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        await supabaseAdmin
-          .from("appointments")
-          .update({ manage_token: manageToken })
-          .eq("id", held.id);
-      } catch (err) {
-        console.error("[booking] failed to persist manage_token:", err);
-      }
-
       try {
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         await supabaseAdmin.from("intake_submissions").insert({
@@ -629,6 +622,13 @@ export const holdSlot = createServerFn({ method: "POST" })
         console.error("[booking] failed to persist intake snapshot:", err);
       }
     })();
+
+    const { supabaseAdmin: tokenAdmin } = await import("@/integrations/supabase/client.server");
+    const { error: tokenError } = await tokenAdmin
+      .from("appointments")
+      .update({ manage_token: manageToken })
+      .eq("id", held.id);
+    if (tokenError) throw tokenError;
 
     setResponseHeader("Cache-Control", "private, no-store");
     let packageCredit: {
@@ -716,23 +716,26 @@ export const holdSlot = createServerFn({ method: "POST" })
           manageUrl: canonicalUrl(`/manage/${held.booking_reference}?token=${manageToken}`),
         });
       }
-      await fireAdminBookingNotice({
-        clientName: data.fullName,
-        clientEmail: data.email,
-        clientPhone: data.phone,
-        reference: held.booking_reference,
-        serviceName: ctx.services?.name ?? "",
-        therapistName: ctx.therapists?.full_name ?? "",
-        startsAt: held.starts_at,
-        mode: data.mode,
-        status: ctx.status,
-        paymentStatus: packageCredit
-          ? `Paid with package (${packageCredit.remaining_sessions} remaining session(s))`
-          : "Pending payment/confirmation",
-        notes: data.notes,
-        location: ctx.therapists?.location ?? "",
-        adminUrl: canonicalUrl("/admin/bookings"),
-      });
+      await fireAdminBookingNotice(
+        {
+          clientName: data.fullName,
+          clientEmail: data.email,
+          clientPhone: data.phone,
+          reference: held.booking_reference,
+          serviceName: ctx.services?.name ?? "",
+          therapistName: ctx.therapists?.full_name ?? "",
+          startsAt: held.starts_at,
+          mode: data.mode,
+          status: ctx.status,
+          paymentStatus: packageCredit
+            ? `Paid with package (${packageCredit.remaining_sessions} remaining session(s))`
+            : "Pending payment/confirmation",
+          notes: data.notes,
+          location: ctx.therapists?.location ?? "",
+          adminUrl: canonicalUrl("/admin/bookings"),
+        },
+        held.id,
+      );
       try {
         const { sendTherapistBookingEmail } = await import("@/lib/therapist-email.server");
         await sendTherapistBookingEmail(held.id as string);
@@ -805,17 +808,21 @@ export const holdSlots = createServerFn({ method: "POST" })
 
       requestSupabase.commitCookies();
 
+      const { supabaseAdmin: tokenAdmin } = await import("@/integrations/supabase/client.server");
+      const tokenResults = await Promise.all(
+        heldAppointments.map((held) =>
+          tokenAdmin
+            .from("appointments")
+            .update({ manage_token: held.manageToken })
+            .eq("id", held.id),
+        ),
+      );
+      const tokenError = tokenResults.find((result) => result.error)?.error;
+      if (tokenError) throw tokenError;
+
       void (async () => {
         try {
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-          await Promise.all(
-            heldAppointments.map((held) =>
-              supabaseAdmin
-                .from("appointments")
-                .update({ manage_token: held.manageToken })
-                .eq("id", held.id),
-            ),
-          );
           await supabaseAdmin.from("intake_submissions").insert(
             heldAppointments.map((held, index) => ({
               source: "booking",
@@ -1469,7 +1476,7 @@ export const createAdminBooking = createServerFn({ method: "POST" })
           notes: context.notes ?? data.notes,
         };
         await fireEmail("booking_confirmation", context.client_email, common);
-        await fireAdminBookingNotice(common);
+        await fireAdminBookingNotice(common, appointmentId);
         try {
           const { sendTherapistBookingEmail } = await import("@/lib/therapist-email.server");
           await sendTherapistBookingEmail(appointmentId);

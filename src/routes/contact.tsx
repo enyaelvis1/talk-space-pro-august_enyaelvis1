@@ -27,7 +27,7 @@ export const Route = createFileRoute("/contact")({
       path: "/contact",
       title: "Contact Talk Space | WhatsApp, phone, Lagos & Abuja offices",
       description:
-        "Reach Talk Space Counselling Services by WhatsApp, phone or email. Offices in Lagos (Gbagada) and Abuja (T-Pumpy Estate). Mon-Fri, 9am-5pm WAT.",
+        "Reach Talk Space Counselling Services by WhatsApp, phone or email. Offices in Lagos (Allen, Ikeja) and Abuja (T-Pumpy Estate). Mon-Fri, 9am-5pm WAT.",
       ogTitle: "Contact Talk Space",
       ogDescription: "WhatsApp, phone and email. Offices in Lagos and Abuja.",
       entry: loaderData?.entry ?? null,

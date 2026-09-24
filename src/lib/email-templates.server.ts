@@ -134,7 +134,12 @@ function firstTimeAssessmentBlock(): string {
 function onlineMeetingBlock(data: Data): string {
   if (pick(data, "mode") !== "online") return "";
   const meetingLink = pick(data, "meetingLink").trim();
-  if (!meetingLink) return "";
+  if (!meetingLink) {
+    return `<div style="margin:20px 0 0;padding:16px;border:1px solid ${BRAND.border};border-radius:12px;background:${BRAND.mintSoft};">
+      <div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:${BRAND.muted};font-weight:700;margin-bottom:8px;">Online session link</div>
+      ${p("Your Google Meet link is still being prepared. We will update your booking before the session starts.")}
+    </div>`;
+  }
   return `<div style="margin:20px 0 0;padding:16px;border:1px solid ${BRAND.border};border-radius:12px;background:#fff;">
     <div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:${BRAND.muted};font-weight:700;margin-bottom:8px;">Online session link</div>
     ${p(
@@ -162,12 +167,57 @@ function physicalLocationBlock(data: Data): string {
 
 type Data = Record<string, unknown>;
 
+const EMAIL_BODY_PLACEHOLDERS = new Set([
+  "clientName",
+  "clientEmail",
+  "clientPhone",
+  "reference",
+  "bookingReference",
+  "paymentReference",
+  "serviceName",
+  "therapistName",
+  "startsAt",
+  "mode",
+  "meetingLink",
+  "location",
+  "manageUrl",
+  "adminUrl",
+  "amountKobo",
+  "currency",
+  "paymentMethod",
+  "status",
+  "paymentStatus",
+  "formName",
+  "resumeUrl",
+  "reason",
+  "packageBookingUrl",
+  "packageRemainingSessions",
+]);
+
 function pick(data: Data, key: string, fallback = ""): string {
   const v = data[key];
   return v === undefined || v === null ? fallback : String(v);
 }
 
-export function renderEmailTemplate(key: EmailTemplateKey, data: Data): Rendered {
+export function renderEmailTemplate(
+  key: EmailTemplateKey,
+  data: Data,
+  bodyOverride?: string | null,
+): Rendered {
+  if (bodyOverride?.trim()) {
+    const fallback = renderEmailTemplate(key, data);
+    const html = bodyOverride
+      .trim()
+      .split(/\n{2,}/)
+      .map((paragraph) => {
+        const safe = esc(paragraph).replace(/\{\{([A-Za-z][A-Za-z0-9_]*)\}\}/g, (_, name) =>
+          EMAIL_BODY_PLACEHOLDERS.has(name) ? esc(pick(data, name)) : "",
+        );
+        return p(safe.replace(/\n/g, "<br/>"));
+      })
+      .join("");
+    return { subject: fallback.subject, html: shell(html, fallback.subject) };
+  }
   switch (key) {
     case "booking_confirmation": {
       const rows: Array<[string, string]> = [
@@ -403,6 +453,7 @@ export function renderEmailTemplate(key: EmailTemplateKey, data: Data): Rendered
       };
     }
     case "payment_success": {
+      const meetingPending = pick(data, "mode") === "online" && !pick(data, "meetingLink").trim();
       return {
         subject: `Payment confirmed (${pick(data, "paymentReference")})`,
         html: shell(
@@ -410,7 +461,9 @@ export function renderEmailTemplate(key: EmailTemplateKey, data: Data): Rendered
             p(
               pick(data, "bookingNeedsReview") === "yes"
                 ? "We received your payment, but your booking needs review. Do not pay again. Reply with your payment reference so our team can arrange rescheduling or a refund review."
-                : "We received your payment and your Talk Space session is confirmed.",
+                : meetingPending
+                  ? "We received your payment and your Talk Space session is confirmed. Your Google Meet link is still being prepared and will be added to your booking."
+                  : "We received your payment and your Talk Space session is confirmed.",
             ) +
             detailList([
               ["Payment reference", esc(pick(data, "paymentReference"))],

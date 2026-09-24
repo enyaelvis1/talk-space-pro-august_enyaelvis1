@@ -22,6 +22,10 @@ export function resolveServicePriceNgn(
     if (service?.in_person_price_ngn != null) return Number(service.in_person_price_ngn);
     const fallback = fallbackInPersonPriceNgn(service?.code);
     if (fallback != null) return fallback;
+    // An in-person booking must never silently inherit the online price. A
+    // missing explicit price is an unavailable configuration that callers
+    // should surface before creating a payment or holding a slot.
+    return null;
   }
   return service?.price_ngn == null ? null : Number(service.price_ngn);
 }

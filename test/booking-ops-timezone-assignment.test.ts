@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { formatWATDateTime, formatWATTime, APP_TIME_ZONE } from "../src/lib/time.ts";
+import {
+  formatWATDateKey,
+  formatWATDateTime,
+  formatWATTime,
+  APP_TIME_ZONE,
+} from "../src/lib/time.ts";
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -10,6 +15,8 @@ test("operational timestamps use the West African Time contract", () => {
   assert.match(formatWATDateTime("2026-09-22T10:30:00.000Z"), /11:30/);
   assert.match(formatWATDateTime("2026-09-22T23:30:00.000Z"), /00:30/);
   assert.match(formatWATTime("2026-09-22T10:30:00.000Z"), /11:30/);
+  assert.equal(formatWATDateKey("2026-09-22T23:30:00.000Z"), "2026-09-23");
+  assert.equal(formatWATDateKey("2026-09-23T00:30:00.000Z"), "2026-09-23");
 });
 
 test("admin client assignment offers active therapists and validates the selection", () => {

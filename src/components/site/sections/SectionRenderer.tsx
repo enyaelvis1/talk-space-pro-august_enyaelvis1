@@ -148,10 +148,11 @@ function normalizeContactCard(card: SectionCard): SectionCard {
     case "contact-lagos":
       return {
         ...card,
+        title: "Talk Space Counseling, Lagos",
         body:
           card.body === "Ladipo Kasumu Street, Ikeja, Lagos, Nigeria." ||
           card.body === "20, Estaport Avenue, Gbagada, Lagos, Nigeria."
-            ? "20, Estaport Avenue\nGbagada, Lagos, Nigeria"
+            ? "Abiodun Oshowole Cl, off Oluwaleimu Street\nAllen, Ikeja 101233, Lagos"
             : card.body,
         bullets:
           card.bullets.length === 1 && card.bullets[0] === "In-person sessions by appointment only"
