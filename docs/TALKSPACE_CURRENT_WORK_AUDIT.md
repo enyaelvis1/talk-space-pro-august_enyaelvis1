@@ -39,6 +39,8 @@ cross-system verification gaps:
   admin dashboard, sitemap, and robots modules under `src/`.
 - Supabase schema/migration history under `supabase/migrations/`.
 - Recent `develop` history and current branch/worktree state.
+- `docs/TALKSPACE_DISPOSABLE_UAT_ACCOUNTS.md`, including current account
+  provisioning paths and staging-only cleanup requirements.
 
 ## Current implementation assessment
 
@@ -113,6 +115,10 @@ partially populated rows.
 7. P1 complete Google Reviews refresh/export and document Search Console
    responsibility.
 8. Run isolated staging/UAT journeys and attach evidence before any release PR.
+
+The disposable-account UAT plan is defined in
+`docs/TALKSPACE_DISPOSABLE_UAT_ACCOUNTS.md`. It requires synthetic staging
+accounts only; no accounts were created during this audit.
 
 ## Database-change summary
 

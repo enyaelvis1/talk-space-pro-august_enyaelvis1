@@ -422,3 +422,24 @@ No item should be marked resolved for production solely from static inspection.
 The implementation PR must attach staging evidence for the relevant UAT steps,
 redact client/payment secrets, and follow `feature/*` → `develop` → staging/UAT
 → separate approved release PR to `main`.
+
+## Disposable-account UAT plan
+
+The complete staging-only account matrix is in
+`docs/TALKSPACE_DISPOSABLE_UAT_ACCOUNTS.md`. It covers a synthetic admin,
+therapist, client, optional second therapist, and optional second client, with
+role expectations, test data, features, evidence, and cleanup/deactivation.
+
+Current support was verified from the repository:
+
+- Client sign-up is available at `/login`; new users receive the default
+  `client` role through the Auth trigger.
+- Admin client creation/import and `scripts/seed-demo-clients.mjs` can create
+  synthetic client records, but the seed helper requires a server-only key.
+- Admin therapists can be created as profiles and linked/invited through the
+  `/admin/therapists` flow.
+- No visible admin-panel workflow creates or promotes a new `admin` account;
+  staging Auth plus controlled role assignment is required for that test.
+
+No UAT accounts were created, no seed helper was run, and no migrations or
+production changes were made for this follow-up.
