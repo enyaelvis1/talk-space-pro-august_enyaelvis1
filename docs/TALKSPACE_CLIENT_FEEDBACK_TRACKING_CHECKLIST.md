@@ -45,6 +45,60 @@ Migration follow-up is documented in
 state/slot safeguards and the database invariant still require explicit
 migration approval and have not been applied.
 
+## PR #56 staging readiness review — 24 September 2026
+
+- [x] PR #55 is merged into `develop`; PR #56 remains open and unmerged.
+- [x] PR #56 is on `feat/talkspace-booking-payment-integrity` and contains no
+      production deployment or migration execution.
+- [x] Application-only smoke/build validation can run on an isolated staging
+      deployment without migrations.
+- [ ] P0 UAT is not approved to start until the staging migration plan is
+      explicitly approved and the migrations are applied successfully.
+- [ ] Production migration, production deployment, and live provider testing
+      remain prohibited until separate approval.
+
+### Migration readiness summary
+
+| Decision | Result |
+| --- | --- |
+| Can PR #56 run as a staging smoke build without migrations? | Yes, isolated smoke/build only. |
+| Can the ten P0 scenarios be signed off without migrations? | No. Database slot, token, bank-transfer, payment-review, and cleanup safeguards are not complete. |
+| Existing migration order | `20260912194500` → `20260913110000` → `20260913120000` → `20260913130000` → `20260916100000` → `20260917143000` → `20260921190000` |
+| Additional required migration | Reviewed additive confirmed-contact and valid-payment/package invariant, after the existing sequence. |
+| Rollback prerequisite | Recoverable staging snapshot/backup and named restore owner. |
+| Current decision | Ready for staging validation planning; blocked from P0 execution pending migration approval/application. |
+
+See the full staging-only order and rollback plan in
+`docs/TALKSPACE_P0_BOOKING_PAYMENT_MIGRATION_REQUIRED.md`.
+
+## P0 staging UAT run sheet
+
+Run only with the disposable accounts in
+`docs/TALKSPACE_DISPOSABLE_UAT_ACCOUNTS.md`, synthetic data, a staging email
+sink, and Paystack sandbox/test references. Each row requires redacted
+evidence before its status can move beyond `Ready for UAT`.
+
+| # | Scenario and expected result | Booking reference | Payment/bank reference | Client account | Therapist | Screenshot/evidence required | Status | Notes/blocker |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | Abandon before payment; booking does not appear in operations. | Pending | N/A | UAT-ACC-003 | UAT-ACC-002 | Operations page showing no row; redacted lifecycle log. | Ready for UAT | Requires staging migrations and synthetic booking. |
+| 2 | Abandon before payment; therapist slot remains available. | Pending | N/A | UAT-ACC-003 | UAT-ACC-002 | Slot response before/after expiry; availability screenshot. | Ready for UAT | Requires committed-slot migration and WAT timestamp. |
+| 3 | Paystack sandbox success confirms the booking exactly once. | Pending | Sandbox reference required | UAT-ACC-003 | UAT-ACC-002 | Paystack verification result, booking status, timeline, no duplicate event. | Ready for UAT | Never use a live reference. |
+| 4 | Successful sandbox payment creates/updates the client record with name/email/phone. | Pending | Sandbox reference required | UAT-ACC-003 | UAT-ACC-002 | Client record screenshot, booking link, redacted reconciliation log. | Ready for UAT | Confirm no unnamed confirmed client. |
+| 5 | Wrong-amount Paystack reference is rejected with a clear reason and no confirmation. | Pending | Wrong-amount sandbox reference | UAT-ACC-003 | UAT-ACC-002 | Error screenshot, payment/booking state, provider response redacted. | Ready for UAT | Must verify minor-unit comparison. |
+| 6 | Bank-transfer submission remains pending review and does not confirm. | Pending | Synthetic transfer reference | UAT-ACC-003 | UAT-ACC-002 | Admin pending-review screenshot, payment/booking timeline. | Ready for UAT | No real bank transfer or receipt. |
+| 7 | Admin approves bank transfer; booking confirms and downstream state is created once. | Pending | Synthetic transfer reference | UAT-ACC-001 / 003 | UAT-ACC-002 | Approval action, confirmed operations row, client record, audit result. | Ready for UAT | Requires bank-transfer migration and admin account. |
+| 8 | Admin rejects bank transfer; booking does not reserve the slot. | Pending | Synthetic transfer reference | UAT-ACC-001 / 003 | UAT-ACC-002 | Rejection result, free-slot response, no confirmation notice. | Ready for UAT | Confirm repeated rejection is idempotent. |
+| 9 | Registered client booking reuses/updates client details safely. | Pending | Sandbox or synthetic pending reference | UAT-ACC-003 | UAT-ACC-002 | Prefilled form, updated client record, linked client ID, RLS result. | Ready for UAT | Use synthetic edits only. |
+| 10 | Incomplete booking token/reminder lets client resume or complete payment. | Pending | Sandbox or synthetic pending reference | UAT-ACC-003 | UAT-ACC-002 | Resume/manage-link screenshot, reminder-sink evidence, expiry result. | Ready for UAT | Reminder must target client sink, not admin. |
+
+### UAT evidence completion fields
+
+For every row above, replace `Pending` with the redacted booking reference,
+payment/bank-transfer reference, and evidence links after execution. Record the
+client account and therapist used, WAT timestamp, pass/fail result, and blocker.
+Do not record passwords, cookies, manage tokens, invite links, payment secrets,
+or `.env` values.
+
 ## Client feedback checklist
 
 ### TS-001 — Replace the in-person Lagos address
