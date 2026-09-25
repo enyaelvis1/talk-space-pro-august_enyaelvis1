@@ -6,6 +6,7 @@ import { createPublicReadCache } from "@/lib/public-read-cache";
 import { parseSpecialtyCards, type SpecialtyCard } from "@/lib/specialty-cards";
 import { cleanLegacyPostBodyHtml, sanitizeContentHtml } from "@/lib/content-html";
 import { TS } from "@/lib/talkspace";
+import { DEFAULT_PHYSICAL_SESSION_ADDRESS } from "@/lib/physical-session-address";
 
 import {
   cloneFormTemplates,
@@ -130,6 +131,7 @@ export type PublicFooterSettings = {
   crisisCtaHref: string;
   description: string;
   contactAddress: string;
+  physicalSessionAddress: string;
   offices: FooterOffice[];
   sections: FooterSection[];
   bottomLeft: string;
@@ -145,6 +147,7 @@ export const DEFAULT_FOOTER_SETTINGS: PublicFooterSettings = {
   description:
     "Talk Space supports individuals and couples working through emotional, behavioural and thinking challenges brought on by stress, trauma, life circumstances or relationship difficulties.",
   contactAddress: "",
+  physicalSessionAddress: DEFAULT_PHYSICAL_SESSION_ADDRESS,
   offices: TS.addresses.map((address) => ({
     name: address.city,
     addressLines: [...address.lines],
@@ -1001,6 +1004,7 @@ export function parseFooterSettings(value: unknown): PublicFooterSettings {
     crisisCtaHref: read("crisisCtaHref"),
     description: read("description"),
     contactAddress: read("contactAddress"),
+    physicalSessionAddress: read("physicalSessionAddress"),
     offices:
       offices.length || (typeof raw.contactAddress === "string" && raw.contactAddress.trim())
         ? offices

@@ -430,14 +430,18 @@ test("admins can edit footer content from workspace settings", () => {
   assert.match(settings, /Footer settings/);
   assert.match(settings, /Footer navigation/);
   assert.match(settings, /Office locations/);
+  assert.match(settings, /Physical session address/);
+  assert.match(settings, /physicalSessionAddress/);
   assert.match(settings, /Add office/);
   assert.match(settings, /Crisis button link/);
   assert.match(settings, /showSocialLinks/);
   assert.match(adminFunctions, /footerSettingsSchema/);
+  assert.match(adminFunctions, /physicalSessionAddress/);
   assert.match(adminFunctions, /key: "footer_settings"/);
   assert.match(adminFunctions, /DEFAULT_FOOTER_SETTINGS/);
   assert.match(contentFunctions, /getPublicFooterSettings/);
   assert.match(contentFunctions, /parseFooterSettings/);
+  assert.match(contentFunctions, /physicalSessionAddress/);
   assert.match(siteFooter, /useMatch\([\s\S]*loaderData/);
   assert.match(siteFooter, /shell\?\.footer/);
   assert.match(siteFooter, /footer\.sections\.map/);
