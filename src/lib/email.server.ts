@@ -4,6 +4,10 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { renderEmailTemplate, type EmailTemplateKey } from "@/lib/email-templates.server";
 import { notificationSuppressionReason } from "@/lib/notification-policy";
+import {
+  DEFAULT_PHYSICAL_SESSION_ADDRESS,
+  readPhysicalSessionAddress,
+} from "@/lib/physical-session-address";
 
 export type EmailSettings = {
   provider: string;
@@ -322,7 +326,25 @@ export async function sendTemplateEmail(
     return { sent: false, reason: "api_key_not_configured", logId };
   }
 
-  const rendered = renderEmailTemplate(templateKey, data, template?.body_override);
+  let templateData = data;
+  if (data.mode === "in_person") {
+    const { data: footerSettings, error: footerSettingsError } = await supabaseAdmin
+      .from("site_settings")
+      .select("value")
+      .eq("key", "footer_settings")
+      .maybeSingle();
+    if (footerSettingsError) {
+      console.error("[email] physical session address lookup failed", footerSettingsError);
+    }
+    templateData = {
+      ...data,
+      physicalSessionAddress: footerSettingsError
+        ? DEFAULT_PHYSICAL_SESSION_ADDRESS
+        : readPhysicalSessionAddress(footerSettings?.value, data.location),
+    };
+  }
+
+  const rendered = renderEmailTemplate(templateKey, templateData, template?.body_override);
   const subject = template?.subject_override?.trim() || rendered.subject;
   const from = formatFrom(settings)!;
 

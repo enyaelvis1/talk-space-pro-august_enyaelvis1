@@ -709,6 +709,22 @@ function SettingsAdminRoute() {
           />
 
           <div className="space-y-4 border-t border-border/60 pt-5">
+            <div>
+              <h3 className="text-sm font-semibold text-brand-deep">Physical session address</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Used in client confirmations, reminders, and reschedule emails for in-person
+                sessions.
+              </p>
+              <div className="mt-4">
+                <TextareaField
+                  label="Address shown to clients"
+                  value={footer.physicalSessionAddress}
+                  onChange={(value) => setFooterField("physicalSessionAddress", value)}
+                  rows={3}
+                />
+              </div>
+            </div>
+
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-semibold text-brand-deep">Office locations</h3>

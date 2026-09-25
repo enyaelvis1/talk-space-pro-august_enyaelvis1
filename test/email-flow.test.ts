@@ -100,8 +100,11 @@ test("transactional email templates cover confirmations, reminders, contact, and
 test("session emails separate online links from in-person locations", () => {
   assert.match(emailTemplates, /if \(pick\(data, "mode"\) !== "online"\) return ""/);
   assert.match(emailTemplates, /Physical session location/);
+  assert.match(emailTemplates, /physicalSessionAddress/);
   assert.match(emailTemplates, /TS\.addresses\[0\]/);
   assert.match(emailTemplates, /TS\.addresses\[1\]/);
+  assert.match(emailServer, /site_settings/);
+  assert.match(emailServer, /readPhysicalSessionAddress/);
 });
 
 test("client booking emails include first-time assessment links", () => {
