@@ -1240,6 +1240,22 @@ export const verifyPaystackPayment = createServerFn({ method: "POST" })
       storedReceipt.currency === checkout.currency
     ) {
       await assertPaymentBookingContacts(data.reference);
+      if (checkout.bookingReviewRequired) {
+        const { error } = await supabaseAdmin.rpc("mark_payment_status", {
+          p_reference: data.reference,
+          p_new_status: "succeeded",
+          p_provider_reference: undefined,
+          p_failed_reason: undefined,
+          p_metadata: {
+            verified_via: "callback_booking_retry",
+            paystack_receipt: storedReceipt,
+          },
+        });
+        if (error) throw error;
+      }
+      const refreshedCheckout = checkout.bookingReviewRequired
+        ? await loadPaystackCheckout(data.reference)
+        : checkout;
       await syncClientRecordsForSuccessfulPayment(data.reference);
       await syncGoogleForPaymentReference(data.reference);
       const packageInfo = packagePurchase ? await loadPurchasePackage(payment.id) : null;
@@ -1250,7 +1266,7 @@ export const verifyPaystackPayment = createServerFn({ method: "POST" })
       }
       return {
         ...storedReceipt,
-        bookingReviewRequired: checkout.bookingReviewRequired,
+        bookingReviewRequired: refreshedCheckout.bookingReviewRequired,
         status: "succeeded",
         bookingReference:
           (payment.appointments as { booking_reference?: string } | null)?.booking_reference ??
@@ -1380,9 +1396,25 @@ export const verifyPaystackPaymentForAdmin = createServerFn({ method: "POST" })
       storedReceipt.bookingAmountKobo === checkout.amountKobo &&
       storedReceipt.currency === checkout.currency
     ) {
+      if (checkout.bookingReviewRequired) {
+        const { error } = await supabaseAdmin.rpc("mark_payment_status", {
+          p_reference: reference,
+          p_new_status: "succeeded",
+          p_provider_reference: undefined,
+          p_failed_reason: undefined,
+          p_metadata: {
+            verified_via: "admin_booking_retry",
+            paystack_receipt: storedReceipt,
+          },
+        });
+        if (error) throw error;
+      }
+      const refreshedCheckout = checkout.bookingReviewRequired
+        ? await loadPaystackCheckout(reference)
+        : checkout;
       return {
         ...storedReceipt,
-        bookingReviewRequired: checkout.bookingReviewRequired,
+        bookingReviewRequired: refreshedCheckout.bookingReviewRequired,
         status: "succeeded",
         bookingReference:
           (checkout.payment.appointments as { booking_reference?: string } | null)
