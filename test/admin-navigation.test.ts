@@ -371,6 +371,8 @@ test("booking operations supports visible admin rescheduling and Meet status che
   assert.match(bookings, /Temporary booking deleted/);
   assert.match(bookings, /renderDeleteButton/);
   assert.match(bookings, /Delete booking/);
+  assert.match(bookings, /Delete &amp; release slot/);
+  assert.match(bookings, /admin_delete_release_slot/);
   assert.match(bookings, /Cancel & release slot/);
   assert.match(bookings, /Choose what happens to this booking/);
   assert.match(bookings, /Reschedule the same client/);

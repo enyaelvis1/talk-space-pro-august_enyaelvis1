@@ -90,7 +90,19 @@ async function processReminders() {
     if (toSend.length === 0) continue;
 
     for (const key of toSend) {
+      let claimed = false;
       try {
+        const claim = await supabaseAdmin.rpc("claim_appointment_notification", {
+          p_appointment_id: row.id,
+          p_notification_key: key,
+          p_recipient_role: "client",
+        });
+        if (claim.error) throw claim.error;
+        if (!claim.data) {
+          results.push({ id: row.id, key, sent: false, reason: "notification_claimed" });
+          continue;
+        }
+        claimed = true;
         const result = await sendTemplateEmail(key, row.client_email, {
           clientName: row.client_name,
           reference: row.booking_reference,
@@ -123,6 +135,13 @@ async function processReminders() {
             await supabaseAdmin.from("appointments").update(patch).eq("id", row.id);
           }
         }
+        const finalize = await supabaseAdmin.rpc("finalize_appointment_notification", {
+          p_appointment_id: row.id,
+          p_notification_key: key,
+          p_recipient_role: "client",
+          p_sent: result.sent,
+        });
+        if (finalize.error) throw finalize.error;
       } catch (err) {
         console.error(`[reminders] failed for ${row.id}/${key}:`, err);
         results.push({
@@ -131,6 +150,14 @@ async function processReminders() {
           sent: false,
           reason: err instanceof Error ? err.message : "unknown",
         });
+        if (claimed) {
+          await supabaseAdmin.rpc("finalize_appointment_notification", {
+            p_appointment_id: row.id,
+            p_notification_key: key,
+            p_recipient_role: "client",
+            p_sent: false,
+          });
+        }
       }
     }
   }

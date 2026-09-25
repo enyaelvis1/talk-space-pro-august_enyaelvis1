@@ -1,4 +1,5 @@
 import type { UpcomingAppointmentRow } from "@/lib/booking.functions";
+import { formatWATDateKey, getWATDateTimeParts, zonedWATDateTimeToUtc } from "./time.ts";
 
 export type BookingCalendarDay = {
   dateKey: string;
@@ -55,18 +56,17 @@ export function getHiddenAdminTemporaryRows(
 }
 
 function toDateKey(date: Date): string {
-  const year = date.getUTCFullYear();
-  const month = `${date.getUTCMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getUTCDate()}`.padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return formatWATDateKey(date);
 }
 
 function startOfMonth(date: Date): Date {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+  const [year, month] = formatWATDateKey(date).split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, 1, 12));
 }
 
 function endOfMonth(date: Date): Date {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0));
+  const [year, month] = formatWATDateKey(date).split("-").map(Number);
+  return new Date(Date.UTC(year, month, 0, 12));
 }
 
 export function buildBookingCalendarMonth(
@@ -81,7 +81,7 @@ export function buildBookingCalendarMonth(
 
   for (let index = 0; index < totalCells; index += 1) {
     const dayDate = new Date(
-      Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth(), index - startOffset + 1),
+      Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth(), index - startOffset + 1, 12),
     );
     const dateKey = toDateKey(dayDate);
     const dayAppointments = appointments.filter(
@@ -92,7 +92,7 @@ export function buildBookingCalendarMonth(
       date: dayDate,
       count: dayAppointments.length,
       appointments: dayAppointments,
-      isCurrentMonth: dayDate.getUTCMonth() === anchor.getUTCMonth(),
+      isCurrentMonth: dateKey.slice(0, 7) === formatWATDateKey(anchor).slice(0, 7),
     });
   }
 
@@ -185,13 +185,11 @@ export function getNowSummary(
  */
 export function shiftAppointmentToDate(startsAtIso: string, dateKey: string): string {
   const source = new Date(startsAtIso);
-  const [year, month, day] = dateKey.split("-").map((part) => Number(part));
-  if (Number.isNaN(source.getTime()) || !year || !month || !day) {
+  if (Number.isNaN(source.getTime()) || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
     throw new Error("Invalid drop target date.");
   }
-  const next = new Date(source.getTime());
-  next.setUTCFullYear(year, month - 1, day);
-  return next.toISOString();
+  const sourceParts = getWATDateTimeParts(source);
+  return zonedWATDateTimeToUtc(dateKey, sourceParts, source.getUTCMilliseconds());
 }
 
 export function isSameDateKey(startsAtIso: string, dateKey: string): boolean {

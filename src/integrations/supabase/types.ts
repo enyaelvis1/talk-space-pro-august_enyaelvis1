@@ -776,6 +776,7 @@ export type Database = {
       };
       email_template_settings: {
         Row: {
+          body_override: string | null;
           description: string | null;
           display_name: string;
           is_enabled: boolean;
@@ -784,6 +785,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          body_override?: string | null;
           description?: string | null;
           display_name: string;
           is_enabled?: boolean;
@@ -792,6 +794,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          body_override?: string | null;
           description?: string | null;
           display_name?: string;
           is_enabled?: boolean;

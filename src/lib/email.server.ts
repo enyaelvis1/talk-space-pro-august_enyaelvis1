@@ -24,6 +24,7 @@ export type EmailTemplateRow = {
   description: string | null;
   isEnabled: boolean;
   subjectOverride: string | null;
+  bodyOverride: string | null;
 };
 
 function getEncKey(): Buffer {
@@ -78,7 +79,7 @@ export async function loadEmailSettings(): Promise<EmailSettings> {
 export async function loadTemplateSettings(): Promise<EmailTemplateRow[]> {
   const { data, error } = await supabaseAdmin
     .from("email_template_settings")
-    .select("template_key, display_name, description, is_enabled, subject_override")
+    .select("template_key, display_name, description, is_enabled, subject_override, body_override")
     .order("template_key");
   if (error) throw error;
   return (data ?? []).map((row) => ({
@@ -87,13 +88,14 @@ export async function loadTemplateSettings(): Promise<EmailTemplateRow[]> {
     description: row.description,
     isEnabled: row.is_enabled,
     subjectOverride: row.subject_override,
+    bodyOverride: row.body_override ?? null,
   }));
 }
 
 async function loadTemplateRow(key: EmailTemplateKey) {
   const { data, error } = await supabaseAdmin
     .from("email_template_settings")
-    .select("template_key, is_enabled, subject_override")
+    .select("template_key, is_enabled, subject_override, body_override")
     .eq("template_key", key)
     .maybeSingle();
   if (error) throw error;
@@ -320,7 +322,7 @@ export async function sendTemplateEmail(
     return { sent: false, reason: "api_key_not_configured", logId };
   }
 
-  const rendered = renderEmailTemplate(templateKey, data);
+  const rendered = renderEmailTemplate(templateKey, data, template?.body_override);
   const subject = template?.subject_override?.trim() || rendered.subject;
   const from = formatFrom(settings)!;
 

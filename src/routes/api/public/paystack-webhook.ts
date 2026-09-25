@@ -79,6 +79,11 @@ export const Route = createFileRoute("/api/public/paystack-webhook")({
             throw new Error("Paystack status conflicts with the confirmed payment.");
           }
 
+          if (nextStatus === "succeeded") {
+            const { assertPaymentBookingContacts } = await import("@/lib/payments.functions");
+            await assertPaymentBookingContacts(reference);
+          }
+
           if (nextStatus !== "initiated") {
             const { error } = await supabaseAdmin.rpc("mark_payment_status", {
               p_reference: reference,
@@ -95,21 +100,8 @@ export const Route = createFileRoute("/api/public/paystack-webhook")({
               return new Response("rpc_failed", { status: 500 });
             }
             if (!error && nextStatus === "succeeded") {
-              try {
-                const { syncClientRecordsForSuccessfulPayment } =
-                  await import("@/lib/payments.functions");
-                await syncClientRecordsForSuccessfulPayment(reference);
-                const { data: rows } = await supabaseAdmin
-                  .from("payments")
-                  .select("appointment_id")
-                  .or(`reference.eq.${reference},checkout_group_reference.eq.${reference}`);
-                const { syncAppointmentToGoogle } = await import("@/lib/google.functions");
-                await Promise.all(
-                  (rows ?? []).map((p) => syncAppointmentToGoogle(p.appointment_id as string)),
-                );
-              } catch (err) {
-                console.error("paystack_webhook_google_sync_failed", err);
-              }
+              const { reconcileSuccessfulPayment } = await import("@/lib/payments.functions");
+              await reconcileSuccessfulPayment(reference);
             }
             if (!error && (nextStatus === "succeeded" || nextStatus === "failed")) {
               try {

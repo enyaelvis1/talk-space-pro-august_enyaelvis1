@@ -70,7 +70,7 @@ const VALUES = [
 
 const ABOUT_STORY_PARAGRAPHS = [
   "Talk Space began in 2017 with a simple observation: too many people in Nigeria who wanted therapy either could not find a therapist they trusted, could not afford the ones they did find, or were held back by stigma.",
-  "Today, our care coordinators match hundreds of clients each month with licensed therapists, online across Nigeria, and in person at our rooms in Gbagada, Lagos. We keep our fees transparent, hold a limited number of sliding-scale slots, and never take payment until your session is confirmed.",
+  "Today, our care coordinators match hundreds of clients each month with licensed therapists, online across Nigeria, and in person at our rooms in Allen, Ikeja, Lagos. We keep our fees transparent, hold a limited number of sliding-scale slots, and never take payment until your session is confirmed.",
   "If you are considering therapy for the first time, you are welcome here. The first conversation is often the hardest, and the most important.",
 ];
 

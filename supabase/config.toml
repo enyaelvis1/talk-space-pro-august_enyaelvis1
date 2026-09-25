@@ -1,1 +1,30 @@
 project_id = "vwupdobwjlmitsgasdrz"
+
+# Local-only port range; another Supabase project is using the defaults.
+[api]
+port = 55421
+
+[db]
+port = 55422
+
+[studio]
+port = 55423
+
+[inbucket]
+port = 55424
+
+[analytics]
+port = 55427
+
+
+[auth]
+site_url = "http://127.0.0.1:8080"
+additional_redirect_urls = [
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:8081",
+  "http://127.0.0.1:8082"
+]
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false

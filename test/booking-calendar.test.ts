@@ -84,6 +84,19 @@ test("getAppointmentsForDate and getDaySummary return the selected day view", ()
   assert.equal(summary.upcomingAppointments.length, 0);
 });
 
+test("calendar date keys use Africa/Lagos around UTC midnight", () => {
+  const appointments = [
+    makeAppointment("late", "2026-08-03T23:30:00.000Z"),
+    makeAppointment("early", "2026-08-04T00:30:00.000Z"),
+  ];
+
+  assert.deepEqual(
+    getAppointmentsForDate(appointments, "2026-08-04").map((appointment) => appointment.id),
+    ["late", "early"],
+  );
+  assert.equal(isSameDateKey("2026-08-03T23:30:00.000Z", "2026-08-04"), true);
+});
+
 test("same-time therapist appointments remain distinct before, during and after their sessions", () => {
   const appointments = [
     makeAppointment("A", "2035-01-01T10:00:00Z", {
@@ -183,4 +196,10 @@ test("shiftAppointmentToDate keeps the time of day when moving to another date",
   assert.equal(moved, "2026-08-12T09:30:00.000Z");
   assert.equal(isSameDateKey(moved, "2026-08-12"), true);
   assert.equal(isSameDateKey(moved, "2026-08-03"), false);
+});
+
+test("dragging a booking preserves its Lagos wall-clock time", () => {
+  const moved = shiftAppointmentToDate("2026-08-03T23:30:00.000Z", "2026-08-12");
+  assert.equal(moved, "2026-08-11T23:30:00.000Z");
+  assert.equal(isSameDateKey(moved, "2026-08-12"), true);
 });

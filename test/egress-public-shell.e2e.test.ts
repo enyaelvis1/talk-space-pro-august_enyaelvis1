@@ -89,6 +89,30 @@ test(
       server = await createServer({
         cacheDir,
         server: { host: "127.0.0.1", port: 0, watch: null },
+        // The generated TanStack Start entry discovers router dependencies only
+        // after the first SSR request. Letting Vite discover those dependencies
+        // during the browser run restarts the dev server while the Start CSS
+        // collector is walking its module graph. Pre-bundle the discovered set
+        // up front so this isolated fixture has a stable server lifecycle.
+        optimizeDeps: {
+          noDiscovery: true,
+          include: [
+            "@radix-ui/react-alert-dialog",
+            "@radix-ui/react-checkbox",
+            "@radix-ui/react-dropdown-menu",
+            "@radix-ui/react-progress",
+            "@radix-ui/react-radio-group",
+            "@radix-ui/react-select",
+            "@radix-ui/react-switch",
+            "@tanstack/router-core",
+            "@tanstack/router-core/isServer",
+            "@tanstack/router-core/ssr/client",
+            "@supabase/ssr",
+            "@supabase/supabase-js",
+            "cookie",
+            "seroval",
+          ],
+        },
         logLevel: "silent",
       });
       await server.listen();
