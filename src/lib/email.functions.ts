@@ -204,11 +204,7 @@ function sampleDataFor(key: PreviewTemplateKey): Record<string, unknown> {
     case "therapist_booking_notice":
     case "therapist_reschedule_notice":
     case "therapist_cancellation_notice":
-      return {
-        ...base,
-        clientEmail: "ada.okoro@example.com",
-        clientPhone: "+234 803 000 0000",
-      };
+      return base;
     case "therapist_account_invitation":
       return {
         therapistName: base.therapistName,

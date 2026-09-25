@@ -26,7 +26,15 @@ export type EmailTemplateKey =
   | "package_booking_link"
   | "password_reset";
 
+type Data = Record<string, unknown>;
+
 type Rendered = { subject: string; html: string };
+
+const THERAPIST_NOTIFICATION_TEMPLATE_KEYS = new Set<EmailTemplateKey>([
+  "therapist_booking_notice",
+  "therapist_reschedule_notice",
+  "therapist_cancellation_notice",
+]);
 
 const BRAND = {
   name: "Talk Space Counselling Services",
@@ -167,8 +175,6 @@ function physicalLocationBlock(data: Data): string {
   </div>`;
 }
 
-type Data = Record<string, unknown>;
-
 const EMAIL_BODY_PLACEHOLDERS = new Set([
   "clientName",
   "clientEmail",
@@ -206,6 +212,11 @@ export function renderEmailTemplate(
   data: Data,
   bodyOverride?: string | null,
 ): Rendered {
+  if (THERAPIST_NOTIFICATION_TEMPLATE_KEYS.has(key)) {
+    data = { ...data };
+    delete data.clientEmail;
+    delete data.clientPhone;
+  }
   if (bodyOverride?.trim()) {
     const fallback = renderEmailTemplate(key, data);
     const html = bodyOverride
@@ -286,8 +297,6 @@ export function renderEmailTemplate(
             detailList([
               ["Reference", esc(pick(data, "reference"))],
               ["Client", esc(pick(data, "clientName"))],
-              ["Client email", esc(pick(data, "clientEmail"))],
-              ["Client phone", esc(pick(data, "clientPhone", "—"))],
               ["Service", esc(pick(data, "serviceName", "Session"))],
               ["When", esc(formatDateTime(pick(data, "startsAt")))],
               ["Mode", esc(pick(data, "mode") === "in_person" ? "In person" : "Online")],

@@ -7,7 +7,7 @@ export async function sendTherapistBookingEmail(appointmentId: string) {
   const { data: appointment, error } = await supabaseAdmin
     .from("appointments")
     .select(
-      "id, booking_reference, client_name, client_email, client_phone, starts_at, session_mode, status, google_meet_url, services(name), therapists(full_name, user_id, location)",
+      "id, booking_reference, client_name, starts_at, session_mode, status, google_meet_url, services(name), therapists(full_name, user_id, location)",
     )
     .eq("id", appointmentId)
     .maybeSingle();
@@ -56,8 +56,6 @@ export async function sendTherapistBookingEmail(appointmentId: string) {
   const result = await sendTemplateEmail("therapist_booking_notice", recipient, {
     reference: appointment.booking_reference,
     clientName: appointment.client_name,
-    clientEmail: appointment.client_email,
-    clientPhone: appointment.client_phone,
     therapistName: therapist.full_name ?? "Therapist",
     serviceName: (appointment.services as { name?: string } | null)?.name ?? "Session",
     startsAt: appointment.starts_at,
