@@ -176,6 +176,7 @@ function fixture(
     stored?: boolean;
     admin?: boolean;
     bookingReviewRequired?: boolean;
+    resolveBookingReview?: boolean;
     rpcError?: boolean;
     underpaid?: boolean;
   } = {},
@@ -220,6 +221,7 @@ function fixture(
     },
     async rpc(_name: string, params: Record<string, unknown>) {
       calls.rpc.push(params);
+      if (!options.rpcError && options.resolveBookingReview) checkout.bookingReviewRequired = false;
       return { error: options.rpcError ? new Error("DB write failed") : null };
     },
   };
@@ -297,15 +299,34 @@ test("successful callback refresh reuses the stored exact receipt without a Pays
   assert.equal(f.calls.rpc.length, 0);
 });
 
-test("admin Paystack recheck reuses a stored successful receipt", async () => {
-  const f = fixture({ stored: true, admin: true, bookingReviewRequired: true });
+test("stored callback receipts retry a booking that needs review", async () => {
+  const f = fixture({ stored: true, bookingReviewRequired: true, resolveBookingReview: true });
   const response = await f.run();
   assert.equal(response.status, "succeeded");
-  assert.equal(response.bookingReviewRequired, true);
+  assert.equal(response.bookingReviewRequired, false);
+  assert.equal(f.calls.verify.length, 0);
+  assert.equal(f.calls.rpc.length, 1);
+  assert.equal(f.calls.rpc[0].p_new_status, "succeeded");
+  assert.equal(f.calls.rpc[0].p_metadata?.verified_via, "callback_booking_retry");
+});
+
+test("admin Paystack recheck retries a stored payment that needs booking review", async () => {
+  const f = fixture({
+    stored: true,
+    admin: true,
+    bookingReviewRequired: true,
+    resolveBookingReview: true,
+  });
+  const response = await f.run();
+  assert.equal(response.status, "succeeded");
+  assert.equal(response.bookingReviewRequired, false);
   assert.equal(response.bookingReference, "TS-BOOK");
   assert.equal(f.calls.auth, 1);
   assert.equal(f.calls.verify.length, 0);
-  assert.equal(f.calls.rpc.length, 0);
+  assert.equal(f.calls.rpc.length, 1);
+  assert.equal(f.calls.rpc[0].p_reference, reference);
+  assert.equal(f.calls.rpc[0].p_new_status, "succeeded");
+  assert.equal(f.calls.rpc[0].p_metadata?.verified_via, "admin_booking_retry");
   assert.equal(f.calls.sync, 0);
 });
 
