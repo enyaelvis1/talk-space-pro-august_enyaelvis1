@@ -971,6 +971,7 @@ const footerSettingsSchema = z.object({
   crisisCtaHref: z.string().trim().min(1).max(300),
   description: z.string().trim().min(1).max(700),
   contactAddress: z.string().trim().max(400).default(""),
+  physicalSessionAddress: z.string().trim().min(1).max(500),
   offices: z.array(footerOfficeSchema).min(1).max(6),
   sections: z
     .array(

@@ -36,3 +36,32 @@ test("payment review receipt does not promise a booked slot or disclose unusable
     /should-not-appear|Session time|session is confirmed|remaining session/,
   );
 });
+
+test("in-person email templates use the admin-managed physical session address", async () => {
+  const source = (
+    await readFile(new URL("../src/lib/email-templates.server.ts", import.meta.url), "utf8")
+  )
+    .replace(
+      "@/lib/first-time-assessments",
+      new URL("../src/lib/first-time-assessments.ts", import.meta.url).href,
+    )
+    .replace("@/lib/talkspace", new URL("../src/lib/talkspace.ts", import.meta.url).href);
+  const { outputText } = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+  });
+  const { renderEmailTemplate } = await import(
+    `data:text/javascript;base64,${Buffer.from(outputText).toString("base64")}`
+  );
+  const result = renderEmailTemplate("booking_confirmation", {
+    clientName: "Test Client",
+    reference: "TEST-BOOK",
+    serviceName: "Individual therapy",
+    therapistName: "Test Therapist",
+    startsAt: "2030-10-01T09:00:00Z",
+    mode: "in_person",
+    location: "Lagos, NG",
+    physicalSessionAddress: "New clinic address, Ikeja, Lagos",
+  });
+  assert.match(result.html, /New clinic address, Ikeja, Lagos/);
+  assert.doesNotMatch(result.html, /Abiodun Oshowole|Estaport/);
+});

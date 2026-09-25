@@ -151,6 +151,7 @@ function onlineMeetingBlock(data: Data): string {
 
 function physicalLocationBlock(data: Data): string {
   if (pick(data, "mode") !== "in_person") return "";
+  const configuredAddress = pick(data, "physicalSessionAddress").trim();
   const location = pick(data, "location").trim();
   const normalized = location.toLowerCase();
   const address = normalized.includes("abuja")
@@ -158,7 +159,8 @@ function physicalLocationBlock(data: Data): string {
     : normalized.includes("lagos")
       ? TS.addresses[1]
       : null;
-  const lines = address ? `${address.lines.join(", ")}, ${address.city}` : location;
+  const lines =
+    configuredAddress || (address ? `${address.lines.join(", ")}, ${address.city}` : location);
   return `<div style="margin:20px 0 0;padding:16px;border:1px solid ${BRAND.border};border-radius:12px;background:#fff;">
     <div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:${BRAND.muted};font-weight:700;margin-bottom:8px;">Physical session location</div>
     ${p(esc(lines || "Our care team will confirm the room address before your session."))}
