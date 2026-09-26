@@ -60,6 +60,7 @@ import { Route as AuthenticatedAdminEmailsRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAdminClientsRouteImport } from './routes/_authenticated.admin.clients'
 import { Route as AuthenticatedAdminCarouselRouteImport } from './routes/_authenticated.admin.carousel'
 import { Route as AuthenticatedAdminBookingsRouteImport } from './routes/_authenticated.admin.bookings'
+import { Route as AuthenticatedAdminBackupsRouteImport } from './routes/_authenticated.admin.backups'
 import { Route as AuthenticatedAdminAvailabilityRouteImport } from './routes/_authenticated.admin.availability'
 import { Route as AuthenticatedAdminAuditRouteImport } from './routes/_authenticated.admin.audit'
 import { Route as AuthenticatedAccountAppointmentsRouteImport } from './routes/_authenticated.account_.appointments'
@@ -350,6 +351,12 @@ const AuthenticatedAdminBookingsRoute =
     path: '/bookings',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminBackupsRoute =
+  AuthenticatedAdminBackupsRouteImport.update({
+    id: '/backups',
+    path: '/backups',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminAvailabilityRoute =
   AuthenticatedAdminAvailabilityRouteImport.update({
     id: '/availability',
@@ -466,6 +473,7 @@ export interface FileRoutesByFullPath {
   '/account/appointments': typeof AuthenticatedAccountAppointmentsRoute
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/availability': typeof AuthenticatedAdminAvailabilityRoute
+  '/admin/backups': typeof AuthenticatedAdminBackupsRoute
   '/admin/bookings': typeof AuthenticatedAdminBookingsRouteWithChildren
   '/admin/carousel': typeof AuthenticatedAdminCarouselRoute
   '/admin/clients': typeof AuthenticatedAdminClientsRouteWithChildren
@@ -532,6 +540,7 @@ export interface FileRoutesByTo {
   '/account/appointments': typeof AuthenticatedAccountAppointmentsRoute
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/availability': typeof AuthenticatedAdminAvailabilityRoute
+  '/admin/backups': typeof AuthenticatedAdminBackupsRoute
   '/admin/bookings': typeof AuthenticatedAdminBookingsRouteWithChildren
   '/admin/carousel': typeof AuthenticatedAdminCarouselRoute
   '/admin/emails': typeof AuthenticatedAdminEmailsRoute
@@ -600,6 +609,7 @@ export interface FileRoutesById {
   '/_authenticated/account_/appointments': typeof AuthenticatedAccountAppointmentsRoute
   '/_authenticated/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/_authenticated/admin/availability': typeof AuthenticatedAdminAvailabilityRoute
+  '/_authenticated/admin/backups': typeof AuthenticatedAdminBackupsRoute
   '/_authenticated/admin/bookings': typeof AuthenticatedAdminBookingsRouteWithChildren
   '/_authenticated/admin/carousel': typeof AuthenticatedAdminCarouselRoute
   '/_authenticated/admin/clients': typeof AuthenticatedAdminClientsRouteWithChildren
@@ -669,6 +679,7 @@ export interface FileRouteTypes {
     | '/account/appointments'
     | '/admin/audit'
     | '/admin/availability'
+    | '/admin/backups'
     | '/admin/bookings'
     | '/admin/carousel'
     | '/admin/clients'
@@ -735,6 +746,7 @@ export interface FileRouteTypes {
     | '/account/appointments'
     | '/admin/audit'
     | '/admin/availability'
+    | '/admin/backups'
     | '/admin/bookings'
     | '/admin/carousel'
     | '/admin/emails'
@@ -802,6 +814,7 @@ export interface FileRouteTypes {
     | '/_authenticated/account_/appointments'
     | '/_authenticated/admin/audit'
     | '/_authenticated/admin/availability'
+    | '/_authenticated/admin/backups'
     | '/_authenticated/admin/bookings'
     | '/_authenticated/admin/carousel'
     | '/_authenticated/admin/clients'
@@ -1233,6 +1246,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminBookingsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/backups': {
+      id: '/_authenticated/admin/backups'
+      path: '/backups'
+      fullPath: '/admin/backups'
+      preLoaderRoute: typeof AuthenticatedAdminBackupsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/availability': {
       id: '/_authenticated/admin/availability'
       path: '/availability'
@@ -1375,6 +1395,7 @@ const AuthenticatedAdminClientsRouteWithChildren =
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAuditRoute: typeof AuthenticatedAdminAuditRoute
   AuthenticatedAdminAvailabilityRoute: typeof AuthenticatedAdminAvailabilityRoute
+  AuthenticatedAdminBackupsRoute: typeof AuthenticatedAdminBackupsRoute
   AuthenticatedAdminBookingsRoute: typeof AuthenticatedAdminBookingsRouteWithChildren
   AuthenticatedAdminCarouselRoute: typeof AuthenticatedAdminCarouselRoute
   AuthenticatedAdminClientsRoute: typeof AuthenticatedAdminClientsRouteWithChildren
@@ -1406,6 +1427,7 @@ interface AuthenticatedAdminRouteChildren {
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAuditRoute: AuthenticatedAdminAuditRoute,
   AuthenticatedAdminAvailabilityRoute: AuthenticatedAdminAvailabilityRoute,
+  AuthenticatedAdminBackupsRoute: AuthenticatedAdminBackupsRoute,
   AuthenticatedAdminBookingsRoute: AuthenticatedAdminBookingsRouteWithChildren,
   AuthenticatedAdminCarouselRoute: AuthenticatedAdminCarouselRoute,
   AuthenticatedAdminClientsRoute: AuthenticatedAdminClientsRouteWithChildren,
