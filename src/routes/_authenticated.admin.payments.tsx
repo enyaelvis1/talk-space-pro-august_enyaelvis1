@@ -289,9 +289,11 @@ function PaymentsAdminScreen({
       await refresh();
       if (result.status === "succeeded") {
         toast.success(
-          result.bookingReviewRequired
-            ? "Paystack payment confirmed; booking needs rescheduling or refund review."
-            : "Paystack payment confirmed.",
+          result.deliveryRetried
+            ? "Meeting link synced and booking confirmation email resent."
+            : result.bookingReviewRequired
+              ? "Paystack payment confirmed; booking needs rescheduling or refund review."
+              : "Paystack payment confirmed.",
         );
       } else if (result.status === "failed") {
         toast.error("Paystack marked this payment as failed.");

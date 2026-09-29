@@ -119,6 +119,35 @@ async function syncGoogleForPaymentReference(reference: string) {
   );
 }
 
+export async function assertPaymentMeetingLinks(reference: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("payments")
+    .select("appointment_id, appointments(status, session_mode, google_meet_url)")
+    .or(`reference.eq.${reference},checkout_group_reference.eq.${reference}`);
+  if (error) throw error;
+
+  const missingLink = (data ?? []).some((payment) => {
+    const appointment = payment.appointments as {
+      status?: string | null;
+      session_mode?: string | null;
+      google_meet_url?: string | null;
+    } | null;
+    return (
+      Boolean(payment.appointment_id) &&
+      appointment?.session_mode === "online" &&
+      ["confirmed", "completed", "no_show"].includes(appointment.status ?? "") &&
+      !appointment.google_meet_url
+    );
+  });
+
+  if (missingLink) {
+    throw new Error(
+      "Payment is confirmed, but the Google Meet link is not ready. Reconnect the therapist's Google Calendar and retry the Paystack check.",
+    );
+  }
+}
+
 export async function findExistingClientForPaymentSync(
   client: Pick<import("@supabase/supabase-js").SupabaseClient<Database>, "from">,
   input: { clientId?: string | null; email?: string | null; phone?: string | null },
@@ -478,6 +507,7 @@ async function sendCommittedAdminBookingNotice(
 export async function sendPaymentEmailsForReference(
   reference: string,
   templateKey: "payment_success" | "payment_failed" | "bank_transfer_received",
+  options: { force?: boolean } = {},
 ) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { sendPaymentEmail } = await import("@/lib/payment-email.server");
@@ -494,7 +524,11 @@ export async function sendPaymentEmailsForReference(
     )
     .or(`reference.eq.${reference},checkout_group_reference.eq.${reference}`);
   for (const payment of data ?? []) {
-    await sendPaymentEmail({ paymentId: payment.id as string, templateKey });
+    await sendPaymentEmail({
+      paymentId: payment.id as string,
+      templateKey,
+      force: options.force && templateKey === "payment_success",
+    });
     if (templateKey === "payment_success" && payment.appointment_id) {
       try {
         const { sendTherapistBookingEmail } = await import("@/lib/therapist-email.server");
@@ -1145,6 +1179,7 @@ export type VerifyPaystackResult = PaymentReceipt & {
   amountKobo: number;
   bookingReference: string | null;
   bookingReviewRequired: boolean;
+  deliveryRetried?: boolean;
   packageBookingUrl: string | null;
   packagePurchasedSessions: number | null;
   packageRemainingSessions: number | null;
@@ -1396,6 +1431,7 @@ export const verifyPaystackPaymentForAdmin = createServerFn({ method: "POST" })
       storedReceipt.bookingAmountKobo === checkout.amountKobo &&
       storedReceipt.currency === checkout.currency
     ) {
+      let deliveryRetried = false;
       if (checkout.bookingReviewRequired) {
         const { error } = await supabaseAdmin.rpc("mark_payment_status", {
           p_reference: reference,
@@ -1412,10 +1448,25 @@ export const verifyPaystackPaymentForAdmin = createServerFn({ method: "POST" })
       const refreshedCheckout = checkout.bookingReviewRequired
         ? await loadPaystackCheckout(reference)
         : checkout;
+      if (!refreshedCheckout.bookingReviewRequired) {
+        await assertPaymentBookingContacts(reference);
+        await syncClientRecordsForSuccessfulPayment(reference);
+        if (checkout.payment.payment_kind === "package_purchase") {
+          const packageInfo = await loadPurchasePackage(checkout.payment.id as string);
+          if (packageInfo)
+            await sendPackagePurchaseEmail(checkout.payment.id as string, packageInfo);
+        } else {
+          await syncGoogleForPaymentReference(reference);
+          await assertPaymentMeetingLinks(reference);
+          await sendPaymentEmailsForReference(reference, "payment_success", { force: true });
+          deliveryRetried = true;
+        }
+      }
       return {
         ...storedReceipt,
         bookingReviewRequired: refreshedCheckout.bookingReviewRequired,
         status: "succeeded",
+        deliveryRetried,
         bookingReference:
           (checkout.payment.appointments as { booking_reference?: string } | null)
             ?.booking_reference ?? null,
