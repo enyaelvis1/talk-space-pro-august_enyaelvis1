@@ -424,7 +424,7 @@ async function syncAppointmentToGoogleInternal(appointmentId: string): Promise<v
     const { data: appt, error } = await supabaseAdmin
       .from("appointments")
       .select(
-        "id, status, therapist_id, starts_at, ends_at, session_mode, client_email, client_name, booking_reference, google_event_id, services(name)",
+        "id, status, therapist_id, starts_at, ends_at, session_mode, client_email, client_name, booking_reference, google_event_id, google_meet_url, services(name)",
       )
       .eq("id", appointmentId)
       .maybeSingle();
@@ -451,16 +451,27 @@ async function syncAppointmentToGoogleInternal(appointmentId: string): Promise<v
     if (status === "confirmed") {
       const { createEventWithMeet, patchEvent } = await import("@/lib/google.server");
       if (appt.google_event_id) {
-        await patchEvent(appt.therapist_id as string, appt.google_event_id as string, {
-          summary,
-          description,
-          startISO: appt.starts_at as string,
-          endISO: appt.ends_at as string,
-          requestId: appt.booking_reference as string,
-        });
+        const patched = await patchEvent(
+          appt.therapist_id as string,
+          appt.google_event_id as string,
+          {
+            summary,
+            description,
+            startISO: appt.starts_at as string,
+            endISO: appt.ends_at as string,
+            requestId: appt.booking_reference as string,
+            ...(appt.google_meet_url
+              ? {}
+              : {
+                  requestMeet: true,
+                  requestId: `${String(appt.booking_reference)}-meet-repair-${Date.now()}`,
+                }),
+          },
+        );
         await supabaseAdmin
           .from("appointments")
           .update({
+            ...(patched.meetUrl ? { google_meet_url: patched.meetUrl } : {}),
             google_synced_at: new Date().toISOString(),
             google_sync_error: null,
           })

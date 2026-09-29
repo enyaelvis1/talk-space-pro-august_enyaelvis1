@@ -223,6 +223,9 @@ test("admins can create bookings with availability and payment safeguards", () =
   assert.match(sidebar, /to: "\/admin\/bookings", label: "Upcoming bookings"/);
   assert.match(bookings, /to="\/admin\/bookings\/new"/);
   assert.match(newBooking, /getAdminBookingFormData/);
+  assert.match(newBooking, /getAdminBookingRescheduleData/);
+  assert.match(newBooking, /rescheduleAppointment/);
+  assert.match(newBooking, /Payment preserved/);
   assert.match(newBooking, /listAvailableSlots/);
   assert.match(newBooking, /createAdminBooking/);
   assert.match(newBooking, /Package credit/);

@@ -188,7 +188,13 @@ function fixture(
     feesKobo: 200000,
   };
   const receipt = validation.paymentReceipt(verified, 16500000);
-  const calls = { verify: [] as string[], rpc: [] as Record<string, unknown>[], sync: 0, auth: 0 };
+  const calls = {
+    verify: [] as string[],
+    rpc: [] as Record<string, unknown>[],
+    sync: 0,
+    auth: 0,
+    emails: [] as Record<string, unknown>[],
+  };
   const checkout = {
     ...summarizePaystackCheckout(rows, reference),
     alreadySucceeded: !!options.stored,
@@ -253,7 +259,14 @@ function fixture(
         calls.sync++;
       },
       async assertPaymentBookingContacts() {},
-      async sendPaymentEmailsForReference() {},
+      async assertPaymentMeetingLinks() {},
+      async sendPaymentEmailsForReference(
+        _reference: string,
+        _templateKey: string,
+        options: Record<string, unknown> = {},
+      ) {
+        calls.emails.push(options);
+      },
       async importModule() {
         return {
           supabaseAdmin: db,
@@ -327,7 +340,8 @@ test("admin Paystack recheck retries a stored payment that needs booking review"
   assert.equal(f.calls.rpc[0].p_reference, reference);
   assert.equal(f.calls.rpc[0].p_new_status, "succeeded");
   assert.equal(f.calls.rpc[0].p_metadata?.verified_via, "admin_booking_retry");
-  assert.equal(f.calls.sync, 0);
+  assert.equal(f.calls.sync, 2);
+  assert.deepEqual(f.calls.emails, [{ force: true }]);
 });
 
 test("admin verifies a child row against the parent checkout, including already-paid records", async () => {
@@ -336,6 +350,8 @@ test("admin verifies a child row against the parent checkout, including already-
   assert.equal(f.calls.auth, 1);
   assert.deepEqual(f.calls.verify, []);
   assert.deepEqual(f.calls.rpc, []);
+  assert.equal(f.calls.sync, 2);
+  assert.deepEqual(f.calls.emails, [{ force: true }]);
 });
 
 test("admin Paystack recheck explains payment mismatches without exposing provider details", async () => {
@@ -389,8 +405,13 @@ test("successful Paystack reconciliation keeps downstream effects idempotent", a
   assert.match(source, /syncClientRecordsForSuccessfulPayment\(reference\)/);
   assert.match(source, /syncGoogleForPaymentReference\(reference\)/);
   assert.match(source, /sendPaymentEmailsForReference\(\s*reference/);
+  assert.match(source, /assertPaymentMeetingLinks\(reference\)/);
+  assert.match(source, /force: true/);
+  assert.match(source, /sendPaystackMeetingLinkForAdmin/);
+  assert.match(source, /confirmation email could not be sent/);
   assert.match(emailSender, /payment_success_email_claimed_at/);
   assert.match(emailSender, /\.is\(claimColumn, null\)/);
+  assert.match(emailSender, /params\.force/);
 });
 
 test("successful Paystack paths gate complete contacts and reconcile repeated checks", () => {

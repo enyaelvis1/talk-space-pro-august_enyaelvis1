@@ -1352,6 +1352,71 @@ export const getAdminBookingFormData = createServerFn({ method: "GET" }).handler
   },
 );
 
+export type AdminBookingRescheduleData = {
+  appointmentId: string;
+  clientId: string | null;
+  clientName: string;
+  clientEmail: string;
+  clientPhone: string;
+  serviceId: string;
+  therapistId: string;
+  mode: BookingSessionMode;
+  startsAt: string;
+  notes: string;
+  paymentProvider: string;
+  amountKobo: number;
+};
+
+const adminBookingRescheduleInput = z.object({ appointmentId: z.string().uuid() });
+
+export const getAdminBookingRescheduleData = createServerFn({ method: "POST" })
+  .validator((data: z.infer<typeof adminBookingRescheduleInput>) =>
+    adminBookingRescheduleInput.parse(data),
+  )
+  .handler(async ({ data }): Promise<AdminBookingRescheduleData> => {
+    const bag = await requireAdminClient();
+    const { data: row, error } = await bag.client
+      .from("appointments")
+      .select(
+        "id, client_id, client_name, client_email, client_phone, service_id, therapist_id, session_mode, starts_at, notes, status, archived_at, payments(provider, status, amount_kobo)",
+      )
+      .eq("id", data.appointmentId)
+      .maybeSingle();
+    bag.commitCookies();
+    if (error) throw error;
+    if (!row) throw new Error("Booking not found.");
+    if (row.archived_at || row.status !== "cancelled") {
+      throw new Error("Only cancelled bookings can be rescheduled from this page.");
+    }
+
+    const payments = Array.isArray(row.payments)
+      ? (row.payments as Array<{
+          provider?: string;
+          status?: string;
+          amount_kobo?: number;
+        }>)
+      : [];
+    const paidPayment = payments.find((payment) => payment.status === "succeeded");
+    if (!paidPayment) {
+      throw new Error("This booking has no confirmed payment to carry forward.");
+    }
+
+    return {
+      appointmentId: row.id,
+      clientId: row.client_id ?? null,
+      clientName: row.client_name,
+      clientEmail: row.client_email,
+      clientPhone: row.client_phone ?? "",
+      serviceId: row.service_id,
+      therapistId: row.therapist_id,
+      mode: row.session_mode,
+      startsAt: row.starts_at,
+      notes: row.notes ?? "",
+      paymentProvider: paidPayment.provider ?? "payment",
+      amountKobo: Number(paidPayment.amount_kobo ?? 0),
+    };
+  });
+
 const adminBookingInput = z.object({
   clientId: z.string().uuid().optional(),
   clientName: z.string().trim().min(2).max(100),
@@ -1604,6 +1669,10 @@ function mapAdminAppointmentRow(
   const latestPayment = [...payments].sort((a, b) =>
     String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")),
   )[0];
+  const paidBookingNeedsReview = payments.some(
+    (payment) =>
+      payment.status === "succeeded" && payment.metadata?.booking_review_required === true,
+  );
   return {
     id: row.id as string,
     bookingReference: row.booking_reference as string,
@@ -1633,7 +1702,9 @@ function mapAdminAppointmentRow(
     googleMeetUrl: (row.google_meet_url as string | null) ?? null,
     paymentStatus: latestPayment?.status ?? null,
     paymentProvider: latestPayment?.provider ?? null,
-    paymentNeedsReview: latestPayment?.metadata?.booking_review_required === true,
+    paymentNeedsReview:
+      paidBookingNeedsReview ||
+      (row.status === "cancelled" && latestPayment?.status === "succeeded"),
     paidAmountKobo: (row.paid_amount_kobo as number | null) ?? latestPayment?.amount_kobo ?? null,
     archivedAt: (row.archived_at as string | null) ?? null,
     archiveReason: (row.archive_reason as string | null) ?? null,
