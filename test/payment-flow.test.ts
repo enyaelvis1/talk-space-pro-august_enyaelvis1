@@ -581,10 +581,12 @@ test("admin payments puts unresolved Paystack transactions in pending review", (
   assert.match(paymentsAdminRoute, /paymentStatusLabels/);
   assert.match(paymentsAdminRoute, /paymentLifecycleLabel/);
   assert.match(paymentsAdminRoute, /Verified payment · booking review required/);
+  assert.match(paymentsAdminRoute, /Verified payment · booking cancelled · reschedule required/);
   assert.match(paymentsAdminRoute, /Pending payment review/);
   assert.match(paymentsAdminRoute, /Verified payment · booking confirmed/);
   assert.match(paymentsAdminRoute, /Not verified/);
   assert.match(paymentsAdminRoute, /Check Paystack/);
+  assert.match(paymentsAdminRoute, /Reschedule booking/);
   assert.match(paymentsAdminRoute, /Send meeting link/);
   assert.match(paymentsAdminRoute, /sendPaystackMeetingLinkForAdmin/);
   assert.match(paymentFunctions, /verifyPaystackPaymentForAdmin/);

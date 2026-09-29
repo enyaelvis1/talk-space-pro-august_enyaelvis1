@@ -1604,6 +1604,10 @@ function mapAdminAppointmentRow(
   const latestPayment = [...payments].sort((a, b) =>
     String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")),
   )[0];
+  const paidBookingNeedsReview = payments.some(
+    (payment) =>
+      payment.status === "succeeded" && payment.metadata?.booking_review_required === true,
+  );
   return {
     id: row.id as string,
     bookingReference: row.booking_reference as string,
@@ -1633,7 +1637,9 @@ function mapAdminAppointmentRow(
     googleMeetUrl: (row.google_meet_url as string | null) ?? null,
     paymentStatus: latestPayment?.status ?? null,
     paymentProvider: latestPayment?.provider ?? null,
-    paymentNeedsReview: latestPayment?.metadata?.booking_review_required === true,
+    paymentNeedsReview:
+      paidBookingNeedsReview ||
+      (row.status === "cancelled" && latestPayment?.status === "succeeded"),
     paidAmountKobo: (row.paid_amount_kobo as number | null) ?? latestPayment?.amount_kobo ?? null,
     archivedAt: (row.archived_at as string | null) ?? null,
     archiveReason: (row.archive_reason as string | null) ?? null,

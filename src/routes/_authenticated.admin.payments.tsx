@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import {
   Loader2,
   RefreshCw,
@@ -151,6 +151,9 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function paymentLifecycleLabel(row: PaymentRow) {
+  if (row.status === "succeeded" && row.appointmentStatus === "cancelled") {
+    return "Verified payment · booking cancelled · reschedule required";
+  }
   if (row.bookingReviewRequired) return "Verified payment · booking review required";
   if (row.status === "awaiting_confirmation") return "Pending payment review";
   if (row.status === "succeeded") return "Verified payment · booking confirmed";
@@ -1247,6 +1250,12 @@ function PaymentsAdminScreen({
                           </Button>
                         ) : row.provider === "paystack" &&
                           row.status === "succeeded" &&
+                          row.bookingReviewRequired ? (
+                          <Button size="sm" variant="outline" asChild>
+                            <Link to="/admin/bookings">Reschedule booking</Link>
+                          </Button>
+                        ) : row.provider === "paystack" &&
+                          row.status === "succeeded" &&
                           row.sessionMode === "online" &&
                           !row.bookingReviewRequired ? (
                           <Button
@@ -1263,9 +1272,7 @@ function PaymentsAdminScreen({
                             Send meeting link
                           </Button>
                         ) : row.provider === "paystack" &&
-                          (row.status === "initiated" ||
-                            row.status === "pending" ||
-                            (row.status === "succeeded" && row.bookingReviewRequired)) ? (
+                          (row.status === "initiated" || row.status === "pending") ? (
                           <Button
                             size="sm"
                             variant="outline"

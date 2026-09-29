@@ -1972,6 +1972,7 @@ export type PaymentRow = {
   clientName: string | null;
   clientEmail: string | null;
   sessionMode: string | null;
+  appointmentStatus: string | null;
   provider: "paystack" | "bank_transfer";
   reference: string;
   providerReference: string | null;
@@ -2021,6 +2022,7 @@ async function loadPaymentsForAdmin(): Promise<PaymentRow[]> {
       clientName: appt?.client_name ?? null,
       clientEmail: appt?.client_email ?? null,
       sessionMode: appt?.session_mode ?? null,
+      appointmentStatus: appt?.status ?? null,
       provider: row.provider as "paystack" | "bank_transfer",
       reference: row.reference as string,
       providerReference: (row.provider_reference as string | null) ?? null,
@@ -2041,7 +2043,9 @@ async function loadPaymentsForAdmin(): Promise<PaymentRow[]> {
       failedReason: (row.failed_reason as string | null) ?? null,
       createdAt: row.created_at as string,
       verifiedAt: (row.verified_at as string | null) ?? null,
-      bookingReviewRequired: isBookingReviewRequired(row.metadata),
+      bookingReviewRequired:
+        isBookingReviewRequired(row.metadata) ||
+        (row.status === "succeeded" && appt?.status === "cancelled"),
     };
   });
 }
