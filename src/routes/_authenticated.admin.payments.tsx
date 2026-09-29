@@ -1252,7 +1252,12 @@ function PaymentsAdminScreen({
                           row.status === "succeeded" &&
                           row.bookingReviewRequired ? (
                           <Button size="sm" variant="outline" asChild>
-                            <Link to="/admin/bookings">Reschedule booking</Link>
+                            <Link
+                              to="/admin/bookings/new"
+                              search={{ rescheduleFrom: row.appointmentId }}
+                            >
+                              Reschedule booking
+                            </Link>
                           </Button>
                         ) : row.provider === "paystack" &&
                           row.status === "succeeded" &&

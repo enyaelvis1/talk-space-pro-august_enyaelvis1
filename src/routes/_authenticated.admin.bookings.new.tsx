@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, CalendarPlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { z } from "zod";
 
 import { AdminWorkspaceShell } from "@/components/progress/AdminSidebar";
 import { AdminPageSkeleton } from "@/components/admin/AdminSkeletons";
@@ -13,13 +14,18 @@ import { canonicalUrl } from "@/lib/seo";
 import {
   createAdminBooking,
   getAdminBookingFormData,
+  getAdminBookingRescheduleData,
   listAvailableSlots,
+  rescheduleAppointment,
   type AdminBookingFormData,
+  type AdminBookingRescheduleData,
   type AvailableSlot,
   type BookingSessionMode,
 } from "@/lib/booking.functions";
+import { formatWATDateKey } from "@/lib/time";
 
 export const Route = createFileRoute("/_authenticated/admin/bookings/new")({
+  validateSearch: z.object({ rescheduleFrom: z.string().uuid().optional() }),
   loader: () => null,
   head: () => ({
     meta: [
@@ -61,14 +67,23 @@ function formatNaira(amount: number) {
 
 function CreateAdminBookingRoute() {
   const navigate = useNavigate();
+  const { rescheduleFrom } = Route.useSearch();
   const [data, setData] = useState<AdminBookingFormData | null>(null);
+  const [rescheduleSource, setRescheduleSource] = useState<AdminBookingRescheduleData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
-    void getAdminBookingFormData()
-      .then((result) => {
-        if (active) setData(result);
+    void Promise.all([
+      getAdminBookingFormData(),
+      rescheduleFrom
+        ? getAdminBookingRescheduleData({ data: { appointmentId: rescheduleFrom } })
+        : Promise.resolve(null),
+    ])
+      .then(([formData, source]) => {
+        if (!active) return;
+        setData(formData);
+        setRescheduleSource(source);
       })
       .catch((reason) => {
         if (active)
@@ -79,7 +94,7 @@ function CreateAdminBookingRoute() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [rescheduleFrom]);
 
   if (error) {
     return (
@@ -104,29 +119,39 @@ function CreateAdminBookingRoute() {
   }
 
   return (
-    <CreateBookingForm data={data} onCreated={() => void navigate({ to: "/admin/bookings" })} />
+    <CreateBookingForm
+      data={data}
+      rescheduleSource={rescheduleSource}
+      onCreated={() => void navigate({ to: "/admin/bookings" })}
+    />
   );
 }
 
 function CreateBookingForm({
   data,
+  rescheduleSource,
   onCreated,
 }: {
   data: AdminBookingFormData;
+  rescheduleSource: AdminBookingRescheduleData | null;
   onCreated: () => void;
 }) {
-  const [clientId, setClientId] = useState("");
+  const [clientId, setClientId] = useState(rescheduleSource?.clientId ?? "");
   const [newClient, setNewClient] = useState(false);
-  const [clientName, setClientName] = useState("");
-  const [clientEmail, setClientEmail] = useState("");
-  const [clientPhone, setClientPhone] = useState("");
-  const [serviceId, setServiceId] = useState(data.services[0]?.id ?? "");
-  const [mode, setMode] = useState<BookingSessionMode>("online");
-  const [date, setDate] = useState(todayInLagos);
+  const [clientName, setClientName] = useState(rescheduleSource?.clientName ?? "");
+  const [clientEmail, setClientEmail] = useState(rescheduleSource?.clientEmail ?? "");
+  const [clientPhone, setClientPhone] = useState(rescheduleSource?.clientPhone ?? "");
+  const [serviceId, setServiceId] = useState(
+    rescheduleSource?.serviceId ?? data.services[0]?.id ?? "",
+  );
+  const [mode, setMode] = useState<BookingSessionMode>(rescheduleSource?.mode ?? "online");
+  const [date, setDate] = useState(
+    rescheduleSource ? formatWATDateKey(rescheduleSource.startsAt) : todayInLagos(),
+  );
   const [slotKey, setSlotKey] = useState("");
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(rescheduleSource?.notes ?? "");
   const [paymentMethod, setPaymentMethod] = useState<
     "unpaid" | "bank_transfer" | "paystack" | "package"
   >("unpaid");
@@ -169,7 +194,16 @@ function CreateBookingForm({
     setSlotKey("");
     void listAvailableSlots({ data: { serviceId, from: date, to: date, mode } })
       .then((next) => {
-        if (!cancelled) setSlots(next);
+        if (cancelled) return;
+        setSlots(next);
+        if (rescheduleSource) {
+          const originalSlot = next.find(
+            (slot) =>
+              slot.therapistId === rescheduleSource.therapistId &&
+              new Date(slot.startsAt).getTime() === new Date(rescheduleSource.startsAt).getTime(),
+          );
+          setSlotKey(originalSlot ? `${originalSlot.therapistId}:${originalSlot.startsAt}` : "");
+        }
       })
       .catch((error) => {
         if (!cancelled) {
@@ -183,7 +217,7 @@ function CreateBookingForm({
     return () => {
       cancelled = true;
     };
-  }, [date, mode, serviceId]);
+  }, [date, mode, rescheduleSource, serviceId]);
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -201,6 +235,20 @@ function CreateBookingForm({
     }
     setSaving(true);
     try {
+      if (rescheduleSource) {
+        const result = await rescheduleAppointment({
+          data: {
+            appointmentId: rescheduleSource.appointmentId,
+            newStartsAt: selectedSlot.startsAt,
+            newTherapistId: selectedSlot.therapistId,
+            newMode: selectedSlot.mode,
+          },
+        });
+        toast.success(`Booking ${result.bookingReference} rescheduled.`);
+        onCreated();
+        return;
+      }
+
       const result = await createAdminBooking({
         data: {
           clientId: newClient ? undefined : clientId || undefined,
@@ -239,10 +287,13 @@ function CreateBookingForm({
               </Link>
             </Button>
             <p className="eyebrow">Admin · Bookings</p>
-            <h1 className="display-1 mt-3 text-brand-deep">Create a booking</h1>
+            <h1 className="display-1 mt-3 text-brand-deep">
+              {rescheduleSource ? "Reschedule booking" : "Create a booking"}
+            </h1>
             <p className="mt-3 max-w-2xl text-muted-foreground">
-              Create a confirmed or payment-pending appointment with the same availability checks as
-              public booking.
+              {rescheduleSource
+                ? "The existing payment and booking details are preserved. Choose a new available time to restore this session."
+                : "Create a confirmed or payment-pending appointment with the same availability checks as public booking."}
             </p>
           </div>
           <CalendarPlus className="h-8 w-8 text-brand-blue" aria-hidden />
@@ -251,33 +302,51 @@ function CreateBookingForm({
         <form onSubmit={submit} className="space-y-6">
           <section className="rounded-2xl border border-border/70 bg-card p-5 shadow-sm sm:p-7">
             <h2 className="text-lg font-semibold text-brand-deep">Client</h2>
-            <div className="mt-4 flex items-center gap-3">
-              <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                <input
-                  type="radio"
-                  checked={!newClient}
-                  onChange={() => setNewClient(false)}
-                  name="client-type"
-                />
-                Existing client
-              </label>
-              <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                <input
-                  type="radio"
-                  checked={newClient}
-                  onChange={() => {
-                    setNewClient(true);
-                    setClientId("");
-                    setClientName("");
-                    setClientEmail("");
-                    setClientPhone("");
-                  }}
-                  name="client-type"
-                />
-                New client
-              </label>
-            </div>
-            {!newClient ? (
+            {rescheduleSource ? (
+              <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                <div>
+                  <Label htmlFor="reschedule-name">Full name</Label>
+                  <Input id="reschedule-name" value={clientName} readOnly />
+                </div>
+                <div>
+                  <Label htmlFor="reschedule-email">Email</Label>
+                  <Input id="reschedule-email" value={clientEmail} readOnly />
+                </div>
+                <div>
+                  <Label htmlFor="reschedule-phone">Phone</Label>
+                  <Input id="reschedule-phone" value={clientPhone} readOnly />
+                </div>
+              </div>
+            ) : null}
+            {!rescheduleSource ? (
+              <div className="mt-4 flex items-center gap-3">
+                <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <input
+                    type="radio"
+                    checked={!newClient}
+                    onChange={() => setNewClient(false)}
+                    name="client-type"
+                  />
+                  Existing client
+                </label>
+                <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <input
+                    type="radio"
+                    checked={newClient}
+                    onChange={() => {
+                      setNewClient(true);
+                      setClientId("");
+                      setClientName("");
+                      setClientEmail("");
+                      setClientPhone("");
+                    }}
+                    name="client-type"
+                  />
+                  New client
+                </label>
+              </div>
+            ) : null}
+            {!rescheduleSource && !newClient ? (
               <div className="mt-4">
                 <Label htmlFor="client">Client</Label>
                 <select
@@ -298,7 +367,7 @@ function CreateBookingForm({
                   <p className="mt-2 text-xs text-muted-foreground">{selectedClient.phone}</p>
                 ) : null}
               </div>
-            ) : (
+            ) : !rescheduleSource ? (
               <div className="mt-4 grid gap-4 sm:grid-cols-3">
                 <div>
                   <Label htmlFor="new-name">Full name</Label>
@@ -329,7 +398,7 @@ function CreateBookingForm({
                   />
                 </div>
               </div>
-            )}
+            ) : null}
           </section>
 
           <section className="rounded-2xl border border-border/70 bg-card p-5 shadow-sm sm:p-7">
@@ -337,19 +406,23 @@ function CreateBookingForm({
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <div>
                 <Label htmlFor="service">Service</Label>
-                <select
-                  id="service"
-                  className={fieldClass}
-                  value={serviceId}
-                  onChange={(event) => setServiceId(event.target.value)}
-                  required
-                >
-                  {data.services.map((service) => (
-                    <option key={service.id} value={service.id}>
-                      {service.name}
-                    </option>
-                  ))}
-                </select>
+                {rescheduleSource ? (
+                  <Input value={selectedService?.name ?? "Original service"} readOnly />
+                ) : (
+                  <select
+                    id="service"
+                    className={fieldClass}
+                    value={serviceId}
+                    onChange={(event) => setServiceId(event.target.value)}
+                    required
+                  >
+                    {data.services.map((service) => (
+                      <option key={service.id} value={service.id}>
+                        {service.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div>
                 <Label htmlFor="mode">Session mode</Label>
@@ -358,6 +431,7 @@ function CreateBookingForm({
                   className={fieldClass}
                   value={mode}
                   onChange={(event) => setMode(event.target.value as BookingSessionMode)}
+                  disabled={Boolean(rescheduleSource)}
                 >
                   <option value="online">Online</option>
                   <option value="in_person">In person</option>
@@ -414,77 +488,90 @@ function CreateBookingForm({
             </div>
           </section>
 
-          <section className="rounded-2xl border border-border/70 bg-card p-5 shadow-sm sm:p-7">
-            <h2 className="text-lg font-semibold text-brand-deep">Payment and confirmation</h2>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="payment-method">Payment method</Label>
-                <select
-                  id="payment-method"
-                  className={fieldClass}
-                  value={paymentMethod}
-                  onChange={(event) => {
-                    const value = event.target.value as typeof paymentMethod;
-                    setPaymentMethod(value);
-                    if (value === "package") setPaymentStatus("confirmed");
-                  }}
-                >
-                  <option value="unpaid">Unpaid / request payment</option>
-                  <option value="bank_transfer">Bank transfer</option>
-                  <option value="paystack">Paystack</option>
-                  <option value="package">Package credit</option>
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="payment-status">Payment state</Label>
-                <select
-                  id="payment-status"
-                  className={fieldClass}
-                  value={paymentMethod === "package" ? "confirmed" : paymentStatus}
-                  onChange={(event) => setPaymentStatus(event.target.value as typeof paymentStatus)}
-                  disabled={paymentMethod === "package"}
-                >
-                  <option value="pending">Pending payment</option>
-                  <option value="confirmed">Payment confirmed</option>
-                </select>
-              </div>
-            </div>
-            {paymentMethod === "package" ? (
-              <div className="mt-4">
-                <Label htmlFor="package">Package credit</Label>
-                <select
-                  id="package"
-                  className={fieldClass}
-                  value={packageId}
-                  onChange={(event) => setPackageId(event.target.value)}
-                  required
-                >
-                  <option value="">Choose package credit</option>
-                  {availablePackages.map((pkg) => (
-                    <option key={pkg.id} value={pkg.id}>
-                      {pkg.reference} · {pkg.clientName} · {pkg.remainingSessions} remaining
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : null}
-            <div className="mt-5 rounded-xl bg-brand-blue-soft p-4 text-sm text-brand-deep">
-              <div className="flex flex-wrap justify-between gap-3">
-                <span>
-                  {selectedService?.name ?? "Selected service"} ·{" "}
-                  {mode === "in_person" ? "In person" : "Online"}
-                </span>
-                <strong>
-                  {paymentMethod === "package" ? "Package credit" : formatNaira(amountNgn)}
-                </strong>
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                {paymentStatus === "confirmed" || paymentMethod === "package"
-                  ? "This booking will be confirmed and the slot reserved."
-                  : "This booking will remain payment-pending until payment is confirmed."}
+          {rescheduleSource ? (
+            <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm sm:p-7">
+              <h2 className="text-lg font-semibold text-emerald-900">Payment preserved</h2>
+              <p className="mt-2 text-sm text-emerald-800">
+                This {rescheduleSource.paymentProvider.replace("_", " ")} payment of{" "}
+                {formatNaira(rescheduleSource.amountKobo / 100)} remains attached to the booking.
+                Choosing a new slot will not charge the client again.
               </p>
-            </div>
-          </section>
+            </section>
+          ) : (
+            <section className="rounded-2xl border border-border/70 bg-card p-5 shadow-sm sm:p-7">
+              <h2 className="text-lg font-semibold text-brand-deep">Payment and confirmation</h2>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="payment-method">Payment method</Label>
+                  <select
+                    id="payment-method"
+                    className={fieldClass}
+                    value={paymentMethod}
+                    onChange={(event) => {
+                      const value = event.target.value as typeof paymentMethod;
+                      setPaymentMethod(value);
+                      if (value === "package") setPaymentStatus("confirmed");
+                    }}
+                  >
+                    <option value="unpaid">Unpaid / request payment</option>
+                    <option value="bank_transfer">Bank transfer</option>
+                    <option value="paystack">Paystack</option>
+                    <option value="package">Package credit</option>
+                  </select>
+                </div>
+                <div>
+                  <Label htmlFor="payment-status">Payment state</Label>
+                  <select
+                    id="payment-status"
+                    className={fieldClass}
+                    value={paymentMethod === "package" ? "confirmed" : paymentStatus}
+                    onChange={(event) =>
+                      setPaymentStatus(event.target.value as typeof paymentStatus)
+                    }
+                    disabled={paymentMethod === "package"}
+                  >
+                    <option value="pending">Pending payment</option>
+                    <option value="confirmed">Payment confirmed</option>
+                  </select>
+                </div>
+              </div>
+              {paymentMethod === "package" ? (
+                <div className="mt-4">
+                  <Label htmlFor="package">Package credit</Label>
+                  <select
+                    id="package"
+                    className={fieldClass}
+                    value={packageId}
+                    onChange={(event) => setPackageId(event.target.value)}
+                    required
+                  >
+                    <option value="">Choose package credit</option>
+                    {availablePackages.map((pkg) => (
+                      <option key={pkg.id} value={pkg.id}>
+                        {pkg.reference} · {pkg.clientName} · {pkg.remainingSessions} remaining
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+              <div className="mt-5 rounded-xl bg-brand-blue-soft p-4 text-sm text-brand-deep">
+                <div className="flex flex-wrap justify-between gap-3">
+                  <span>
+                    {selectedService?.name ?? "Selected service"} ·{" "}
+                    {mode === "in_person" ? "In person" : "Online"}
+                  </span>
+                  <strong>
+                    {paymentMethod === "package" ? "Package credit" : formatNaira(amountNgn)}
+                  </strong>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {paymentStatus === "confirmed" || paymentMethod === "package"
+                    ? "This booking will be confirmed and the slot reserved."
+                    : "This booking will remain payment-pending until payment is confirmed."}
+                </p>
+              </div>
+            </section>
+          )}
 
           <div className="flex justify-end gap-3">
             <Button asChild variant="outline">
@@ -496,7 +583,7 @@ function CreateBookingForm({
               ) : (
                 <CalendarPlus className="h-4 w-4" aria-hidden />
               )}
-              Create booking
+              {rescheduleSource ? "Save rescheduled booking" : "Create booking"}
             </Button>
           </div>
         </form>
