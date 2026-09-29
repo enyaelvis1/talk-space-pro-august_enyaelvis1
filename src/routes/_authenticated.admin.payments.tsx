@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   XCircle,
   Trash2,
+  Send,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -58,6 +59,7 @@ import {
   verifyBankTransferPayment,
   recoverPaidBankTransferBooking,
   verifyPaystackPaymentForAdmin,
+  sendPaystackMeetingLinkForAdmin,
   type PaymentRow,
   type PaymentReviewEntry,
   type PaymentEventEntry,
@@ -223,6 +225,7 @@ function PaymentsAdminScreen({
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [verifyingPaystackId, setVerifyingPaystackId] = useState<string | null>(null);
+  const [sendingMeetingLinkId, setSendingMeetingLinkId] = useState<string | null>(null);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
   const [packageForm, setPackageForm] = useState({
     clientName: "",
@@ -314,6 +317,26 @@ function PaymentsAdminScreen({
       }
     } finally {
       setVerifyingPaystackId(null);
+    }
+  };
+
+  const onSendMeetingLink = async (row: PaymentRow) => {
+    const ok = confirm(
+      `Send the Google Meet link and booking confirmation email to ${row.clientEmail ?? "the client"}?`,
+    );
+    if (!ok) return;
+    const stepUpAllowed = await stepUp.requestStepUp(`send the meeting link for ${row.reference}`);
+    if (!stepUpAllowed) return;
+
+    setSendingMeetingLinkId(row.id);
+    try {
+      const result = await sendPaystackMeetingLinkForAdmin({ data: { paymentId: row.id } });
+      await refresh();
+      toast.success(`Meeting link sent to ${result.recipientEmail ?? "the client"}.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send the meeting link.");
+    } finally {
+      setSendingMeetingLinkId(null);
     }
   };
 
@@ -1223,9 +1246,26 @@ function PaymentsAdminScreen({
                             View
                           </Button>
                         ) : row.provider === "paystack" &&
+                          row.status === "succeeded" &&
+                          row.sessionMode === "online" &&
+                          !row.bookingReviewRequired ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={sendingMeetingLinkId === row.id}
+                            onClick={() => void onSendMeetingLink(row)}
+                          >
+                            {sendingMeetingLinkId === row.id ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Send className="mr-2 h-4 w-4" />
+                            )}
+                            Send meeting link
+                          </Button>
+                        ) : row.provider === "paystack" &&
                           (row.status === "initiated" ||
                             row.status === "pending" ||
-                            row.status === "succeeded") ? (
+                            (row.status === "succeeded" && row.bookingReviewRequired)) ? (
                           <Button
                             size="sm"
                             variant="outline"

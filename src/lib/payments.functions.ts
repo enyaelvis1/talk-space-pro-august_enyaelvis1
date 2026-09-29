@@ -523,12 +523,16 @@ export async function sendPaymentEmailsForReference(
       "id, appointment_id, appointments(id, booking_reference, client_name, client_email, client_phone, starts_at, session_mode, status, services(name), therapists(full_name))",
     )
     .or(`reference.eq.${reference},checkout_group_reference.eq.${reference}`);
+  const delivery: PaymentEmailDeliverySummary = { attempted: 0, sent: 0, skipped: 0 };
   for (const payment of data ?? []) {
-    await sendPaymentEmail({
+    const result = await sendPaymentEmail({
       paymentId: payment.id as string,
       templateKey,
       force: options.force && templateKey === "payment_success",
     });
+    delivery.attempted += 1;
+    if (result.sent) delivery.sent += 1;
+    else delivery.skipped += 1;
     if (templateKey === "payment_success" && payment.appointment_id) {
       try {
         const { sendTherapistBookingEmail } = await import("@/lib/therapist-email.server");
@@ -580,7 +584,14 @@ export async function sendPaymentEmailsForReference(
       }
     }
   }
+  return delivery;
 }
+
+export type PaymentEmailDeliverySummary = {
+  attempted: number;
+  sent: number;
+  skipped: number;
+};
 
 type ManageTokenLifecycle = BookingTokenLifecycle & {
   manage_token_hash: string;
@@ -1548,6 +1559,82 @@ export const verifyPaystackPaymentForAdmin = createServerFn({ method: "POST" })
     };
   });
 
+const sendPaystackMeetingLinkInput = z.object({ paymentId: z.string().uuid() });
+
+export type SendPaystackMeetingLinkResult = PaymentEmailDeliverySummary & {
+  bookingReference: string | null;
+  recipientEmail: string | null;
+};
+
+export const sendPaystackMeetingLinkForAdmin = createServerFn({ method: "POST" })
+  .validator((d: z.infer<typeof sendPaystackMeetingLinkInput>) =>
+    sendPaystackMeetingLinkInput.parse(d),
+  )
+  .handler(async ({ data }): Promise<SendPaystackMeetingLinkResult> => {
+    await requireAdmin();
+    noStore();
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: payment, error } = await supabaseAdmin
+      .from("payments")
+      .select(
+        "provider, status, reference, checkout_group_reference, metadata, appointments(booking_reference, client_email, session_mode, status)",
+      )
+      .eq("id", data.paymentId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!payment) throw new Error("Payment not found.");
+    if (payment.provider !== "paystack") throw new Error("This is not a Paystack payment.");
+    if (payment.status !== "succeeded") {
+      throw new Error("Only confirmed Paystack payments can send a meeting link.");
+    }
+
+    const appointment = payment.appointments as {
+      booking_reference?: string | null;
+      client_email?: string | null;
+      session_mode?: string | null;
+      status?: string | null;
+    } | null;
+    if (appointment?.session_mode !== "online") {
+      throw new Error("This payment is not linked to an online appointment.");
+    }
+    if (!appointment.client_email) throw new Error("Payment client email is missing.");
+    if (!["confirmed", "completed", "no_show"].includes(appointment.status ?? "")) {
+      throw new Error("The booking is not confirmed yet, so a meeting link cannot be sent.");
+    }
+
+    const metadata = payment.metadata;
+    if (
+      typeof metadata === "object" &&
+      metadata !== null &&
+      !Array.isArray(metadata) &&
+      metadata.booking_review_required === true
+    ) {
+      throw new Error("This paid booking still requires review before a meeting link can be sent.");
+    }
+
+    const reference = String(payment.checkout_group_reference ?? payment.reference ?? "").trim();
+    if (!reference) throw new Error("Payment reference is missing.");
+
+    await assertPaymentBookingContacts(reference);
+    await syncClientRecordsForSuccessfulPayment(reference);
+    await syncGoogleForPaymentReference(reference);
+    await assertPaymentMeetingLinks(reference);
+    const delivery = await sendPaymentEmailsForReference(reference, "payment_success", {
+      force: true,
+    });
+    if (delivery.sent === 0) {
+      throw new Error(
+        "The meeting link is ready, but the confirmation email could not be sent. Check email settings and retry.",
+      );
+    }
+
+    return {
+      ...delivery,
+      bookingReference: appointment.booking_reference ?? null,
+      recipientEmail: appointment.client_email,
+    };
+  });
+
 export const updatePaymentStatusForAdmin = createServerFn({ method: "POST" })
   .validator((d: z.infer<typeof manualPaymentStatusInput>) => manualPaymentStatusInput.parse(d))
   .handler(async ({ data }): Promise<ManualPaymentStatusResult> => {
@@ -1884,6 +1971,7 @@ export type PaymentRow = {
   bookingReference: string | null;
   clientName: string | null;
   clientEmail: string | null;
+  sessionMode: string | null;
   provider: "paystack" | "bank_transfer";
   reference: string;
   providerReference: string | null;
@@ -1906,7 +1994,7 @@ async function loadPaymentsForAdmin(): Promise<PaymentRow[]> {
   const { data, error } = await supabaseAdmin
     .from("payments")
     .select(
-      "id, appointment_id, provider, reference, checkout_group_reference, provider_reference, amount_kobo, metadata, status, transfer_note, transfer_reference, receipt_path, failed_reason, created_at, verified_at, appointments(booking_reference, client_name, client_email, status)",
+      "id, appointment_id, provider, reference, checkout_group_reference, provider_reference, amount_kobo, metadata, status, transfer_note, transfer_reference, receipt_path, failed_reason, created_at, verified_at, appointments(booking_reference, client_name, client_email, session_mode, status)",
     )
     .order("created_at", { ascending: false })
     .limit(200);
@@ -1923,6 +2011,7 @@ async function loadPaymentsForAdmin(): Promise<PaymentRow[]> {
       booking_reference?: string;
       client_name?: string;
       client_email?: string;
+      session_mode?: string;
       status?: string;
     } | null;
     return {
@@ -1931,6 +2020,7 @@ async function loadPaymentsForAdmin(): Promise<PaymentRow[]> {
       bookingReference: appt?.booking_reference ?? null,
       clientName: appt?.client_name ?? null,
       clientEmail: appt?.client_email ?? null,
+      sessionMode: appt?.session_mode ?? null,
       provider: row.provider as "paystack" | "bank_transfer",
       reference: row.reference as string,
       providerReference: (row.provider_reference as string | null) ?? null,

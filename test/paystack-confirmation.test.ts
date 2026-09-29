@@ -407,6 +407,8 @@ test("successful Paystack reconciliation keeps downstream effects idempotent", a
   assert.match(source, /sendPaymentEmailsForReference\(\s*reference/);
   assert.match(source, /assertPaymentMeetingLinks\(reference\)/);
   assert.match(source, /force: true/);
+  assert.match(source, /sendPaystackMeetingLinkForAdmin/);
+  assert.match(source, /confirmation email could not be sent/);
   assert.match(emailSender, /payment_success_email_claimed_at/);
   assert.match(emailSender, /\.is\(claimColumn, null\)/);
   assert.match(emailSender, /params\.force/);
