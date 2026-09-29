@@ -291,6 +291,46 @@ export type GoogleEventInput = {
   requestId: string; // for conferenceData idempotency
 };
 
+type GoogleEventResponse = {
+  id: string;
+  hangoutLink?: string;
+  conferenceData?: {
+    entryPoints?: { uri?: string; entryPointType?: string }[];
+  };
+};
+
+function meetingLinkFromEvent(event: GoogleEventResponse) {
+  return (
+    event.hangoutLink ??
+    event.conferenceData?.entryPoints?.find((entry) => entry.entryPointType === "video")?.uri ??
+    null
+  );
+}
+
+async function getEventWithMeet(therapistId: string, eventId: string) {
+  const creds = await ensureAccessToken(therapistId);
+  if (!creds) throw new Error("Therapist has not connected Google.");
+  const res = await googleFetch(
+    therapistId,
+    `/calendar/v3/calendars/${encodeURIComponent(creds.calendarId)}/events/${encodeURIComponent(eventId)}`,
+  );
+  if (res.status === 404 || res.status === 410) return null;
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Google getEvent failed (${res.status}): ${text}`);
+  const event = JSON.parse(text) as GoogleEventResponse;
+  return { eventId: event.id, meetUrl: meetingLinkFromEvent(event) };
+}
+
+async function waitForMeet(therapistId: string, eventId: string) {
+  let latest: Awaited<ReturnType<typeof getEventWithMeet>> = null;
+  for (const delayMs of [0, 300, 700, 1200]) {
+    if (delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs));
+    latest = await getEventWithMeet(therapistId, eventId);
+    if (!latest || latest.meetUrl) return latest;
+  }
+  return latest;
+}
+
 export async function createEventWithMeet(therapistId: string, input: GoogleEventInput) {
   const creds = await ensureAccessToken(therapistId);
   if (!creds) throw new Error("Therapist has not connected Google.");
@@ -314,25 +354,26 @@ export async function createEventWithMeet(therapistId: string, input: GoogleEven
   );
   const text = await res.text();
   if (!res.ok) throw new Error(`Google createEvent failed (${res.status}): ${text}`);
-  const event = JSON.parse(text) as {
-    id: string;
-    hangoutLink?: string;
-    conferenceData?: { entryPoints?: { uri?: string; entryPointType?: string }[] };
-  };
-  const meetUrl =
-    event.hangoutLink ??
-    event.conferenceData?.entryPoints?.find((e) => e.entryPointType === "video")?.uri ??
-    null;
-  return { eventId: event.id, meetUrl };
+  const event = JSON.parse(text) as GoogleEventResponse;
+  const meetUrl = meetingLinkFromEvent(event);
+  if (meetUrl) return { eventId: event.id, meetUrl };
+  const refreshed = await waitForMeet(therapistId, event.id);
+  return { eventId: event.id, meetUrl: refreshed?.meetUrl ?? null };
 }
 
 export async function patchEvent(
   therapistId: string,
   eventId: string,
-  input: Partial<GoogleEventInput>,
+  input: Partial<GoogleEventInput> & { requestMeet?: boolean },
 ) {
   const creds = await ensureAccessToken(therapistId);
   if (!creds) throw new Error("Therapist has not connected Google.");
+  let existingMeetUrl: string | null = null;
+  let requestMeet = Boolean(input.requestMeet);
+  if (requestMeet) {
+    existingMeetUrl = (await getEventWithMeet(therapistId, eventId))?.meetUrl ?? null;
+    requestMeet = !existingMeetUrl;
+  }
   const body: Record<string, unknown> = {};
   if (input.summary) body.summary = input.summary;
   if (input.description) body.description = input.description;
@@ -340,14 +381,31 @@ export async function patchEvent(
     body.start = { dateTime: input.startISO, timeZone: input.timeZone ?? "Africa/Lagos" };
   if (input.endISO)
     body.end = { dateTime: input.endISO, timeZone: input.timeZone ?? "Africa/Lagos" };
+  if (requestMeet) {
+    body.conferenceData = {
+      createRequest: {
+        requestId: input.requestId ?? `talkspace-meet-${Date.now()}`,
+        conferenceSolutionKey: { type: "hangoutsMeet" },
+      },
+    };
+  }
+  const query = new URLSearchParams({ sendUpdates: "all" });
+  if (requestMeet) query.set("conferenceDataVersion", "1");
   const res = await googleFetch(
     therapistId,
-    `/calendar/v3/calendars/${encodeURIComponent(creds.calendarId)}/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
+    `/calendar/v3/calendars/${encodeURIComponent(creds.calendarId)}/events/${encodeURIComponent(eventId)}?${query.toString()}`,
     { method: "PATCH", body: JSON.stringify(body) },
   );
-  if (!res.ok && res.status !== 404) {
-    throw new Error(`Google patchEvent failed (${res.status}): ${await res.text()}`);
+  const text = await res.text();
+  if (!res.ok && res.status !== 404 && res.status !== 410) {
+    throw new Error(`Google patchEvent failed (${res.status}): ${text}`);
   }
+  if (!res.ok) return { meetUrl: null };
+  const event = JSON.parse(text) as GoogleEventResponse;
+  const meetUrl = meetingLinkFromEvent(event) ?? existingMeetUrl;
+  if (meetUrl || !requestMeet) return { meetUrl };
+  const refreshed = await waitForMeet(therapistId, eventId);
+  return { meetUrl: refreshed?.meetUrl ?? null };
 }
 
 export async function deleteEvent(therapistId: string, eventId: string) {

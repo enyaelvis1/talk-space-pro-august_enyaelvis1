@@ -36,6 +36,7 @@ export async function sendPaymentEmail(params: {
   paymentId?: string;
   reference?: string;
   templateKey: PaymentTemplateKey;
+  force?: boolean;
 }) {
   let query = supabaseAdmin
     .from("payments")
@@ -90,7 +91,7 @@ export async function sendPaymentEmail(params: {
   const claimColumn = needsReview
     ? "payment_review_email_claimed_at"
     : CLAIM_COLUMNS[params.templateKey];
-  if (payment[claimColumn]) {
+  if (payment[claimColumn] && !params.force) {
     return { sent: false as const, reason: "already_notified", logId: null };
   }
 
@@ -105,13 +106,9 @@ export async function sendPaymentEmail(params: {
         : claimColumn === "payment_failed_email_claimed_at"
           ? { payment_failed_email_claimed_at: claimTimestamp }
           : { bank_transfer_received_email_claimed_at: claimTimestamp };
-  const { data: claimed, error: claimError } = await supabaseAdmin
-    .from("payments")
-    .update(claimUpdate)
-    .eq("id", payment.id)
-    .is(claimColumn, null)
-    .select("id")
-    .maybeSingle();
+  let claimQuery = supabaseAdmin.from("payments").update(claimUpdate).eq("id", payment.id);
+  if (!params.force) claimQuery = claimQuery.is(claimColumn, null);
+  const { data: claimed, error: claimError } = await claimQuery.select("id").maybeSingle();
   if (claimError) throw claimError;
   if (!claimed) return { sent: false as const, reason: "already_notified", logId: null };
 

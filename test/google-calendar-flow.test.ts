@@ -60,7 +60,12 @@ test("Google token and calendar API failures are surfaced or swallowed safely", 
   assert.match(googleFunctions, /if \(appt\.google_event_id\)/);
   assert.match(googleFunctions, /await createEventWithMeet\(/);
   assert.match(googleFunctions, /await patchEvent\(/);
+  assert.match(googleFunctions, /google_meet_url/);
+  assert.match(googleFunctions, /requestMeet: true/);
   assert.match(googleFunctions, /await patchEvent\([\s\S]*?google_sync_error: null/);
+  assert.match(googleServer, /conferenceDataVersion.*1/);
+  assert.match(googleServer, /createRequest/);
+  assert.match(googleServer, /waitForMeet/);
   assert.match(googleFunctions, /await deleteEvent\(/);
   assert.match(googleFunctions, /google_meet_url/);
   assert.match(googleFunctions, /google_synced_at/);
