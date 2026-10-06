@@ -27,6 +27,9 @@ const remindersRoute = await readFile(
   new URL("../src/routes/api/public/hooks/send-reminders.ts", import.meta.url),
   "utf8",
 );
+const vercelConfig = JSON.parse(
+  await readFile(new URL("../vercel.json", import.meta.url), "utf8"),
+) as { crons?: Array<{ path?: string; schedule?: string }> };
 const retryRoute = await readFile(
   new URL("../src/routes/api/public/hooks/retry-emails.ts", import.meta.url),
   "utf8",
@@ -159,6 +162,13 @@ test("booking reminders and payment confirmations share the same email pipeline"
   assert.match(remindersRoute, /booking_reminder_1h/);
   assert.match(remindersRoute, /reminder_24h_open_min_minutes/);
   assert.match(remindersRoute, /reminder_1h_open_min_minutes/);
+});
+
+test("Vercel schedules the reminder hook every fifteen minutes", () => {
+  assert.deepEqual(
+    vercelConfig.crons?.find((cron) => cron.path === "/api/public/hooks/send-reminders"),
+    { path: "/api/public/hooks/send-reminders", schedule: "*/15 * * * *" },
+  );
 });
 
 test("reschedule and cancellation notify the therapist exactly once", () => {
