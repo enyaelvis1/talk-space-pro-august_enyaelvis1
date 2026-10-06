@@ -2,5 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "tanstack-start",
   "buildCommand": "npm run build",
-  "crons": [{ "path": "/api/public/hooks/recheck-payments", "schedule": "0 3 * * *" }]
+  "crons": [
+    { "path": "/api/public/hooks/recheck-payments", "schedule": "0 3 * * *" },
+    { "path": "/api/public/hooks/send-reminders", "schedule": "*/15 * * * *" }
+  ]
 }
