@@ -1,0 +1,27 @@
+name: Send booking reminders
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/15 * * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  send-reminders:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Invoke reminder endpoint
+        env:
+          APP_URL: ${{ secrets.TALKSPACE_APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          test -n "$APP_URL"
+          test -n "$CRON_SECRET"
+          curl --fail-with-body --retry 2 --connect-timeout 15 --max-time 120 \
+            -X POST "$APP_URL/api/public/hooks/send-reminders" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: application/json"

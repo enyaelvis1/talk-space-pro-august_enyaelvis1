@@ -27,6 +27,10 @@ const remindersRoute = await readFile(
   new URL("../src/routes/api/public/hooks/send-reminders.ts", import.meta.url),
   "utf8",
 );
+const reminderWorkflow = await readFile(
+  new URL("../.github/workflows/send-reminders.yml", import.meta.url),
+  "utf8",
+);
 const vercelConfig = JSON.parse(
   await readFile(new URL("../vercel.json", import.meta.url), "utf8"),
 ) as { crons?: Array<{ path?: string; schedule?: string }> };
@@ -164,11 +168,15 @@ test("booking reminders and payment confirmations share the same email pipeline"
   assert.match(remindersRoute, /reminder_1h_open_min_minutes/);
 });
 
-test("Vercel schedules the reminder hook every fifteen minutes", () => {
+test("Hobby-compatible scheduling invokes reminders every fifteen minutes", () => {
   assert.deepEqual(
     vercelConfig.crons?.find((cron) => cron.path === "/api/public/hooks/send-reminders"),
-    { path: "/api/public/hooks/send-reminders", schedule: "*/15 * * * *" },
+    undefined,
   );
+  assert.match(reminderWorkflow, /cron: "\*\/15 \* \* \* \*"/);
+  assert.match(reminderWorkflow, /secrets\.TALKSPACE_APP_URL/);
+  assert.match(reminderWorkflow, /secrets\.CRON_SECRET/);
+  assert.match(reminderWorkflow, /\/api\/public\/hooks\/send-reminders/);
 });
 
 test("reschedule and cancellation notify the therapist exactly once", () => {
