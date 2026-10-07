@@ -1,8 +1,11 @@
 # Payments review and checkout-expiry fix — 7 October 2026
 
 Branch: `feature/payment-booking-review-integrity`, based on `develop` (`df7b799`).
-Status: implemented locally; approved expiry migration blocked by a missing
-production prerequisite. No application SQL or production deployment performed.
+Status: both specifically approved database migrations applied and independently
+verified on production `vwupdobwjlmitsgasdrz` on 7 October 2026, after a complete
+protected logical backup, two isolated restore checks and migration rehearsal.
+The application/UI changes remain local on this feature branch; no deployment,
+push or merge was performed during this rollout. Browser/provider UAT is pending.
 Related feedback: TS-010, TS-011, TS-015, TS-016 in
 [the tracking checklist](TALKSPACE_CLIENT_FEEDBACK_TRACKING_CHECKLIST.md).
 
@@ -58,24 +61,28 @@ Related feedback: TS-010, TS-011, TS-015, TS-016 in
       identified the linked project as production `vwupdobwjlmitsgasdrz`, matching
       the screenshot project. Approval is not treated as permission to apply
       other pending migrations.
-- [ ] Verify the target migration history contains the existing commitment,
+- [x] Verify the target migration history contains the existing commitment,
       token lifecycle, grouped payment, paid-review retry, admin reschedule,
-      confirmed-contact/payment integrity and archive/availability migrations.
-- [ ] Confirm a recoverable backup, capture preflight counts and old definitions
+      and archive/availability behavior. Add the missing confirmed-contact/payment
+      integrity prerequisite before the expiry fix, under the specific approval.
+- [x] Confirm a recoverable backup, capture preflight counts and old definitions
       of `mark_payment_status`, `apply_appointment_manage_token_lifecycle`,
       `expire_stale_holds` and `list_available_slots`, and name a rollback owner.
       Keep dumps, contact data and credentials outside Git.
-- [ ] Pause payment rechecks/booking writes for the approved application window.
-- [ ] Apply the single new migration last, in timestamp order. Its function and
-      metadata changes run in one transaction. Stop on any SQL error; do not
+- [x] Serialize affected public-table writes inside the approved transaction
+      using ordered `SHARE ROW EXCLUSIVE` locks and bounded lock/statement
+      timeouts. No remote app/provider shutdown was performed.
+- [x] Apply only `20260924120000`, then `20261007100000`, in one transaction.
+      Stop on any SQL error; do not
       repair/delete migration history or use a blanket push of unknown migrations.
-- [ ] Compare pre/post appointment and payment counts, financial statuses and
+- [x] Compare pre/post appointment and payment counts, financial statuses and
       values, service-role RPC grants, archive states, and unchanged CMS records.
 - [ ] Complete the synthetic UAT below before a feature PR to `develop` and a
       separately approved release PR to `main`. No production deployment performed.
 
-Rollback: a failure before COMMIT rolls back the migration. For a failure after
-COMMIT, pause writes and use the named operator's approved snapshot recovery or
+Rollback owner: Enyasystem, with the execution operator assisting only after
+approval of the exact recovery target/action. A failure before COMMIT rolls back
+the transaction. For a failure after COMMIT, pause writes and use approved recovery or
 forward fix. Do not blindly restore old functions alone after payment commitment:
 newly confirmed slots, renewed tokens and metadata must be reconciled with the
 financial ledger. This migration deliberately does not delete payments or
@@ -101,19 +108,70 @@ automatically repair historical bookings during application.
 - [x] Added a transactional fail-fast prerequisite check to the expiry migration
       and regression coverage for absent/disabled guards. It refuses application
       before function replacement or metadata changes.
-- [ ] Obtain specific approval for prerequisite
+- [x] Obtain specific approval for prerequisite
       `20260924120000_client_feedback_booking_payment_guards.sql`, then the expiry
       fix. Review that prerequisite's bank-transfer amount/contact validation,
       complete backup/rollback readiness, and reconcile the remote-only backup
       migration in a temporary application workspace without changing history.
-- [ ] Apply `20260924120000` before `20261007100000`, only after the above approval
+- [x] Apply `20260924120000` before `20261007100000`, only after the above approval
       and gates. Do not blanket-push the other pending migrations:
       `20260924121000`, `20260924130000`, `20260925120000`.
 
-No remote booking, payment or CMS records were changed during this attempt.
+No remote booking, payment or CMS records were changed during this initial attempt.
 No Paystack, mail, WhatsApp, SMS or Calendar delivery was invoked. The original
 checkout and current browser server remain unchanged; the archived-review UI fix
 is still on the feature branch and requires the normal PR/UAT/release workflow.
+
+### Complete backup and approved application — 7 October 2026
+
+- [x] Complete protected logical backup: 82 tables, 24,639 rows, database roles
+      without infrastructure login passwords, sequence positions and migration
+      history. Auth identities/password hashes, client records, appointments,
+      payment history, 4,851 CMS revisions and stored encrypted credentials/vault
+      ciphertext are included. All 1,143 actual Storage files were downloaded
+      and encrypted (164,146,685 bytes), not just their database metadata.
+- [x] Every encrypted artifact passed AES-256-GCM authentication and plaintext/
+      encrypted SHA-256 verification. Backup directories are private (0700),
+      artifacts are 0600, and the matching key is stored separately, never in Git.
+- [x] Two network-isolated PostgreSQL 17 restore checks passed, including the
+      saved reusable recovery helper. All 82 source table counts and row
+      fingerprints matched. Canonical columns, constraints, triggers, functions,
+      effective grants and RLS policies matched; no restored database was exposed
+      to an application, and cron/network delivery was disabled.
+- [x] Exact rollout transaction rehearsed against the restored backup at
+      `2026-10-07T13:27:00.714Z`; production application completed and independently
+      verified at `2026-10-07T13:31:09.143Z` (14:31 WAT).
+- [x] Applied only `20260924120000_client_feedback_booking_payment_guards.sql`
+      and `20261007100000_fix_paid_booking_expiry_review.sql`. Normal new history
+      entries were added (154 → 156); every previous history row, including
+      remote-only `20260922180000_admin_site_backups`, was preserved. The other
+      pending migrations were not applied, repaired or marked reverted.
+- [x] In-transaction assertions preserved all original public records: 163
+      appointments, 37 payments and 51 clients, including financial values/statuses,
+      archive states and CMS records. Only approved payment review metadata and
+      update timestamps changed; existing audit rows were preserved and exactly
+      one legitimate audit event per changed payment was allowed.
+- [x] Independent post-COMMIT checks confirmed both migrations, enabled contact/
+      payment triggers, service-role-only payment RPC execution and function
+      definitions identical to rehearsal. No historical booking was revived,
+      payment deleted or live provider request made.
+
+Evidence is stored outside Git in the private
+[backup manifest](/home/enyasystem/.local/share/talkspace-backups/2026-10-07-pre-payment-migrations-gyrE59/MANIFEST.json),
+alongside `RESTORE_README.md`, `MIGRATION_REHEARSAL.json`,
+`MIGRATION_APPLICATION.json` and the reusable offline restore helper.
+Exact rollout SQL SHA-256:
+`66fc44643e3217c74bc3d0c29040b7a0fd527a975e1ed3e2e0b7462ea1a41f12`.
+
+This is not physical/PITR recovery. External project encryption root keys,
+infrastructure login passwords, `.env`, deployment/control-plane configuration
+and external provider resources are not included. Vault ciphertext may need the
+original project root key. Storage/sequence capture is separate from the table
+snapshot, not an atomic snapshot of simultaneous uploads/deletions. Preserve
+protected off-device copies of archives and key separately; no off-device upload
+was performed. Database application does not publish the pending UI fix or
+resolve intentional historical cancellations; synthetic browser/provider UAT
+and the normal feature → develop → approved main release remain required.
 
 ## User UAT
 

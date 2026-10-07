@@ -18,8 +18,10 @@ Source: `docs/TALKSPACE_CLIENT_FEEDBACK_ISSUE_REGISTER.md`
 | Items requiring disposable staging accounts | 5: UAT-ACC-001 through UAT-ACC-005 |
 
 Statuses are intentionally not marked UAT Passed, Production Ready, or Done.
-No migrations, deployments, real messages, live Paystack requests, Google
-Calendar events, or production changes were performed during this implementation.
+The original 24 September audit/implementation did not perform migrations,
+deployments, real messages, live Paystack requests or Google Calendar events.
+The separately approved 7 October database rollout is recorded below; it does
+not constitute browser/provider UAT or deployment of the application changes.
 
 ## P0 implementation pass — 24 September 2026
 
@@ -116,9 +118,21 @@ database regression evidence in
 The screenshot investigation confirmed that archived cancelled bookings were
 incorrectly re-entering active payment review, including three whose checkout
 expiry trigger cancelled a verified booking. Payments remain preserved in the
-ledger. The new migration is prepared and tested only in disposable PostgreSQL
-clusters; application to the configured database and credentialed user UAT are
-still pending approval. Existing per-item UAT status is not promoted to Done.
+ledger. Following specific approval, `20260924120000` (the missing contact/payment
+integrity prerequisite) and `20261007100000` (the expiry/review fix) were applied
+to production `vwupdobwjlmitsgasdrz` and independently verified on 7 October at
+14:31 WAT. A protected 82-table logical database backup plus all 1,143 Storage
+files passed authenticated checksum verification, two network-isolated restore
+checks and exact-transaction rehearsal first. Existing bookings, payment values/
+statuses, clients, archive states, CMS records and migration history were preserved;
+only approved review metadata/timestamps and corresponding audit appends changed.
+No historical booking was revived and no live provider delivery was invoked.
+
+Application/UI changes are still on `feature/payment-booking-review-integrity`;
+no push, merge or deployment was performed during this rollout. Browser/sandbox
+UAT remains pending, so existing per-item statuses are not promoted to Done.
+The linked checklist records backup/recovery limitations, the exact migration
+order and protected evidence locations. Other pending migrations remain unapplied.
 
 ### TS-001 — Replace the in-person Lagos address
 
