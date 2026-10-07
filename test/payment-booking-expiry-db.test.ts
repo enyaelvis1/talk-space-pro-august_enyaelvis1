@@ -109,6 +109,37 @@ test(
         "old RPC silently reported paid without review metadata",
       );
 
+      // Refuse rollout if either prerequisite guard is absent or disabled,
+      // before changing functions, metadata, or appointment/payment state.
+      const originalLifecycle = sql(
+        "select pg_get_functiondef('public.apply_appointment_manage_token_lifecycle()'::regprocedure)",
+      );
+      for (const [table, trigger] of [
+        ["appointments", "appointments_confirmed_contact_guard"],
+        ["payments", "payments_succeeded_integrity_guard"],
+      ]) {
+        const definition = sql(
+          `select pg_get_triggerdef(oid) from pg_trigger where tgrelid='public.${table}'::regclass and tgname='${trigger}'`,
+        );
+        for (const missing of [false, true]) {
+          sql(
+            missing
+              ? `drop trigger ${trigger} on ${table}`
+              : `alter table ${table} disable trigger ${trigger}`,
+          );
+          assert.throws(() => apply(fix), /payment_expiry_prerequisite_missing/);
+          assert.equal(
+            sql(
+              "select pg_get_functiondef('public.apply_appointment_manage_token_lifecycle()'::regprocedure)",
+            ),
+            originalLifecycle,
+          );
+          assert.equal(state(legacy), "cancelled");
+          assert.equal(review("TEST-LEGACY"), "false");
+          sql(missing ? definition : `alter table ${table} enable trigger ${trigger}`);
+        }
+      }
+
       apply(fix);
       apply(fix); // Application and metadata repair must be replay-safe.
       assert.equal(

@@ -1,7 +1,8 @@
 # Payments review and checkout-expiry fix — 7 October 2026
 
 Branch: `feature/payment-booking-review-integrity`, based on `develop` (`df7b799`).
-Status: implemented locally; database application and user UAT pending.
+Status: implemented locally; approved expiry migration blocked by a missing
+production prerequisite. No application SQL or production deployment performed.
 Related feedback: TS-010, TS-011, TS-015, TS-016 in
 [the tracking checklist](TALKSPACE_CLIENT_FEEDBACK_TRACKING_CHECKLIST.md).
 
@@ -53,9 +54,10 @@ Related feedback: TS-010, TS-011, TS-015, TS-016 in
 
 ## Database approval and rollout gate
 
-- [ ] Obtain explicit approval for the exact database target and application.
-      The migration was applied only inside disposable test clusters, never to
-      the configured local Supabase project or any remote project.
+- [x] User approved proceeding with the prepared expiry fix. Read-only preflight
+      identified the linked project as production `vwupdobwjlmitsgasdrz`, matching
+      the screenshot project. Approval is not treated as permission to apply
+      other pending migrations.
 - [ ] Verify the target migration history contains the existing commitment,
       token lifecycle, grouped payment, paid-review retry, admin reschedule,
       confirmed-contact/payment integrity and archive/availability migrations.
@@ -78,6 +80,40 @@ forward fix. Do not blindly restore old functions alone after payment commitment
 newly confirmed slots, renewed tokens and metadata must be reconciled with the
 financial ledger. This migration deliberately does not delete payments or
 automatically repair historical bookings during application.
+
+### Approved application attempt — preflight stopped before SQL changes
+
+- [x] Read the linked migration history and fetched a private copy, without
+      repairing, reverting or deleting history. Its latest version is
+      `20260922180000_admin_site_backups`, a genuine remote-only migration that
+      must be preserved rather than marked reverted to unblock `db push`.
+- [x] Captured a protected schema-only snapshot outside Git (223,782 bytes,
+      SHA-256 `2309456f99ae8302d04bbe89d8a786a36f1ba08ff03ee2c88d1c09a6fcdee493`).
+      It preserves the old function definitions, but is **not** a complete,
+      recoverable data backup. Private location supplied only to the operator.
+- [x] Checked Supabase backup availability: no managed backups are listed and
+      PITR is disabled. A verified data backup and rollback owner are still needed.
+- [x] Verified the dumped schema lacks both
+      `appointments_confirmed_contact_guard` and
+      `payments_succeeded_integrity_guard`, including their guard functions.
+      The confirmed-slot guard, token lifecycle, expiry, payment status and
+      reschedule functions exist; missing contact/payment guards are the blocker.
+- [x] Added a transactional fail-fast prerequisite check to the expiry migration
+      and regression coverage for absent/disabled guards. It refuses application
+      before function replacement or metadata changes.
+- [ ] Obtain specific approval for prerequisite
+      `20260924120000_client_feedback_booking_payment_guards.sql`, then the expiry
+      fix. Review that prerequisite's bank-transfer amount/contact validation,
+      complete backup/rollback readiness, and reconcile the remote-only backup
+      migration in a temporary application workspace without changing history.
+- [ ] Apply `20260924120000` before `20261007100000`, only after the above approval
+      and gates. Do not blanket-push the other pending migrations:
+      `20260924121000`, `20260924130000`, `20260925120000`.
+
+No remote booking, payment or CMS records were changed during this attempt.
+No Paystack, mail, WhatsApp, SMS or Calendar delivery was invoked. The original
+checkout and current browser server remain unchanged; the archived-review UI fix
+is still on the feature branch and requires the normal PR/UAT/release workflow.
 
 ## User UAT
 
@@ -104,6 +140,9 @@ references and an email/calendar sink. Live provider delivery remains untested.
 - [ ] Full TypeScript check: blocked by the same 5 pre-existing missing
       notification-RPC typings on unchanged `develop`; no new diagnostic in the fix.
 - [x] Final diff/format check passed; changes committed on the feature branch.
+- [x] Application-readiness follow-up: 41 focused payment/expiry tests passed;
+      the isolated database cases verify absent/disabled prerequisite guards
+      abort before function, metadata or financial state changes.
 - [ ] Credentialed admin browser/sandbox/provider UAT; never claim these passed
       from mocked tests or the read-only production diagnostic.
 

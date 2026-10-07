@@ -3,6 +3,29 @@
 -- explicitly cancelled or archived booking from a provider callback.
 BEGIN;
 
+-- The delayed-payment path relies on the existing contact/money guards. Never
+-- weaken commitment by installing it on a database that has not received them.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_trigger t
+    WHERE t.tgrelid = 'public.appointments'::regclass
+      AND t.tgname = 'appointments_confirmed_contact_guard'
+      AND t.tgfoid = to_regprocedure('public.guard_confirmed_appointment_contact()')
+      AND t.tgenabled IN ('O', 'A') AND NOT t.tgisinternal
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_trigger t
+    WHERE t.tgrelid = 'public.payments'::regclass
+      AND t.tgname = 'payments_succeeded_integrity_guard'
+      AND t.tgfoid = to_regprocedure('public.guard_succeeded_payment_integrity()')
+      AND t.tgenabled IN ('O', 'A') AND NOT t.tgisinternal
+  ) THEN
+    RAISE EXCEPTION USING errcode = 'P0001', message =
+      'payment_expiry_prerequisite_missing: apply 20260924120000_client_feedback_booking_payment_guards first';
+  END IF;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.apply_appointment_manage_token_lifecycle()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions AS $$
 BEGIN
