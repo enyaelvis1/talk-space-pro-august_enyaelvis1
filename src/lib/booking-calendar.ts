@@ -195,3 +195,10 @@ export function shiftAppointmentToDate(startsAtIso: string, dateKey: string): st
 export function isSameDateKey(startsAtIso: string, dateKey: string): boolean {
   return toDateKey(new Date(startsAtIso)) === dateKey;
 }
+
+export function isWeekendBookingDate(dateKey: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return false;
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const weekday = new Date(Date.UTC(year, month - 1, day, 12)).getUTCDay();
+  return weekday === 0 || weekday === 6;
+}

@@ -15,6 +15,7 @@ import { toast } from "sonner";
 
 import { AdminWorkspaceShell } from "@/components/progress/AdminSidebar";
 import { formatWATDateTime } from "@/lib/time";
+import { resolveServicePriceNgn } from "@/lib/service-pricing";
 import { AdminPageSkeleton } from "@/components/admin/AdminSkeletons";
 import { PaymentReceiptDetails } from "@/components/booking/PaymentReceiptDetails";
 import { SensitiveActionDialog } from "@/components/admin/SensitiveActionDialog";
@@ -250,10 +251,22 @@ function PaymentsAdminScreen({
     [packageForm.serviceId, packageServices],
   );
   const estimatedPackageTotal =
-    selectedPackageService?.priceNgn == null
+    selectedPackageService == null
       ? null
-      : (selectedPackageService.priceNgn / Math.max(1, selectedPackageService.sessionsPerPackage)) *
-        Number(packageForm.purchasedSessions || 0);
+      : (() => {
+          const configuredPrice = resolveServicePriceNgn(
+            {
+              code: selectedPackageService.code,
+              price_ngn: selectedPackageService.priceNgn,
+              in_person_price_ngn: selectedPackageService.inPersonPriceNgn,
+            },
+            packageForm.sessionMode,
+          );
+          return configuredPrice == null
+            ? null
+            : (configuredPrice / Math.max(1, selectedPackageService.sessionsPerPackage)) *
+                Number(packageForm.purchasedSessions || 0);
+        })();
 
   const reloadSettings = useCallback(async () => {
     const fresh = await getPaymentAdminData();
@@ -981,9 +994,10 @@ function PaymentsAdminScreen({
                 type="date"
                 value={packageForm.expiresOn}
                 disabled={packageForm.neverExpires}
-                onChange={(event) =>
-                  setPackageForm((f) => ({ ...f, expiresOn: event.currentTarget.value }))
-                }
+                onChange={(event) => {
+                  const expiresOn = event.currentTarget.value;
+                  setPackageForm((f) => ({ ...f, expiresOn }));
+                }}
               />
             </div>
           </div>

@@ -7,6 +7,7 @@ import {
   getAppointmentsForDate,
   getDaySummary,
   getHiddenAdminTemporaryRows,
+  isWeekendBookingDate,
   isSameDateKey,
   shiftAppointmentToDate,
 } from "../src/lib/booking-calendar.ts";
@@ -95,6 +96,13 @@ test("calendar date keys use Africa/Lagos around UTC midnight", () => {
     ["late", "early"],
   );
   assert.equal(isSameDateKey("2026-08-03T23:30:00.000Z", "2026-08-04"), true);
+});
+
+test("weekend booking dates are not selectable", () => {
+  assert.equal(isWeekendBookingDate("2026-09-26"), true);
+  assert.equal(isWeekendBookingDate("2026-09-27"), true);
+  assert.equal(isWeekendBookingDate("2026-09-25"), false);
+  assert.equal(isWeekendBookingDate("invalid"), false);
 });
 
 test("same-time therapist appointments remain distinct before, during and after their sessions", () => {

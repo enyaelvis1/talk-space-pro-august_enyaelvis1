@@ -636,9 +636,11 @@ export type PublicPaymentOptions = {
 
 export type PackageServiceOption = {
   id: string;
+  code: string | null;
   name: string;
   sessionsPerPackage: number;
   priceNgn: number | null;
+  inPersonPriceNgn: number | null;
 };
 
 export type ManualPackageLinkResult = {
@@ -682,18 +684,30 @@ export const getPublicPaymentOptions = createServerFn({ method: "GET" }).handler
 
 async function loadPackageServicesForAdmin(): Promise<PackageServiceOption[]> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data, error } = await supabaseAdmin
+  let { data, error } = await supabaseAdmin
     .from("services")
-    .select("id, name, sessions_per_package, price_ngn")
+    .select("id, code, name, sessions_per_package, price_ngn, in_person_price_ngn")
     .eq("is_active", true)
     .order("display_order", { ascending: true });
+  if (error && isMissingInPersonPriceColumn(error)) {
+    const fallback = await supabaseAdmin
+      .from("services")
+      .select("id, code, name, sessions_per_package, price_ngn")
+      .eq("is_active", true)
+      .order("display_order", { ascending: true });
+    data = fallback.data?.map((service) => ({ ...service, in_person_price_ngn: null })) ?? null;
+    error = fallback.error;
+  }
   if (error) throw error;
   noStore();
   return (data ?? []).map((service) => ({
     id: service.id,
+    code: service.code ?? null,
     name: service.name,
     sessionsPerPackage: Number(service.sessions_per_package ?? 1),
     priceNgn: service.price_ngn == null ? null : Number(service.price_ngn),
+    inPersonPriceNgn:
+      service.in_person_price_ngn == null ? null : Number(service.in_person_price_ngn),
   }));
 }
 
