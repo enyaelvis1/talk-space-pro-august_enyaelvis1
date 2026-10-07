@@ -1011,6 +1011,7 @@ function BookingForm({
               <DateInput
                 id="preferredDate"
                 min={minDate}
+                disableWeekends
                 value={form.preferredDate}
                 onChange={(e) => onChange("preferredDate", e.target.value)}
                 aria-invalid={!!errors.preferredDate}
