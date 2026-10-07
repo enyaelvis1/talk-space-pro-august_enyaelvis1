@@ -183,9 +183,13 @@ and the normal feature → develop → approved main release remain required.
 - [x] Re-ran the 41 focused payment/expiry regression tests: 41 passed, none
       failed or skipped. Lint passed with the same seven baseline Fast Refresh
       warnings; `git diff --check` passed.
-- [ ] Push the exact feature commit and merge its green PR into `develop`.
-- [ ] Verify the integration checks, then merge a separate approved
-      `develop` → `main` PR. No feature → `main` merge, force push or history rewrite.
+- [x] Publish [feature PR #76](https://github.com/enyaelvis1/talk-space-pro-august_enyaelvis1/pull/76)
+      into `develop` with the UAT sign-off and protected migration evidence.
+
+Promotion remains gated on the exact pushed commit's checks, then integration
+checks and a separate approved `develop` → `main` PR. GitHub's PR merge status is
+the source of truth for completion; this section records pre-merge readiness.
+No feature → `main` merge, force push or history rewrite is authorized.
 
 Sign-off is user-reported acceptance of this payment-review/expiry feature, not
 an independently observed execution of every historical audit scenario. No
@@ -193,6 +197,23 @@ case-level screenshots or new sandbox references were supplied; existing UAT
 table entries below retain their evidence limitations. Do not fabricate those
 artifacts or claim live provider tests were run. Open package/calendar PRs and
 unrelated dependency/backup PRs are outside this release scope.
+
+### Release security gate follow-up
+
+PR #76's first full lint/test/build job, secret scan and Vercel preview passed.
+The dependency audit found two existing high-severity dependency entries. The
+lockfile-only fix updates `brace-expansion` 5.0.9 → 5.0.12 (and its three legacy
+development copies 1.1.18 → 1.1.21) and `source-map-js` 1.2.1 → 1.2.2, retaining
+all dependency ranges, application code and CI policy. See the upstream
+[brace-expansion advisory](https://github.com/advisories/GHSA-q2hr-2g5m-vwhr) and
+[source-map-js advisory](https://github.com/advisories/GHSA-68fv-2mgg-jv7q).
+
+The unchanged `npm audit --omit=dev --audit-level=high --package-lock-only` gate
+now passes (exit 0). Two existing moderate findings remain in
+`postcss-selector-parser`/`@tailwindcss/typography`; the suggested force fix would
+change the direct typography dependency and is deliberately outside this narrow
+release. No forced dependency update, threshold reduction or CI bypass was used.
+PR checks must rerun with the patched lockfile before either merge.
 
 ## User UAT
 
