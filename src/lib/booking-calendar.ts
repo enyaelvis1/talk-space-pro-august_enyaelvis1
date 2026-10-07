@@ -59,6 +59,10 @@ function toDateKey(date: Date): string {
   return formatWATDateKey(date);
 }
 
+export function getTodayBookingDateKey(now = new Date()): string {
+  return toDateKey(now);
+}
+
 function startOfMonth(date: Date): Date {
   const [year, month] = formatWATDateKey(date).split("-").map(Number);
   return new Date(Date.UTC(year, month - 1, 1, 12));

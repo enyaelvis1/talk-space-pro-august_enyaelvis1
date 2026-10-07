@@ -65,6 +65,7 @@ import {
   type PaymentEventEntry,
   type PaymentSettingsDTO,
   type PackageServiceOption,
+  type RegisteredClientOption,
 } from "@/lib/payments.functions";
 
 type PaymentTab = "pending" | "confirmed" | "failed" | "all";
@@ -116,6 +117,7 @@ function PaymentsAdminRoute() {
         initialSettings={loaderData.settings}
         initialPayments={loaderData.payments}
         packageServices={loaderData.packageServices}
+        registeredClients={loaderData.registeredClients}
       />
     </AdminWorkspaceShell>
   );
@@ -202,10 +204,12 @@ function PaymentsAdminScreen({
   initialSettings,
   initialPayments,
   packageServices,
+  registeredClients,
 }: {
   initialSettings: PaymentSettingsDTO;
   initialPayments: PaymentRow[];
   packageServices: PackageServiceOption[];
+  registeredClients: RegisteredClientOption[];
 }) {
   const stepUp = useSensitiveActionGate();
   const [settings, setSettings] = useState<PaymentSettingsDTO>(initialSettings);
@@ -243,6 +247,7 @@ function PaymentsAdminScreen({
     sendEmail: true,
   });
   const [packageBusy, setPackageBusy] = useState(false);
+  const [selectedClientId, setSelectedClientId] = useState("");
   const [lastPackageUrl, setLastPackageUrl] = useState<string | null>(null);
   const [lastPackageReference, setLastPackageReference] = useState<string | null>(null);
   const selectedPackageService = useMemo(
@@ -882,11 +887,45 @@ function PaymentsAdminScreen({
         </div>
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
+            <Label htmlFor="pkg-registered-client">Registered client</Label>
+            <select
+              id="pkg-registered-client"
+              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              value={selectedClientId}
+              onChange={(event) => {
+                const clientId = event.currentTarget.value;
+                setSelectedClientId(clientId);
+                const client = registeredClients.find((item) => item.id === clientId);
+                if (!client) return;
+                setPackageForm((form) => ({
+                  ...form,
+                  clientName: client.fullName,
+                  clientEmail: client.email ?? "",
+                  clientPhone: client.phone ?? "",
+                }));
+              }}
+            >
+              <option value="">Enter client details manually</option>
+              {registeredClients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.fullName}
+                  {client.email ? ` · ${client.email}` : ""}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Select a registered client to fill the name, email, and phone automatically.
+            </p>
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="pkg-name">Client name</Label>
             <Input
               id="pkg-name"
               value={packageForm.clientName}
-              onChange={(e) => setPackageForm((f) => ({ ...f, clientName: e.target.value }))}
+              onChange={(e) => {
+                setSelectedClientId("");
+                setPackageForm((f) => ({ ...f, clientName: e.target.value }));
+              }}
             />
           </div>
           <div className="space-y-2">
@@ -895,7 +934,10 @@ function PaymentsAdminScreen({
               id="pkg-email"
               type="email"
               value={packageForm.clientEmail}
-              onChange={(e) => setPackageForm((f) => ({ ...f, clientEmail: e.target.value }))}
+              onChange={(e) => {
+                setSelectedClientId("");
+                setPackageForm((f) => ({ ...f, clientEmail: e.target.value }));
+              }}
             />
           </div>
           <div className="space-y-2">
@@ -903,7 +945,10 @@ function PaymentsAdminScreen({
             <Input
               id="pkg-phone"
               value={packageForm.clientPhone}
-              onChange={(e) => setPackageForm((f) => ({ ...f, clientPhone: e.target.value }))}
+              onChange={(e) => {
+                setSelectedClientId("");
+                setPackageForm((f) => ({ ...f, clientPhone: e.target.value }));
+              }}
             />
           </div>
           <div className="space-y-2">
