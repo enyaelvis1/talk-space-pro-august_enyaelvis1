@@ -7,6 +7,7 @@ import {
   getAppointmentsForDate,
   getDaySummary,
   getHiddenAdminTemporaryRows,
+  isInactiveBookingDate,
   isWeekendBookingDate,
   isSameDateKey,
   shiftAppointmentToDate,
@@ -103,6 +104,13 @@ test("weekend booking dates are not selectable", () => {
   assert.equal(isWeekendBookingDate("2026-09-27"), true);
   assert.equal(isWeekendBookingDate("2026-09-25"), false);
   assert.equal(isWeekendBookingDate("invalid"), false);
+});
+
+test("past booking dates are inactive while today and future weekdays remain active", () => {
+  assert.equal(isInactiveBookingDate("2026-10-06", "2026-10-07"), true);
+  assert.equal(isInactiveBookingDate("2026-10-07", "2026-10-07"), false);
+  assert.equal(isInactiveBookingDate("2026-10-08", "2026-10-07"), false);
+  assert.equal(isInactiveBookingDate("2026-10-10", "2026-10-07"), true);
 });
 
 test("same-time therapist appointments remain distinct before, during and after their sessions", () => {
