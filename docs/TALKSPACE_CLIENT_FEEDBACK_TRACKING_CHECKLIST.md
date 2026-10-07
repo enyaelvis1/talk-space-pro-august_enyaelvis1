@@ -18,8 +18,10 @@ Source: `docs/TALKSPACE_CLIENT_FEEDBACK_ISSUE_REGISTER.md`
 | Items requiring disposable staging accounts | 5: UAT-ACC-001 through UAT-ACC-005 |
 
 Statuses are intentionally not marked UAT Passed, Production Ready, or Done.
-No migrations, deployments, real messages, live Paystack requests, Google
-Calendar events, or production changes were performed during this implementation.
+The original 24 September audit/implementation did not perform migrations,
+deployments, real messages, live Paystack requests or Google Calendar events.
+The separately approved 7 October database rollout is recorded below; it does
+not constitute browser/provider UAT or deployment of the application changes.
 
 ## P0 implementation pass — 24 September 2026
 
@@ -107,6 +109,41 @@ Do not record passwords, cookies, manage tokens, invite links, payment secrets,
 or `.env` values.
 
 ## Client feedback checklist
+
+### 7 October follow-up — recurring paid-cancellation warnings
+
+TS-010, TS-011, TS-015 and TS-016 have a local implementation and isolated
+database regression evidence in
+[the payment-review/expiry checklist](PAYMENT_REVIEW_EXPIRY_FIX_CHECKLIST_2026-10-07.md).
+The screenshot investigation confirmed that archived cancelled bookings were
+incorrectly re-entering active payment review, including three whose checkout
+expiry trigger cancelled a verified booking. Payments remain preserved in the
+ledger. Following specific approval, `20260924120000` (the missing contact/payment
+integrity prerequisite) and `20261007100000` (the expiry/review fix) were applied
+to production `vwupdobwjlmitsgasdrz` and independently verified on 7 October at
+14:31 WAT. A protected 82-table logical database backup plus all 1,143 Storage
+files passed authenticated checksum verification, two network-isolated restore
+checks and exact-transaction rehearsal first. Existing bookings, payment values/
+statuses, clients, archive states, CMS records and migration history were preserved;
+only approved review metadata/timestamps and corresponding audit appends changed.
+No historical booking was revived and no live provider delivery was invoked.
+
+The database rollout did not push, merge or deploy the application/UI changes.
+The user subsequently reported UAT complete for
+`feature/payment-booking-review-integrity` and approved its push/merge into
+`develop`, followed by a separate `develop` → `main` release PR. CI still gates
+both merges. This sign-off does not provide case-level screenshots or sandbox
+references, nor independent evidence for every broader audit/provider scenario;
+existing per-item statuses are therefore not blanket-promoted to Done.
+The published feature PR is
+[#76](https://github.com/enyaelvis1/talk-space-pro-august_enyaelvis1/pull/76).
+Its initial lint/test/build, secret scan and preview passed. Two existing
+high-severity dependency entries blocked the release audit; compatible lockfile
+patches for `brace-expansion` and `source-map-js` clear that unchanged high-severity
+gate, with the two existing moderate typography-related findings still noted.
+The linked fix checklist records this follow-up and the required CI rerun.
+The linked checklist records backup/recovery limitations, the exact migration
+order and protected evidence locations. Other pending migrations remain unapplied.
 
 ### TS-001 — Replace the in-person Lagos address
 
