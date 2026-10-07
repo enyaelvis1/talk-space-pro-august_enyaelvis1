@@ -21,6 +21,7 @@ import {
   type BookingTokenLifecycle,
 } from "@/lib/booking-token-lifecycle";
 import { requireRequestRole } from "@/lib/server-auth";
+import { bookingNeedsPaymentReview } from "@/lib/payment-booking-review";
 
 function bag() {
   const r = createRequestSupabase(getRequest());
@@ -1649,6 +1650,11 @@ export const updatePaymentStatusForAdmin = createServerFn({ method: "POST" })
     if (!payment) throw new Error("Payment not found.");
 
     const previousStatus = String(payment.status);
+    if (["succeeded", "refunded"].includes(previousStatus) && previousStatus !== data.status) {
+      throw new Error(
+        "Settled payments cannot be reset to unpaid or failed. Use the finance review process.",
+      );
+    }
     if (previousStatus === data.status) {
       noStore();
       return { status: data.status };
@@ -1973,6 +1979,9 @@ export type PaymentRow = {
   clientEmail: string | null;
   sessionMode: string | null;
   appointmentStatus: string | null;
+  appointmentArchivedAt: string | null;
+  appointmentStartsAt: string | null;
+  bookingReviewReason: string | null;
   provider: "paystack" | "bank_transfer";
   reference: string;
   providerReference: string | null;
@@ -1995,13 +2004,12 @@ async function loadPaymentsForAdmin(): Promise<PaymentRow[]> {
   const { data, error } = await supabaseAdmin
     .from("payments")
     .select(
-      "id, appointment_id, provider, reference, checkout_group_reference, provider_reference, amount_kobo, metadata, status, transfer_note, transfer_reference, receipt_path, failed_reason, created_at, verified_at, appointments(booking_reference, client_name, client_email, session_mode, status)",
+      "id, appointment_id, payment_kind, provider, reference, checkout_group_reference, provider_reference, amount_kobo, metadata, status, transfer_note, transfer_reference, receipt_path, failed_reason, created_at, verified_at, appointments(booking_reference, client_name, client_email, session_mode, status, starts_at, archived_at, manage_token_revocation_reason)",
     )
     .order("created_at", { ascending: false })
     .limit(200);
   if (error) throw error;
   noStore();
-  const { isBookingReviewRequired } = await import("@/lib/payments.server");
   const checkoutTotals = new Map<string, number>();
   for (const row of data ?? []) {
     const group = (row.checkout_group_reference as string | null) ?? (row.reference as string);
@@ -2014,6 +2022,9 @@ async function loadPaymentsForAdmin(): Promise<PaymentRow[]> {
       client_email?: string;
       session_mode?: string;
       status?: string;
+      starts_at?: string;
+      archived_at?: string;
+      manage_token_revocation_reason?: string;
     } | null;
     return {
       id: row.id as string,
@@ -2023,6 +2034,9 @@ async function loadPaymentsForAdmin(): Promise<PaymentRow[]> {
       clientEmail: appt?.client_email ?? null,
       sessionMode: appt?.session_mode ?? null,
       appointmentStatus: appt?.status ?? null,
+      appointmentArchivedAt: appt?.archived_at ?? null,
+      appointmentStartsAt: appt?.starts_at ?? null,
+      bookingReviewReason: appt?.manage_token_revocation_reason ?? null,
       provider: row.provider as "paystack" | "bank_transfer",
       reference: row.reference as string,
       providerReference: (row.provider_reference as string | null) ?? null,
@@ -2043,9 +2057,11 @@ async function loadPaymentsForAdmin(): Promise<PaymentRow[]> {
       failedReason: (row.failed_reason as string | null) ?? null,
       createdAt: row.created_at as string,
       verifiedAt: (row.verified_at as string | null) ?? null,
-      bookingReviewRequired:
-        isBookingReviewRequired(row.metadata) ||
-        (row.status === "succeeded" && appt?.status === "cancelled"),
+      bookingReviewRequired: bookingNeedsPaymentReview(
+        String(row.status),
+        String(row.payment_kind),
+        appt?.status ?? null,
+      ),
     };
   });
 }
@@ -2135,7 +2151,7 @@ export const verifyBankTransferPayment = createServerFn({ method: "POST" })
       if (data.approve) {
         const paymentWithReference = await supabaseAdmin
           .from("payments")
-          .select("reference, appointment_id, metadata, appointments(status)")
+          .select("reference, appointment_id, status, payment_kind, appointments(status)")
           .eq("id", data.paymentId)
           .maybeSingle();
         if (paymentWithReference.error) throw paymentWithReference.error;
@@ -2143,13 +2159,8 @@ export const verifyBankTransferPayment = createServerFn({ method: "POST" })
         const appointment = payment?.appointments as { status?: string } | null;
         appointmentStatus = appointment?.status ?? null;
         bookingConfirmed =
-          ["confirmed", "completed", "no_show"].includes(appointmentStatus ?? "") &&
-          !(
-            typeof payment?.metadata === "object" &&
-            payment.metadata !== null &&
-            !Array.isArray(payment.metadata) &&
-            payment.metadata.booking_review_required === true
-          );
+          payment?.status === "succeeded" &&
+          ["confirmed", "completed", "no_show"].includes(appointmentStatus ?? "");
         if (payment?.reference) {
           await reconcileSuccessfulPayment(payment.reference as string);
           await sendPaymentEmailsForReference(payment.reference as string, "payment_success");
@@ -2179,6 +2190,9 @@ export const recoverPaidBankTransferBooking = createServerFn({ method: "POST" })
     const row = (Array.isArray(rows) ? rows[0] : rows) as Record<string, unknown> | null;
     if (!row?.id || !row.manage_token) {
       throw new Error("Booking recovery did not return a manage link.");
+    }
+    if (row.status !== "confirmed") {
+      throw new Error("Payment is verified, but booking recovery did not confirm the session.");
     }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

@@ -15,6 +15,11 @@ import { toast } from "sonner";
 
 import { AdminWorkspaceShell } from "@/components/progress/AdminSidebar";
 import { formatWATDateTime } from "@/lib/time";
+import {
+  canRestorePaidBankBooking,
+  isActivePaymentReview,
+  paymentLifecycleLabel,
+} from "@/lib/payment-booking-review";
 import { AdminPageSkeleton } from "@/components/admin/AdminSkeletons";
 import { PaymentReceiptDetails } from "@/components/booking/PaymentReceiptDetails";
 import { SensitiveActionDialog } from "@/components/admin/SensitiveActionDialog";
@@ -67,7 +72,7 @@ import {
   type PackageServiceOption,
 } from "@/lib/payments.functions";
 
-type PaymentTab = "pending" | "confirmed" | "failed" | "all";
+type PaymentTab = "pending" | "confirmed" | "failed" | "archived" | "all";
 type ManualPaymentStatus =
   "initiated" | "awaiting_confirmation" | "succeeded" | "failed" | "cancelled";
 
@@ -148,19 +153,6 @@ function StatusBadge({ status }: { status: string }) {
       {status.replace(/_/g, " ")}
     </Badge>
   );
-}
-
-function paymentLifecycleLabel(row: PaymentRow) {
-  if (row.status === "succeeded" && row.appointmentStatus === "cancelled") {
-    return "Verified payment · booking cancelled · reschedule required";
-  }
-  if (row.bookingReviewRequired) return "Verified payment · booking review required";
-  if (row.status === "awaiting_confirmation") return "Pending payment review";
-  if (row.status === "succeeded") return "Verified payment · booking confirmed";
-  if (row.status === "refunded") return "Refunded payment";
-  if (row.status === "cancelled") return "Cancelled payment";
-  if (row.status === "failed") return "Failed payment";
-  return "Payment not verified";
 }
 
 const paymentStatusLabels: Record<ManualPaymentStatus, string> = {
@@ -260,16 +252,8 @@ function PaymentsAdminScreen({
     setSettings(fresh);
   }, []);
 
-  const pending = useMemo(
-    () =>
-      payments.filter(
-        (p) =>
-          p.bookingReviewRequired ||
-          (p.provider === "bank_transfer" && p.status === "awaiting_confirmation") ||
-          (p.provider === "paystack" && (p.status === "initiated" || p.status === "pending")),
-      ),
-    [payments],
-  );
+  const pending = useMemo(() => payments.filter(isActivePaymentReview), [payments]);
+  const archived = useMemo(() => payments.filter((p) => p.appointmentArchivedAt), [payments]);
   const confirmed = useMemo(() => payments.filter((p) => p.status === "succeeded"), [payments]);
   const failed = useMemo(
     () => payments.filter((p) => p.status === "failed" || p.status === "cancelled"),
@@ -551,10 +535,13 @@ function PaymentsAdminScreen({
     if (!stepUpAllowed) return;
     setReviewBusy(approve ? "approve" : "reject");
     try {
-      await verifyBankTransferPayment({
+      const result = await verifyBankTransferPayment({
         data: { paymentId: reviewing.id, approve, note: reviewNote.trim() || undefined },
       });
-      toast.success(approve ? "Payment approved and booking confirmed." : "Transfer rejected.");
+      if (!approve) toast.success("Transfer rejected.");
+      else if (result.bookingConfirmed) toast.success("Payment approved and booking confirmed.");
+      else
+        toast.warning("Transfer verified. The booking still needs rescheduling or refund review.");
       setReviewing(null);
       await refresh();
     } catch (err) {
@@ -571,7 +558,9 @@ function PaymentsAdminScreen({
         ? confirmed
         : tab === "failed"
           ? failed
-          : payments;
+          : tab === "archived"
+            ? archived
+            : payments;
 
   const onDeletePayment = async (row: PaymentRow) => {
     if (!confirm(`Delete payment ${row.reference}? This cannot be undone.`)) return;
@@ -1089,7 +1078,7 @@ function PaymentsAdminScreen({
               Review unresolved payments or filter the full transaction ledger by status.
             </p>
           </div>
-          <div className="inline-flex rounded-md border border-border p-0.5">
+          <div className="inline-flex flex-wrap rounded-md border border-border p-0.5">
             <button
               type="button"
               onClick={() => setTab("pending")}
@@ -1121,6 +1110,17 @@ function PaymentsAdminScreen({
             </button>
             <button
               type="button"
+              onClick={() => setTab("archived")}
+              className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+                tab === "archived"
+                  ? "bg-brand-deep text-white"
+                  : "text-brand-deep/70 hover:bg-muted"
+              }`}
+            >
+              Archived bookings ({archived.length})
+            </button>
+            <button
+              type="button"
               onClick={() => setTab("all")}
               className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
                 tab === "all" ? "bg-brand-deep text-white" : "text-brand-deep/70 hover:bg-muted"
@@ -1131,6 +1131,10 @@ function PaymentsAdminScreen({
           </div>
         </div>
 
+        <p className="mb-3 text-xs text-muted-foreground">
+          Archived bookings are excluded from active review. Their payments remain in the ledger;
+          archiving does not refund a payment or confirm a session.
+        </p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -1182,20 +1186,34 @@ function PaymentsAdminScreen({
                       <StatusBadge status={row.status} />
                       <p
                         className={`mt-1 text-xs ${
-                          row.bookingReviewRequired ? "text-destructive" : "text-muted-foreground"
+                          isActivePaymentReview(row) && row.bookingReviewRequired
+                            ? "text-destructive"
+                            : "text-muted-foreground"
                         }`}
                       >
                         {paymentLifecycleLabel(row)}
                       </p>
+                      {row.bookingReviewRequired &&
+                      ["checkout_expired", "hold_expired"].includes(
+                        row.bookingReviewReason ?? "",
+                      ) ? (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Checkout expired before booking confirmation.
+                        </p>
+                      ) : null}
                     </td>
                     <td className="py-3 pr-3 text-xs text-muted-foreground">
                       {formatDateTime(row.createdAt)}
                     </td>
                     <td className="py-3 pr-3 text-right">
-                      <div className="inline-flex items-center gap-1">
+                      <div className="inline-flex min-w-44 flex-wrap justify-end gap-1">
                         <Select
                           value={manualStatusValueFor(row.status, row.provider)}
-                          disabled={updatingStatusId === row.id}
+                          disabled={
+                            updatingStatusId === row.id ||
+                            row.status === "succeeded" ||
+                            row.status === "refunded"
+                          }
                           onValueChange={(value) =>
                             void onManualStatusChange(row, value as ManualPaymentStatus)
                           }
@@ -1214,14 +1232,17 @@ function PaymentsAdminScreen({
                             ))}
                           </SelectContent>
                         </Select>
-                        {row.provider === "bank_transfer" &&
+                        {!row.appointmentArchivedAt &&
+                        row.provider === "bank_transfer" &&
                         row.status === "awaiting_confirmation" ? (
                           <Button size="sm" onClick={() => openReview(row)}>
                             Review
                           </Button>
-                        ) : row.provider === "bank_transfer" &&
+                        ) : !row.appointmentArchivedAt &&
+                          row.provider === "bank_transfer" &&
                           row.bookingReviewRequired &&
-                          row.status !== "succeeded" ? (
+                          row.status === "succeeded" &&
+                          ["hold", "pending_payment"].includes(row.appointmentStatus ?? "") ? (
                           <Button
                             size="sm"
                             variant="outline"
@@ -1235,7 +1256,7 @@ function PaymentsAdminScreen({
                             )}
                             Retry booking
                           </Button>
-                        ) : row.provider === "bank_transfer" && row.status === "succeeded" ? (
+                        ) : canRestorePaidBankBooking(row) ? (
                           <Button
                             size="sm"
                             variant="outline"
@@ -1250,18 +1271,9 @@ function PaymentsAdminScreen({
                           </Button>
                         ) : row.provider === "paystack" &&
                           row.status === "succeeded" &&
-                          row.bookingReviewRequired ? (
-                          <Button size="sm" variant="outline" asChild>
-                            <Link
-                              to="/admin/bookings/new"
-                              search={{ rescheduleFrom: row.appointmentId }}
-                            >
-                              Reschedule booking
-                            </Link>
-                          </Button>
-                        ) : row.provider === "paystack" &&
-                          row.status === "succeeded" &&
                           row.sessionMode === "online" &&
+                          !row.appointmentArchivedAt &&
+                          row.appointmentStatus === "confirmed" &&
                           !row.bookingReviewRequired ? (
                           <Button
                             size="sm"
@@ -1277,6 +1289,7 @@ function PaymentsAdminScreen({
                             Send meeting link
                           </Button>
                         ) : row.provider === "paystack" &&
+                          !row.appointmentArchivedAt &&
                           (row.status === "initiated" || row.status === "pending") ? (
                           <Button
                             size="sm"
@@ -1290,6 +1303,19 @@ function PaymentsAdminScreen({
                               <RefreshCw className="mr-2 h-4 w-4" />
                             )}
                             Check Paystack
+                          </Button>
+                        ) : null}
+                        {row.status === "succeeded" &&
+                        row.bookingReviewRequired &&
+                        !row.appointmentArchivedAt &&
+                        row.appointmentId ? (
+                          <Button size="sm" variant="outline" asChild>
+                            <Link
+                              to="/admin/bookings/new"
+                              search={{ rescheduleFrom: row.appointmentId }}
+                            >
+                              Reschedule booking
+                            </Link>
                           </Button>
                         ) : null}
                         {canDeletePayment(row) ? (
