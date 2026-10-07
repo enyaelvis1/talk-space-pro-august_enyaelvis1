@@ -65,6 +65,8 @@ import {
   getDaySummary,
   getHiddenAdminTemporaryRows,
   getNowSummary,
+  getTodayBookingDateKey,
+  isInactiveBookingDate,
   isSameDateKey,
   shiftAppointmentToDate,
 } from "@/lib/booking-calendar";
@@ -311,7 +313,9 @@ function AdminBookingsPage() {
   const [timeline, setTimeline] = useState<AdminAppointmentTimeline | null>(null);
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [timelineLoading, setTimelineLoading] = useState(false);
-  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
+  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(() =>
+    getTodayBookingDateKey(),
+  );
   const [visibleMonth, setVisibleMonth] = useState(() => new Date());
   const [dayViewOpen, setDayViewOpen] = useState(false);
   const [nowFilter, setNowFilter] = useState(false);
@@ -1049,13 +1053,15 @@ function AdminBookingsPage() {
                   {monthData.days.map((day) => {
                     const isSelected = day.dateKey === selectedDate;
                     const isEmpty = day.count === 0;
+                    const isInactive = isInactiveBookingDate(day.dateKey, todayDateKey);
                     const isNowDay = nowFilter && nowHighlightDates.has(day.dateKey);
                     return (
                       <button
                         key={day.dateKey}
                         type="button"
-                        onClick={() => setSelectedDateKey(day.dateKey)}
-                        {...dayDropProps(day.dateKey)}
+                        disabled={isInactive}
+                        onClick={isInactive ? undefined : () => setSelectedDateKey(day.dateKey)}
+                        {...(isInactive ? {} : dayDropProps(day.dateKey))}
                         className={`flex min-h-20 flex-col rounded-xl border p-2 text-left transition ${
                           dropTargetKey === day.dateKey
                             ? "border-brand-blue bg-brand-blue-soft ring-2 ring-brand-blue"
@@ -1066,7 +1072,7 @@ function AdminBookingsPage() {
                                 : day.isCurrentMonth
                                   ? "border-border/70 bg-background"
                                   : "border-transparent bg-muted/40 text-muted-foreground"
-                        } ${nowFilter && !isNowDay ? "opacity-50" : ""}`}
+                        } ${isInactive ? "cursor-not-allowed opacity-45" : ""} ${nowFilter && !isNowDay ? "opacity-50" : ""}`}
                       >
                         <span className="text-sm font-medium">{day.date.getUTCDate()}</span>
                         {!isEmpty ? (
@@ -1684,6 +1690,7 @@ function AdminBookingsPage() {
                     id="edit-booking-date"
                     value={editDate}
                     min={todayDateKey}
+                    disableWeekends
                     disabled={editSaving}
                     onChange={(event) => setEditDate(event.currentTarget.value)}
                   />
