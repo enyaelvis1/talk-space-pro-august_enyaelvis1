@@ -128,9 +128,13 @@ statuses, clients, archive states, CMS records and migration history were preser
 only approved review metadata/timestamps and corresponding audit appends changed.
 No historical booking was revived and no live provider delivery was invoked.
 
-Application/UI changes are still on `feature/payment-booking-review-integrity`;
-no push, merge or deployment was performed during this rollout. Browser/sandbox
-UAT remains pending, so existing per-item statuses are not promoted to Done.
+The database rollout did not push, merge or deploy the application/UI changes.
+The user subsequently reported UAT complete for
+`feature/payment-booking-review-integrity` and approved its push/merge into
+`develop`, followed by a separate `develop` → `main` release PR. CI still gates
+both merges. This sign-off does not provide case-level screenshots or sandbox
+references, nor independent evidence for every broader audit/provider scenario;
+existing per-item statuses are therefore not blanket-promoted to Done.
 The linked checklist records backup/recovery limitations, the exact migration
 order and protected evidence locations. Other pending migrations remain unapplied.
 

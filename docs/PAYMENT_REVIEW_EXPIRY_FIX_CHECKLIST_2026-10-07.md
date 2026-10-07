@@ -4,8 +4,10 @@ Branch: `feature/payment-booking-review-integrity`, based on `develop` (`df7b799
 Status: both specifically approved database migrations applied and independently
 verified on production `vwupdobwjlmitsgasdrz` on 7 October 2026, after a complete
 protected logical backup, two isolated restore checks and migration rehearsal.
-The application/UI changes remain local on this feature branch; no deployment,
-push or merge was performed during this rollout. Browser/provider UAT is pending.
+The database rollout did not push, merge or deploy the application/UI changes.
+On 7 October the user reported UAT complete and approved pushing this feature,
+merging it into `develop`, then a separate `develop` → `main` release PR.
+Independent browser/provider evidence capture remains pending.
 Related feedback: TS-010, TS-011, TS-015, TS-016 in
 [the tracking checklist](TALKSPACE_CLIENT_FEEDBACK_TRACKING_CHECKLIST.md).
 
@@ -77,8 +79,9 @@ Related feedback: TS-010, TS-011, TS-015, TS-016 in
       repair/delete migration history or use a blanket push of unknown migrations.
 - [x] Compare pre/post appointment and payment counts, financial statuses and
       values, service-role RPC grants, archive states, and unchanged CMS records.
-- [ ] Complete the synthetic UAT below before a feature PR to `develop` and a
-      separately approved release PR to `main`. No production deployment performed.
+- [x] Receive the user's UAT-complete sign-off and explicit approval for the
+      feature PR to `develop`, followed by a separate release PR to `main`.
+      Required CI checks still gate both merges; do not bypass failing checks.
 
 Rollback owner: Enyasystem, with the execution operator assisting only after
 approval of the exact recovery target/action. A failure before COMMIT rolls back
@@ -172,6 +175,24 @@ protected off-device copies of archives and key separately; no off-device upload
 was performed. Database application does not publish the pending UI fix or
 resolve intentional historical cancellations; synthetic browser/provider UAT
 and the normal feature → develop → approved main release remain required.
+
+### User UAT sign-off and release approval — 7 October 2026
+
+- [x] User reported “UAT is done” and authorized push/merge to `develop` and
+      `main`, then requested completion after the interrupted release check.
+- [x] Re-ran the 41 focused payment/expiry regression tests: 41 passed, none
+      failed or skipped. Lint passed with the same seven baseline Fast Refresh
+      warnings; `git diff --check` passed.
+- [ ] Push the exact feature commit and merge its green PR into `develop`.
+- [ ] Verify the integration checks, then merge a separate approved
+      `develop` → `main` PR. No feature → `main` merge, force push or history rewrite.
+
+Sign-off is user-reported acceptance of this payment-review/expiry feature, not
+an independently observed execution of every historical audit scenario. No
+case-level screenshots or new sandbox references were supplied; existing UAT
+table entries below retain their evidence limitations. Do not fabricate those
+artifacts or claim live provider tests were run. Open package/calendar PRs and
+unrelated dependency/backup PRs are outside this release scope.
 
 ## User UAT
 
