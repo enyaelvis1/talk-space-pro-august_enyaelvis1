@@ -108,6 +108,18 @@ or `.env` values.
 
 ## Client feedback checklist
 
+### 7 October follow-up — recurring paid-cancellation warnings
+
+TS-010, TS-011, TS-015 and TS-016 have a local implementation and isolated
+database regression evidence in
+[the payment-review/expiry checklist](PAYMENT_REVIEW_EXPIRY_FIX_CHECKLIST_2026-10-07.md).
+The screenshot investigation confirmed that archived cancelled bookings were
+incorrectly re-entering active payment review, including three whose checkout
+expiry trigger cancelled a verified booking. Payments remain preserved in the
+ledger. The new migration is prepared and tested only in disposable PostgreSQL
+clusters; application to the configured database and credentialed user UAT are
+still pending approval. Existing per-item UAT status is not promoted to Done.
+
 ### TS-001 — Replace the in-person Lagos address
 
 - [ ] ID: TS-001
