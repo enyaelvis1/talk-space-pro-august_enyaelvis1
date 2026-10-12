@@ -17,6 +17,7 @@ export const Route = createFileRoute("/api/public/paystack-webhook")({
           paystackVerify,
         } = await import("@/lib/payments.server");
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { hashIdentifier, logSecurityEvent } = await import("@/lib/rate-limit.server");
         const { validateProviderPayment, paymentReceipt } =
           await import("@/lib/payment-validation");
         const { loadPaystackCheckout } = await import("@/lib/paystack-checkout.server");
@@ -114,6 +115,20 @@ export const Route = createFileRoute("/api/public/paystack-webhook")({
                 console.error("paystack_webhook_email_failed", err);
               }
             }
+            await logSecurityEvent({
+              type: "payment_webhook_processed",
+              identifier: await hashIdentifier(reference),
+              route: "/api/public/paystack-webhook",
+              severity: "info",
+              details: {
+                event,
+                status: nextStatus,
+                matched_application_payment: !error,
+                provider_reference_hash: providerReference
+                  ? await hashIdentifier(providerReference)
+                  : null,
+              },
+            });
           }
         } catch (err) {
           console.error("paystack_webhook_error", err);

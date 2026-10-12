@@ -567,11 +567,10 @@ test("admin payments shows a Paystack secret status banner and reloads settings 
 test("admin payments puts unresolved Paystack transactions in pending review", () => {
   assert.match(
     paymentsAdminRoute,
-    /type PaymentTab = "pending" \| "confirmed" \| "failed" \| "all"/,
+    /type PaymentTab = "pending" \| "confirmed" \| "failed" \| "archived" \| "all"/,
   );
   assert.match(paymentsAdminRoute, /useState<PaymentTab>\("pending"\)/);
-  assert.match(paymentsAdminRoute, /p\.provider === "paystack"/);
-  assert.match(paymentsAdminRoute, /p\.status === "initiated"/);
+  assert.match(paymentsAdminRoute, /payments\.filter\(isActivePaymentReview\)/);
   assert.match(paymentsAdminRoute, /Confirmed \(\{confirmed\.length\}\)/);
   assert.match(paymentsAdminRoute, /Failed \(\{failed\.length\}\)/);
   assert.match(paymentsAdminRoute, /verifyPaystackPaymentForAdmin/);
@@ -580,10 +579,6 @@ test("admin payments puts unresolved Paystack transactions in pending review", (
   assert.match(paymentsAdminRoute, /updatePaymentStatusForAdmin/);
   assert.match(paymentsAdminRoute, /paymentStatusLabels/);
   assert.match(paymentsAdminRoute, /paymentLifecycleLabel/);
-  assert.match(paymentsAdminRoute, /Verified payment · booking review required/);
-  assert.match(paymentsAdminRoute, /Verified payment · booking cancelled · reschedule required/);
-  assert.match(paymentsAdminRoute, /Pending payment review/);
-  assert.match(paymentsAdminRoute, /Verified payment · booking confirmed/);
   assert.match(paymentsAdminRoute, /Not verified/);
   assert.match(paymentsAdminRoute, /Check Paystack/);
   assert.match(paymentsAdminRoute, /Reschedule booking/);

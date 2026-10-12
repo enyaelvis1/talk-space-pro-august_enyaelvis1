@@ -26,6 +26,7 @@ import {
   PanelsTopLeft,
   ScrollText,
   ListChecks,
+  DatabaseBackup,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link, useRouterState } from "@tanstack/react-router";
@@ -69,6 +70,7 @@ const operationsNavigation = [
   { to: "/admin/settings", label: "Settings", icon: Settings2 },
   { to: "/admin/migration", label: "Content migration", icon: ListChecks },
   { to: "/admin/audit", label: "Audit log", icon: ScrollText },
+  { to: "/admin/backups", label: "Backups & restore", icon: DatabaseBackup },
 ] as const;
 
 function isActivePath(pathname: string, target: string) {

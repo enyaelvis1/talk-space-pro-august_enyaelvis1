@@ -10,6 +10,7 @@ import {
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { parsePaystackVerification } from "@/lib/payment-validation";
+import { normalizePaystackCallbackPath } from "@/lib/paystack-callback";
 
 export function isBookingReviewRequired(metadata: unknown): boolean {
   return (
@@ -90,7 +91,7 @@ export async function loadPaymentSettings(): Promise<PaymentSettings> {
     bankAccountName: (data?.bank_account_name as string) ?? null,
     bankAccountNumber: (data?.bank_account_number as string) ?? null,
     bankInstructions: (data?.bank_instructions as string) ?? null,
-    callbackPath: (data?.callback_path as string) ?? "/book/payment-callback",
+    callbackPath: normalizePaystackCallbackPath(data?.callback_path as string | null),
     updatedAt: (data?.updated_at as string) ?? new Date().toISOString(),
   };
 }
