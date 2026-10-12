@@ -9,6 +9,7 @@ import {
   getHiddenAdminTemporaryRows,
   isInactiveBookingDate,
   isWeekendBookingDate,
+  getTodayBookingDateKey,
   isSameDateKey,
   shiftAppointmentToDate,
 } from "../src/lib/booking-calendar.ts";
@@ -111,6 +112,11 @@ test("past booking dates are inactive while today and future weekdays remain act
   assert.equal(isInactiveBookingDate("2026-10-07", "2026-10-07"), false);
   assert.equal(isInactiveBookingDate("2026-10-08", "2026-10-07"), false);
   assert.equal(isInactiveBookingDate("2026-10-10", "2026-10-07"), true);
+});
+
+test("admin calendar defaults to the current Africa/Lagos date", () => {
+  assert.equal(getTodayBookingDateKey(new Date("2026-09-24T23:30:00.000Z")), "2026-09-25");
+  assert.equal(getTodayBookingDateKey(new Date("2026-09-25T00:30:00.000Z")), "2026-09-25");
 });
 
 test("same-time therapist appointments remain distinct before, during and after their sessions", () => {
