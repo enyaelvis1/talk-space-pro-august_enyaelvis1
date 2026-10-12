@@ -646,9 +646,18 @@ export type PublicPaymentOptions = {
 
 export type PackageServiceOption = {
   id: string;
+  code: string | null;
   name: string;
   sessionsPerPackage: number;
   priceNgn: number | null;
+  inPersonPriceNgn: number | null;
+};
+
+export type RegisteredClientOption = {
+  id: string;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
 };
 
 export type ManualPackageLinkResult = {
@@ -693,18 +702,48 @@ export const getPublicPaymentOptions = createServerFn({ method: "GET" }).handler
 
 async function loadPackageServicesForAdmin(): Promise<PackageServiceOption[]> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data, error } = await supabaseAdmin
+  let { data, error } = await supabaseAdmin
     .from("services")
-    .select("id, name, sessions_per_package, price_ngn")
+    .select("id, code, name, sessions_per_package, price_ngn, in_person_price_ngn")
     .eq("is_active", true)
     .order("display_order", { ascending: true });
+  if (error && isMissingInPersonPriceColumn(error)) {
+    const fallback = await supabaseAdmin
+      .from("services")
+      .select("id, code, name, sessions_per_package, price_ngn")
+      .eq("is_active", true)
+      .order("display_order", { ascending: true });
+    data = fallback.data?.map((service) => ({ ...service, in_person_price_ngn: null })) ?? null;
+    error = fallback.error;
+  }
   if (error) throw error;
   noStore();
   return (data ?? []).map((service) => ({
     id: service.id,
+    code: service.code ?? null,
     name: service.name,
     sessionsPerPackage: Number(service.sessions_per_package ?? 1),
     priceNgn: service.price_ngn == null ? null : Number(service.price_ngn),
+    inPersonPriceNgn:
+      service.in_person_price_ngn == null ? null : Number(service.in_person_price_ngn),
+  }));
+}
+
+async function loadRegisteredClientsForAdmin(): Promise<RegisteredClientOption[]> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("clients")
+    .select("id, full_name, email, phone")
+    .not("full_name", "is", null)
+    .order("full_name", { ascending: true })
+    .limit(500);
+  if (error) throw error;
+  noStore();
+  return (data ?? []).map((client) => ({
+    id: client.id,
+    fullName: client.full_name ?? "",
+    email: client.email ?? null,
+    phone: client.phone ?? null,
   }));
 }
 
@@ -2188,17 +2227,19 @@ export const listPaymentsForAdmin = createServerFn({ method: "GET" }).handler(
 
 export type PaymentAdminWorkspace = PaymentAdminSetupWorkspace & {
   payments: PaymentRow[];
+  registeredClients: RegisteredClientOption[];
 };
 
 export const getPaymentAdminWorkspace = createServerFn({ method: "GET" }).handler(
   async (): Promise<PaymentAdminWorkspace> => {
     await requireAdmin();
-    const [settings, packageServices, payments] = await Promise.all([
+    const [settings, packageServices, payments, registeredClients] = await Promise.all([
       loadPaymentAdminData(),
       loadPackageServicesForAdmin(),
       loadPaymentsForAdmin(),
+      loadRegisteredClientsForAdmin(),
     ]);
-    return { settings, packageServices, payments };
+    return { settings, packageServices, payments, registeredClients };
   },
 );
 

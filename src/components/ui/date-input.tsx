@@ -11,6 +11,7 @@ type DateInputProps = Omit<React.ComponentProps<"input">, "type" | "value" | "on
   onChange?: React.ChangeEventHandler<HTMLInputElement>;
   iconLabel?: string;
   wrapperClassName?: string;
+  disableWeekends?: boolean;
 };
 
 const isoPattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -62,6 +63,10 @@ function isBeforeMin(date: Date, min?: string) {
   return date < minDate;
 }
 
+function isDisabledDate(date: Date, min: string | undefined, disableWeekends: boolean) {
+  return isBeforeMin(date, min) || (disableWeekends && [0, 6].includes(date.getDay()));
+}
+
 function emitDateChange(
   input: HTMLInputElement,
   value: string,
@@ -90,6 +95,7 @@ const DateInput = React.forwardRef<HTMLInputElement, DateInputProps>(
       onBlur,
       placeholder = "dd/mm/yyyy",
       disabled,
+      disableWeekends = false,
       ...props
     },
     ref,
@@ -119,14 +125,19 @@ const DateInput = React.forwardRef<HTMLInputElement, DateInputProps>(
       const nextDisplay = event.target.value;
       setDisplayValue(nextDisplay);
       const parsed = fromDisplayDate(nextDisplay);
-      if (parsed || !nextDisplay.trim()) {
+      const parsedDate = parsed ? parseIsoDate(parsed) : undefined;
+      if (
+        (parsed && parsedDate && !isDisabledDate(parsedDate, min, disableWeekends)) ||
+        !nextDisplay.trim()
+      ) {
         emitDateChange(event.currentTarget, parsed ?? "", onChange);
       }
     };
 
     const handleBlur = (event: React.FocusEvent<HTMLInputElement>) => {
       const parsed = fromDisplayDate(displayValue);
-      if (parsed) {
+      const parsedDate = parsed ? parseIsoDate(parsed) : undefined;
+      if (parsed && parsedDate && !isDisabledDate(parsedDate, min, disableWeekends)) {
         setDisplayValue(toDisplayDate(parsed));
         emitDateChange(event.currentTarget, parsed, onChange);
       } else if (!displayValue.trim()) {
@@ -138,7 +149,7 @@ const DateInput = React.forwardRef<HTMLInputElement, DateInputProps>(
     };
 
     const handleSelect = (date?: Date) => {
-      if (!date || disabled) return;
+      if (!date || disabled || isDisabledDate(date, min, disableWeekends)) return;
       const next = toIsoDate(date);
       setDisplayValue(toDisplayDate(next));
       if (inputRef.current) emitDateChange(inputRef.current, next, onChange);
@@ -178,7 +189,9 @@ const DateInput = React.forwardRef<HTMLInputElement, DateInputProps>(
             mode="single"
             selected={selected}
             onSelect={handleSelect}
-            disabled={(date) => isBeforeMin(date, min === undefined ? undefined : String(min))}
+            disabled={(date) =>
+              isDisabledDate(date, min === undefined ? undefined : String(min), disableWeekends)
+            }
             captionLayout="dropdown"
           />
         </PopoverContent>

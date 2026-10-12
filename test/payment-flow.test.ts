@@ -417,7 +417,7 @@ test("package-link form starts at one session and estimates per-session pricing"
   assert.match(paymentsRoute, /purchasedSessions: 1/);
   assert.match(
     paymentsRoute,
-    /selectedPackageService\.priceNgn \/\s*\n?\s*Math\.max\(1, selectedPackageService\.sessionsPerPackage\)/,
+    /resolveServicePriceNgn\([\s\S]*?Math\.max\(1, selectedPackageService\.sessionsPerPackage\)/,
   );
   assert.match(paymentsRoute, /Sessions in this package/);
 });
