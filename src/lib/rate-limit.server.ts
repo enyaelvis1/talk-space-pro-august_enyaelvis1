@@ -11,6 +11,7 @@ export type RateLimitResult = {
   allowed: boolean;
   remaining: number;
   retryAfterSeconds: number;
+  unavailable?: boolean;
 };
 
 export type RateLimitOptions = {
@@ -18,6 +19,7 @@ export type RateLimitOptions = {
   identifier: string;
   limit: number;
   windowSeconds: number;
+  failClosed?: boolean;
 };
 
 /** SHA-256 of the caller's IP, so we never store a raw address. */
@@ -27,8 +29,13 @@ export async function hashIdentifier(value: string): Promise<string> {
 }
 
 export function requestIdentifier(request: Request): string {
+  // Vercel supplies x-real-ip from the connection it accepted. Treat the
+  // forwarded chain only as a fallback because clients can forge it when the
+  // app is reached outside the trusted proxy.
+  const realIp = request.headers.get("x-real-ip")?.trim();
+  if (realIp) return realIp;
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return forwarded || request.headers.get("x-real-ip")?.trim() || "unknown";
+  return forwarded || "unknown";
 }
 
 export async function consumeRateLimit(options: RateLimitOptions): Promise<RateLimitResult> {
@@ -44,8 +51,16 @@ export async function consumeRateLimit(options: RateLimitOptions): Promise<RateL
   );
 
   if (error) {
-    // Never block legitimate traffic because the limiter itself failed.
     console.error("[rate-limit] check failed:", error);
+    if (options.failClosed) {
+      return {
+        allowed: false,
+        remaining: 0,
+        retryAfterSeconds: 60,
+        unavailable: true,
+      };
+    }
+    // Keep non-financial public forms available if the limiter itself fails.
     return { allowed: true, remaining: options.limit, retryAfterSeconds: 0 };
   }
 
@@ -100,18 +115,34 @@ export function formatRateLimitMessage(retryAfterSeconds: number, action: string
 export async function guardPublicRequest(params: {
   request: Request;
   bucket: string;
+  identifier?: string;
   limit: number;
   windowSeconds: number;
   route: string;
   action: string;
+  failClosed?: boolean;
 }): Promise<void> {
-  const identifier = await hashIdentifier(requestIdentifier(params.request));
+  const requestIdentity = requestIdentifier(params.request);
+  const identifier = await hashIdentifier(
+    params.identifier ? `${requestIdentity}:${params.identifier}` : requestIdentity,
+  );
   const result = await consumeRateLimit({
     bucket: params.bucket,
     identifier,
     limit: params.limit,
     windowSeconds: params.windowSeconds,
+    failClosed: params.failClosed,
   });
+  if (result.unavailable) {
+    await logSecurityEvent({
+      type: "rate_limit_unavailable",
+      identifier,
+      route: params.route,
+      severity: "critical",
+      details: { bucket: params.bucket, limit: params.limit, window: params.windowSeconds },
+    });
+    throw new Error("Payment protection is temporarily unavailable. Please try again shortly.");
+  }
   if (!result.allowed) {
     await logSecurityEvent({
       type: "rate_limit_blocked",
