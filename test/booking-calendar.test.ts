@@ -7,6 +7,7 @@ import {
   getAppointmentsForDate,
   getDaySummary,
   getHiddenAdminTemporaryRows,
+  getTodayBookingDateKey,
   isSameDateKey,
   shiftAppointmentToDate,
 } from "../src/lib/booking-calendar.ts";
@@ -95,6 +96,11 @@ test("calendar date keys use Africa/Lagos around UTC midnight", () => {
     ["late", "early"],
   );
   assert.equal(isSameDateKey("2026-08-03T23:30:00.000Z", "2026-08-04"), true);
+});
+
+test("admin calendar defaults to the current Africa/Lagos date", () => {
+  assert.equal(getTodayBookingDateKey(new Date("2026-09-24T23:30:00.000Z")), "2026-09-25");
+  assert.equal(getTodayBookingDateKey(new Date("2026-09-25T00:30:00.000Z")), "2026-09-25");
 });
 
 test("same-time therapist appointments remain distinct before, during and after their sessions", () => {

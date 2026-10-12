@@ -63,6 +63,7 @@ import {
   getAdminBookingCalendarRows,
   getAppointmentsForDate,
   getDaySummary,
+  getTodayBookingDateKey,
   getHiddenAdminTemporaryRows,
   getNowSummary,
   isSameDateKey,
@@ -311,7 +312,9 @@ function AdminBookingsPage() {
   const [timeline, setTimeline] = useState<AdminAppointmentTimeline | null>(null);
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [timelineLoading, setTimelineLoading] = useState(false);
-  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
+  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(() =>
+    getTodayBookingDateKey(),
+  );
   const [visibleMonth, setVisibleMonth] = useState(() => new Date());
   const [dayViewOpen, setDayViewOpen] = useState(false);
   const [nowFilter, setNowFilter] = useState(false);
