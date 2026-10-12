@@ -443,7 +443,10 @@ test("payments loader consolidates settings, package setup, and payment reads", 
   assert.match(route, /getPaymentAdminWorkspace\(\)/);
   assert.doesNotMatch(route, /const \[setup, payments\] = await Promise\.all/);
   assert.match(payments, /export const getPaymentAdminWorkspace/);
-  assert.match(payments, /const \[settings, packageServices, payments\] = await Promise\.all/);
+  assert.match(
+    payments,
+    /const \[settings, packageServices, payments, registeredClients\] = await Promise\.all/,
+  );
   assert.match(payments, /async function loadPaymentsForAdmin/);
   assert.match(payments, /loadPaymentAdminData\(\)/);
   assert.match(payments, /loadPackageServicesForAdmin\(\)/);
