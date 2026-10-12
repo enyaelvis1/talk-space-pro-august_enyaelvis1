@@ -66,7 +66,6 @@ import {
   getTodayBookingDateKey,
   getHiddenAdminTemporaryRows,
   getNowSummary,
-  getTodayBookingDateKey,
   isInactiveBookingDate,
   isSameDateKey,
   shiftAppointmentToDate,
