@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { extractCronSecret, verifyCronRequest } from "../src/lib/cron-auth.ts";
-import { formatRateLimitMessage } from "../src/lib/rate-limit.server.ts";
+import { validateProviderPayment } from "../src/lib/payment-validation.ts";
+import { formatRateLimitMessage, requestIdentifier } from "../src/lib/rate-limit.server.ts";
 
 const HOOKS = [
   "src/routes/api/public/hooks/send-reminders.ts",
@@ -56,6 +57,22 @@ test("cron requests are rejected without a matching secret", () => {
   }
 });
 
+test("request identity prefers the trusted platform IP header", () => {
+  const request = new Request("https://x.test", {
+    headers: {
+      "x-real-ip": "203.0.113.10",
+      "x-forwarded-for": "198.51.100.20, 203.0.113.10",
+    },
+  });
+  assert.equal(requestIdentifier(request), "203.0.113.10");
+  assert.equal(
+    requestIdentifier(
+      new Request("https://x.test", { headers: { "x-forwarded-for": "198.51.100.20" } }),
+    ),
+    "198.51.100.20",
+  );
+});
+
 test("missing cron secret configuration fails closed with 503", () => {
   const previous = process.env["CRON_SECRET"];
   delete process.env["CRON_SECRET"];
@@ -75,6 +92,95 @@ test("public write endpoints are rate limited", () => {
   assert.match(booking, /bucket: "booking_hold"/);
   assert.match(booking, /bucket: "manage_token_lookup"/);
   assert.match(readFileSync("src/lib/contact.functions.ts", "utf8"), /bucket: "contact_submit"/);
+});
+
+test("Paystack initialization is rate limited and fails closed", () => {
+  const payments = readFileSync("src/lib/payments.functions.ts", "utf8");
+  for (const bucket of [
+    "paystack_initialize_ip",
+    "paystack_initialize_email",
+    "paystack_package_initialize_ip",
+    "paystack_package_initialize_email",
+  ]) {
+    assert.match(payments, new RegExp(`bucket: "${bucket}"`));
+  }
+  assert.match(payments, /failClosed: true/);
+
+  const limiter = readFileSync("src/lib/rate-limit.server.ts", "utf8");
+  assert.match(limiter, /rate_limit_unavailable/);
+  assert.match(limiter, /Payment protection is temporarily unavailable/);
+  assert.match(limiter, /params\.identifier/);
+});
+
+test("package payment initialization is bound to the signed-in client", () => {
+  const payments = readFileSync("src/lib/payments.functions.ts", "utf8");
+  assert.match(payments, /getRequestAuthContext\(\)/);
+  assert.match(payments, /Sign in before purchasing session credit/);
+  assert.match(payments, /data\.clientId !== authContext\.user\.id/);
+  assert.match(payments, /Use the email address belonging to the signed-in account/);
+  assert.match(payments, /client_id: authenticatedClientId/);
+  assert.match(payments, /p_client_id: authenticatedClientId/);
+});
+
+test("payment initialization supports optional server-verified risk challenges", () => {
+  const payments = readFileSync("src/lib/payments.functions.ts", "utf8");
+  assert.match(payments, /verifyPaymentRiskChallenge/);
+  assert.match(payments, /riskToken: z\.string\(\)\.trim\(\)\.max\(4096\)/);
+
+  const risk = readFileSync("src/lib/payment-risk.server.ts", "utf8");
+  assert.match(risk, /challenges\.cloudflare\.com\/turnstile/);
+  assert.match(risk, /TURNSTILE_SECRET_KEY/);
+  assert.match(risk, /Payment protection is not configured correctly/);
+
+  const challenge = readFileSync("src/components/site/PaymentRiskChallenge.tsx", "utf8");
+  assert.match(challenge, /render: \(/);
+  assert.match(challenge, /data-talkspace-turnstile/);
+});
+
+test("payment verification and webhook processing preserve integrity controls", () => {
+  const validation = readFileSync("src/lib/payment-validation.ts", "utf8");
+  assert.match(validation, /Payment amount does not match/);
+  assert.match(validation, /Payment currency does not match/);
+  assert.match(validation, /Payment reference does not match/);
+
+  const webhook = readFileSync("src/routes/api/public/paystack-webhook.ts", "utf8");
+  assert.match(webhook, /verifyPaystackSignature/);
+  assert.match(webhook, /paystackVerify/);
+  assert.match(webhook, /loadPaystackCheckout/);
+  assert.match(webhook, /payment_webhook_processed/);
+  assert.match(webhook, /reconcileSuccessfulPayment/);
+});
+
+test("provider payment validation rejects amount, currency, and reference mismatches", () => {
+  const valid = {
+    expectedAmountKobo: 2000000,
+    expectedCurrency: "NGN",
+    expectedReference: "TSP-test-reference",
+    result: {
+      amountKobo: 2000000,
+      currency: "NGN",
+      providerReference: "TSP-test-reference",
+      requestedAmountKobo: 2000000,
+      feesKobo: 30000,
+    },
+  };
+  assert.doesNotThrow(() => validateProviderPayment(valid));
+  assert.throws(
+    () => validateProviderPayment({ ...valid, result: { ...valid.result, amountKobo: 1990000 } }),
+    /amount does not match/,
+  );
+  assert.throws(
+    () => validateProviderPayment({ ...valid, result: { ...valid.result, currency: "USD" } }),
+    /currency does not match/,
+  );
+  assert.throws(
+    () =>
+      validateProviderPayment({
+        ...valid,
+        result: { ...valid.result, providerReference: "provider-only-reference" },
+      }),
+    /reference does not match/,
+  );
 });
 
 test("booking manage links have expiry and admin revocation controls", () => {
