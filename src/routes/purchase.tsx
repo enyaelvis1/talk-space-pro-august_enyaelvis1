@@ -4,6 +4,7 @@ import { Loader2, Minus, Plus, ShieldCheck } from "lucide-react";
 import { z } from "zod";
 
 import { SiteFooter } from "@/components/site/SiteFooter";
+import { PaymentRiskChallenge } from "@/components/site/PaymentRiskChallenge";
 import { SiteHeader } from "@/components/site/SiteHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getBookingPrefill, listBookingServices } from "@/lib/booking.functions";
-import { initPackagePurchasePayment } from "@/lib/payments.functions";
+import { getPublicPaymentOptions, initPackagePurchasePayment } from "@/lib/payments.functions";
 import { clearPurchaseHandoff, loadPurchaseHandoff } from "@/lib/purchase-handoff";
 
 const searchSchema = z.object({
@@ -27,10 +28,15 @@ const searchSchema = z.object({
 export const Route = createFileRoute("/purchase")({
   validateSearch: (search) => searchSchema.parse(search),
   loader: async () => {
-    const [services, prefill] = await Promise.all([listBookingServices(), getBookingPrefill()]);
+    const [services, prefill, paymentOptions] = await Promise.all([
+      listBookingServices(),
+      getBookingPrefill(),
+      getPublicPaymentOptions(),
+    ]);
     return {
       services: services.filter((service) => service.priceNgn && service.priceNgn > 0),
       prefill,
+      paymentOptions,
     };
   },
   head: () => ({
@@ -46,7 +52,7 @@ export const Route = createFileRoute("/purchase")({
 });
 
 function PurchaseSessionsPage() {
-  const { services, prefill } = Route.useLoaderData();
+  const { services, prefill, paymentOptions } = Route.useLoaderData();
   const search = Route.useSearch();
   const handoff = useMemo(() => loadPurchaseHandoff(), []);
   const initialService =
@@ -69,6 +75,7 @@ function PurchaseSessionsPage() {
   const [phone, setPhone] = useState(handoff?.phone || prefill.phone);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [riskToken, setRiskToken] = useState<string | null>(null);
   const service = useMemo(
     () => services.find((candidate) => candidate.id === serviceId),
     [serviceId, services],
@@ -98,6 +105,7 @@ function PurchaseSessionsPage() {
           sessionMode,
           preferredDate: preferredDate || undefined,
           preferredTime: preferredTime || undefined,
+          riskToken: riskToken ?? undefined,
         },
       });
       clearPurchaseHandoff();
@@ -244,10 +252,23 @@ function PurchaseSessionsPage() {
                 </dd>
               </div>
             </dl>
+            {!prefill.isAuthenticated ? (
+              <p className="mt-5 text-sm text-muted-foreground">
+                <Link to="/login" className="text-link">
+                  Sign in
+                </Link>{" "}
+                before purchasing session credit. Your purchase must be linked to your client
+                account.
+              </p>
+            ) : null}
+            <PaymentRiskChallenge
+              siteKey={paymentOptions.paymentRiskChallengeSiteKey}
+              onToken={setRiskToken}
+            />
             <Button
               className="mt-6 w-full bg-brand-deep text-white"
               onClick={() => void beginPayment()}
-              disabled={busy || !total}
+              disabled={busy || !total || !prefill.isAuthenticated}
             >
               {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Continue to secure payment

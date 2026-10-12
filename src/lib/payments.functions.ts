@@ -20,8 +20,16 @@ import {
   isBookingTokenActive,
   type BookingTokenLifecycle,
 } from "@/lib/booking-token-lifecycle";
-import { requireRequestRole } from "@/lib/server-auth";
+import { getRequestAuthContext, requireRequestRole } from "@/lib/server-auth";
 import { bookingNeedsPaymentReview } from "@/lib/payment-booking-review";
+import {
+  guardPublicRequest,
+  hashIdentifier,
+  logSecurityEvent,
+  requestIdentifier,
+} from "@/lib/rate-limit.server";
+import { paymentRiskChallengeSiteKey, verifyPaymentRiskChallenge } from "@/lib/payment-risk.server";
+import { buildPaystackCallbackUrl } from "@/lib/paystack-callback";
 
 function bag() {
   const r = createRequestSupabase(getRequest());
@@ -633,6 +641,7 @@ export type PublicPaymentOptions = {
   bankAccountName: string | null;
   bankAccountNumber: string | null;
   bankInstructions: string | null;
+  paymentRiskChallengeSiteKey: string | null;
 };
 
 export type PackageServiceOption = {
@@ -677,6 +686,7 @@ export const getPublicPaymentOptions = createServerFn({ method: "GET" }).handler
       bankAccountName: s.bankAccountName,
       bankAccountNumber: s.bankAccountNumber,
       bankInstructions: s.bankInstructions,
+      paymentRiskChallengeSiteKey: paymentRiskChallengeSiteKey(),
     };
   },
 );
@@ -797,7 +807,15 @@ const settingsInput = z.object({
   bankAccountName: z.string().trim().max(200).nullable().optional(),
   bankAccountNumber: z.string().trim().max(40).nullable().optional(),
   bankInstructions: z.string().trim().max(1000).nullable().optional(),
-  callbackPath: z.string().trim().min(1).max(200).default("/book/payment-callback"),
+  callbackPath: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .refine((value) => !/\/api\/public\/paystack-webhook\/?(?:\?|$)/i.test(value), {
+      message: "Use the customer return path, not the Paystack webhook URL.",
+    })
+    .default("/book/payment-callback"),
 });
 
 export const updatePaymentSettings = createServerFn({ method: "POST" })
@@ -908,6 +926,7 @@ const initPaystackInput = z
       .min(1)
       .max(10)
       .optional(),
+    riskToken: z.string().trim().max(4096).optional(),
   })
   .refine((data) => Boolean(data.appointmentId) !== Boolean(data.appointmentIds), {
     message: "Choose one booking or a group of bookings.",
@@ -996,6 +1015,28 @@ export const initPaystackPayment = createServerFn({ method: "POST" })
       }
     }
 
+    await verifyPaymentRiskChallenge({ token: data.riskToken, request: getRequest() });
+
+    await guardPublicRequest({
+      request: getRequest(),
+      bucket: "paystack_initialize_ip",
+      limit: 5,
+      windowSeconds: 15 * 60,
+      route: "/book",
+      action: "payment initialization",
+      failClosed: true,
+    });
+    await guardPublicRequest({
+      request: getRequest(),
+      bucket: "paystack_initialize_email",
+      identifier: firstEmail.trim().toLowerCase(),
+      limit: 3,
+      windowSeconds: 60 * 60,
+      route: "/book",
+      action: "payment initialization",
+      failClosed: true,
+    });
+
     const prices = appts.map((appt) =>
       resolveServicePriceNgn(
         appt.services as {
@@ -1016,8 +1057,11 @@ export const initPaystackPayment = createServerFn({ method: "POST" })
     if (amountKobo <= 0) throw new Error("Invalid amount.");
 
     const reference = generatePaymentReference("TSP");
-    const origin = new URL(getRequest().url).origin;
-    const callbackUrl = `${origin}${settings.callbackPath}?reference=${encodeURIComponent(reference)}`;
+    const callbackUrl = buildPaystackCallbackUrl({
+      origin: new URL(getRequest().url).origin,
+      callbackPath: settings.callbackPath,
+      reference,
+    });
 
     const init = await paystackInitialize({
       secretKey: secret,
@@ -1031,6 +1075,20 @@ export const initPaystackPayment = createServerFn({ method: "POST" })
         booking_reference: appts.map((appt) => appt.booking_reference).join(", "),
         service: (first.services as { name?: string } | null)?.name,
         session_count: appts.length,
+      },
+    });
+    await logSecurityEvent({
+      type: "payment_initialization",
+      identifier: await hashIdentifier(requestIdentifier(getRequest())),
+      route: "/book",
+      severity: "info",
+      details: {
+        result: "provider_initialized",
+        payment_kind: "appointment",
+        reference_hash: await hashIdentifier(reference),
+        amount_kobo: amountKobo,
+        currency: "NGN",
+        appointment_count: appts.length,
       },
     });
 
@@ -1082,11 +1140,27 @@ const packagePurchaseInput = z.object({
   sessionMode: z.enum(["online", "in_person"]).optional(),
   preferredDate: z.string().trim().max(20).optional(),
   preferredTime: z.string().trim().max(80).optional(),
+  riskToken: z.string().trim().max(4096).optional(),
 });
 
 export const initPackagePurchasePayment = createServerFn({ method: "POST" })
   .validator((d: z.infer<typeof packagePurchaseInput>) => packagePurchaseInput.parse(d))
   .handler(async ({ data }): Promise<InitPaystackResult> => {
+    const authContext = await getRequestAuthContext();
+    const authenticatedEmail = authContext?.user?.email?.trim().toLowerCase() ?? "";
+    if (!authContext?.user?.id || !authenticatedEmail) {
+      throw new Error("Sign in before purchasing session credit.");
+    }
+    if (data.clientId && data.clientId !== authContext.user.id) {
+      throw new Error("This package purchase is not linked to the signed-in client.");
+    }
+    if (data.clientEmail.trim().toLowerCase() !== authenticatedEmail) {
+      throw new Error("Use the email address belonging to the signed-in account.");
+    }
+
+    await verifyPaymentRiskChallenge({ token: data.riskToken, request: getRequest() });
+
+    const authenticatedClientId = authContext.user.id;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const {
       loadPaymentSettings,
@@ -1126,21 +1200,45 @@ export const initPackagePurchasePayment = createServerFn({ method: "POST" })
       throw new Error("This service does not have a configured price.");
     }
 
+    const normalizedEmail = data.clientEmail.trim().toLowerCase();
+    await guardPublicRequest({
+      request: getRequest(),
+      bucket: "paystack_package_initialize_ip",
+      limit: 5,
+      windowSeconds: 15 * 60,
+      route: "/book",
+      action: "package payment initialization",
+      failClosed: true,
+    });
+    await guardPublicRequest({
+      request: getRequest(),
+      bucket: "paystack_package_initialize_email",
+      identifier: normalizedEmail,
+      limit: 3,
+      windowSeconds: 60 * 60,
+      route: "/book",
+      action: "package payment initialization",
+      failClosed: true,
+    });
+
     const amountKobo = Math.round(unitPrice * data.purchasedSessions * 100);
     const reference = generatePaymentReference("TSP");
-    const origin = new URL(getRequest().url).origin;
-    const callbackUrl = `${origin}${settings.callbackPath}?reference=${encodeURIComponent(reference)}`;
+    const callbackUrl = buildPaystackCallbackUrl({
+      origin: new URL(getRequest().url).origin,
+      callbackPath: settings.callbackPath,
+      reference,
+    });
 
     const init = await paystackInitialize({
       secretKey: secret,
-      email: data.clientEmail,
+      email: normalizedEmail,
       amountKobo,
       reference,
       callbackUrl,
       metadata: {
         payment_kind: "package_purchase",
         service_id: data.serviceId,
-        client_id: data.clientId ?? null,
+        client_id: authenticatedClientId,
         client_name: data.clientName,
         client_email: data.clientEmail,
         client_phone: data.clientPhone ?? null,
@@ -1148,6 +1246,21 @@ export const initPackagePurchasePayment = createServerFn({ method: "POST" })
         session_mode: data.sessionMode ?? null,
         preferred_date: data.preferredDate || null,
         preferred_time: data.preferredTime || null,
+      },
+    });
+    await logSecurityEvent({
+      type: "payment_initialization",
+      identifier: await hashIdentifier(requestIdentifier(getRequest())),
+      route: "/purchase",
+      severity: "info",
+      details: {
+        result: "provider_initialized",
+        payment_kind: "package_purchase",
+        reference_hash: await hashIdentifier(reference),
+        amount_kobo: amountKobo,
+        currency: "NGN",
+        service_id: data.serviceId,
+        purchased_sessions: data.purchasedSessions,
       },
     });
 
@@ -1158,7 +1271,7 @@ export const initPackagePurchasePayment = createServerFn({ method: "POST" })
         p_reference: reference,
         p_amount_kobo: amountKobo,
         p_service_id: data.serviceId,
-        p_client_id: data.clientId ?? null,
+        p_client_id: authenticatedClientId,
         p_client_name: data.clientName,
         p_client_email: data.clientEmail,
         p_client_phone: data.clientPhone ?? null,
