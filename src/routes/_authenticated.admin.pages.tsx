@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { canonicalUrl } from "@/lib/seo";
+import { APP_TIME_ZONE } from "@/lib/time";
 import {
   bulkDeleteContent,
   bulkSetContentStatus,
@@ -46,7 +47,10 @@ export const Route = createFileRoute("/_authenticated/admin/pages")({
   component: PagesAdminRoute,
 });
 
-const dtf = new Intl.DateTimeFormat("en-NG", { dateStyle: "medium" });
+const dtf = new Intl.DateTimeFormat("en-NG", {
+  dateStyle: "medium",
+  timeZone: APP_TIME_ZONE,
+});
 const fmt = (iso: string | null) => {
   if (!iso) return "—";
   try {

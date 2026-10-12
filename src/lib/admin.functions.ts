@@ -26,6 +26,7 @@ import {
 } from "@/lib/content.functions";
 import { PUBLIC_PAGE_CONFIG, type PublicPageKey } from "@/lib/public-pages";
 import { sectionsSchema } from "@/lib/page-sections";
+import { APP_TIME_ZONE } from "@/lib/time";
 
 import { renderContentEntry, type RenderedContentEntry } from "@/lib/content.functions";
 import {
@@ -680,6 +681,7 @@ async function fetchGoogleBusinessProfileReviews(): Promise<GoogleApiSync> {
                 typeof row.updateTime === "string" && row.updateTime.trim()
                   ? new Date(row.updateTime).toLocaleDateString("en-GB", {
                       dateStyle: "medium",
+                      timeZone: APP_TIME_ZONE,
                     })
                   : "Google review",
               quote: comment,
@@ -770,6 +772,7 @@ async function fetchGooglePlacesReviews(placeId: string): Promise<GoogleApiSync>
                 : typeof row.publishTime === "string"
                   ? new Date(row.publishTime).toLocaleDateString("en-GB", {
                       dateStyle: "medium",
+                      timeZone: APP_TIME_ZONE,
                     })
                   : "Google review",
             quote,

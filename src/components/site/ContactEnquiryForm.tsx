@@ -11,6 +11,7 @@ import { clearFormDraft, loadFormDraft, saveFormDraft } from "@/lib/form-drafts"
 import { INTAKE_CONSENT_TEXT } from "@/lib/intake-consent";
 import { getTemplateField, type FormTemplateDefinition } from "@/lib/form-templates";
 import { submitContactMessage } from "@/lib/contact.functions";
+import { formatWATDateTime } from "@/lib/time";
 
 export const CONTACT_DRAFT_KEY = "talk-space.contact-draft.v1";
 
@@ -122,10 +123,7 @@ export function ContactEnquiryForm({ template }: { template: FormTemplateDefinit
         <div className="rounded-lg border border-brand-blue/30 bg-brand-blue-soft/60 px-4 py-3 text-sm text-brand-deep">
           <p className="font-medium">Saved draft restored</p>
           <p className="text-xs text-brand-deep/75">
-            Last saved{" "}
-            {new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(
-              new Date(draftUpdatedAt),
-            )}
+            Last saved {formatWATDateTime(draftUpdatedAt)} WAT
           </p>
         </div>
       ) : null}
