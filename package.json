@@ -25,6 +25,7 @@
     "db:seed:demo": "npm run db:seed:clients && node scripts/seed-demo-bookings.mjs && npm run db:seed:content",
     "content:inventory": "node scripts/export-wordpress-inventory.mjs",
     "content:urls": "node scripts/export-legacy-url-inventory.mjs",
+    "security:reconcile-paystack": "node scripts/reconcile-paystack-evidence.mjs",
     "db:export-seed": "node scripts/export-database-seed.mjs",
     "qa:a11y": "node scripts/audit-public-accessibility.mjs",
     "qa:cwv": "node scripts/audit-core-web-vitals.mjs",

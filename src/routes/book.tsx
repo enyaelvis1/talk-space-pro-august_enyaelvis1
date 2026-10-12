@@ -19,6 +19,7 @@ import {
 import { SiteHeader } from "@/components/site/SiteHeader";
 import { SiteBreadcrumbs } from "@/components/site/SiteBreadcrumbs";
 import { SiteFooter } from "@/components/site/SiteFooter";
+import { PaymentRiskChallenge } from "@/components/site/PaymentRiskChallenge";
 import { FirstTimeAssessmentLinks } from "@/components/site/FirstTimeAssessmentLinks";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -120,6 +121,7 @@ export const Route = createFileRoute("/book")({
         bankAccountName: null,
         bankAccountNumber: null,
         bankInstructions: null,
+        paymentRiskChallengeSiteKey: null,
       })),
       getBookingPrefill().catch((): BookingPrefill => ({
         isAuthenticated: false,
@@ -1618,6 +1620,7 @@ function PaymentStep({
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [bankBusy, setBankBusy] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [riskToken, setRiskToken] = useState<string | null>(null);
   const [uploadPhase, setUploadPhase] = useState<"idle" | "uploading" | "submitting">("idle");
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -1674,6 +1677,7 @@ function PaymentStep({
                 }))
               : undefined,
           manageToken: confirmation.appointment.manageToken,
+          riskToken: riskToken ?? undefined,
         },
       });
       onPaystackRedirect();
@@ -1861,6 +1865,10 @@ function PaymentStep({
                   You'll be redirected to Paystack's secure checkout to complete payment. We'll
                   bring you back to confirm once you're done.
                 </p>
+                <PaymentRiskChallenge
+                  siteKey={options.paymentRiskChallengeSiteKey}
+                  onToken={setRiskToken}
+                />
                 <Button
                   type="button"
                   onClick={startPaystack}
