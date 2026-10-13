@@ -3099,18 +3099,11 @@ export const reorderServices = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const bag = await requireAdmin();
-    const writeClient = await getTrustedServiceWriteClient(bag);
-    for (const item of data.order) {
-      const { error } = await writeClient
-        .from("services")
-        .update({ display_order: item.displayOrder })
-        .eq("id", item.id);
-      if (error) {
-        bag.commitCookies();
-        throw error;
-      }
-    }
+    const { error } = await bag.client.rpc("reorder_services", {
+      p_order: data.order.map((item) => ({ id: item.id, display_order: item.displayOrder })),
+    });
     bag.commitCookies();
+    if (error) throw error;
     return { ok: true };
   });
 
