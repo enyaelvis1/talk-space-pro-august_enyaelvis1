@@ -6,10 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-type DateInputProps = Omit<
-  React.ComponentProps<"input">,
-  "type" | "value" | "onChange" | "min"
-> & {
+type DateInputProps = Omit<React.ComponentProps<"input">, "type" | "value" | "onChange" | "min"> & {
   value?: string;
   min?: string;
   onChange?: React.ChangeEventHandler<HTMLInputElement>;

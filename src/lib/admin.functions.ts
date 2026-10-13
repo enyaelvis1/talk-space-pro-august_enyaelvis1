@@ -3037,9 +3037,7 @@ export const createService = createServerFn({ method: "POST" })
   });
 
 export const updateService = createServerFn({ method: "POST" })
-  .validator((data: unknown) =>
-    servicePayloadSchema.extend({ id: z.string().uuid() }).parse(data),
-  )
+  .validator((data: unknown) => servicePayloadSchema.extend({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data }): Promise<{ ok: true }> => {
     const bag = await requireAdmin();
     const writeClient = await getTrustedServiceWriteClient(bag);
@@ -3544,9 +3542,7 @@ export const createFaq = createServerFn({ method: "POST" })
   });
 
 export const updateFaq = createServerFn({ method: "POST" })
-  .validator((d: unknown) =>
-    faqInputSchema.partial().extend({ id: z.string().uuid() }).parse(d),
-  )
+  .validator((d: unknown) => faqInputSchema.partial().extend({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }): Promise<AdminFaqRow> => {
     const bag = await requireAdmin();
     const patch: Record<string, unknown> = {};
