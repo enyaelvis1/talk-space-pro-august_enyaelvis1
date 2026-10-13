@@ -24,6 +24,7 @@ import {
   type PublicSiteDetails,
   normalizeHomePricingSettings,
 } from "@/lib/content.functions";
+import { clearPublicBookingServicesCache } from "@/lib/public-service-cache";
 import { PUBLIC_PAGE_CONFIG, type PublicPageKey } from "@/lib/public-pages";
 import { sectionsSchema } from "@/lib/page-sections";
 import { APP_TIME_ZONE } from "@/lib/time";
@@ -3033,6 +3034,7 @@ export const createService = createServerFn({ method: "POST" })
     } finally {
       bag.commitCookies();
     }
+    clearPublicBookingServicesCache();
     return { ok: true, id: row.id as string };
   });
 
@@ -3062,6 +3064,7 @@ export const updateService = createServerFn({ method: "POST" })
     } finally {
       bag.commitCookies();
     }
+    clearPublicBookingServicesCache();
     return { ok: true };
   });
 
@@ -3078,6 +3081,7 @@ export const setServiceActive = createServerFn({ method: "POST" })
       .eq("id", data.id);
     bag.commitCookies();
     if (error) throw error;
+    clearPublicBookingServicesCache();
     return { ok: true };
   });
 
@@ -3099,18 +3103,12 @@ export const reorderServices = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const bag = await requireAdmin();
-    const writeClient = await getTrustedServiceWriteClient(bag);
-    for (const item of data.order) {
-      const { error } = await writeClient
-        .from("services")
-        .update({ display_order: item.displayOrder })
-        .eq("id", item.id);
-      if (error) {
-        bag.commitCookies();
-        throw error;
-      }
-    }
+    const { error } = await bag.client.rpc("reorder_services", {
+      p_order: data.order.map((item) => ({ id: item.id, display_order: item.displayOrder })),
+    });
     bag.commitCookies();
+    if (error) throw error;
+    clearPublicBookingServicesCache();
     return { ok: true };
   });
 
@@ -3131,6 +3129,7 @@ export const deleteService = createServerFn({ method: "POST" })
       }
       throw error;
     }
+    clearPublicBookingServicesCache();
     return { ok: true };
   });
 

@@ -1935,6 +1935,10 @@ export type Database = {
         Args: { p_revision_id: string };
         Returns: Json;
       };
+      reorder_services: {
+        Args: { p_order: Json };
+        Returns: number;
+      };
       submit_bank_transfer: {
         Args: {
           p_amount_kobo: number;
