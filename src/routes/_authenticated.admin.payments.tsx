@@ -10,6 +10,7 @@ import {
   XCircle,
   Trash2,
   Send,
+  Archive,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -47,6 +48,7 @@ import {
 } from "@/components/ui/dialog";
 import { useSensitiveActionGate } from "@/hooks/useSensitiveActionGate";
 import { canonicalUrl } from "@/lib/seo";
+import { archiveAppointmentForAdmin } from "@/lib/booking.functions";
 import {
   clearPaystackSecret,
   clearPaystackWebhookSecret,
@@ -417,6 +419,29 @@ function PaymentsAdminScreen({
       toast.success(`Booking restored. Manage link: ${result.manageUrl}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to restore the booking.");
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
+
+  const onArchiveBooking = async (row: PaymentRow) => {
+    if (!row.appointmentId || row.appointmentArchivedAt) return;
+    const ok = confirm(
+      `Archive booking ${row.bookingReference ?? row.reference}? It will be removed from active payment review, while its payment and audit history are kept.`,
+    );
+    if (!ok) return;
+    const stepUpAllowed = await stepUp.requestStepUp(`archive booking ${row.reference}`);
+    if (!stepUpAllowed) return;
+
+    setUpdatingStatusId(row.id);
+    try {
+      await archiveAppointmentForAdmin({
+        data: { appointmentId: row.appointmentId, reason: "manual_admin_archive" },
+      });
+      await refresh();
+      toast.success("Booking archived. Payment history remains available in the ledger.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to archive booking.");
     } finally {
       setUpdatingStatusId(null);
     }
@@ -1375,6 +1400,21 @@ function PaymentsAdminScreen({
                             >
                               Reschedule booking
                             </Link>
+                          </Button>
+                        ) : null}
+                        {row.appointmentId && !row.appointmentArchivedAt ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={updatingStatusId === row.id}
+                            onClick={() => void onArchiveBooking(row)}
+                          >
+                            {updatingStatusId === row.id ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Archive className="mr-2 h-4 w-4" />
+                            )}
+                            Archive booking
                           </Button>
                         ) : null}
                         {canDeletePayment(row) ? (

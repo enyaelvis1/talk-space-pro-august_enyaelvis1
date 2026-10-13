@@ -197,6 +197,18 @@ test("bank approval UI does not announce booking confirmation when commitment fa
   }
 });
 
+test("payments review exposes archive for linked active bookings", async () => {
+  const route = readFileSync(
+    new URL("../src/routes/_authenticated.admin.payments.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(route, /archiveAppointmentForAdmin/);
+  assert.match(route, /Archive booking/);
+  assert.match(route, /!row\.appointmentArchivedAt/);
+  assert.match(route, /manual_admin_archive/);
+  assert.match(route, /Payment history remains available in the ledger/);
+});
+
 // Execute the real admin mapper with a mocked read-only Supabase boundary.
 test("admin payment mapper loads archive state in one query and ignores stale fulfilled flags", async () => {
   const path = "src/lib/payments.functions.ts";

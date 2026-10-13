@@ -261,9 +261,7 @@ export const getAdminClients = createServerFn({ method: "GET" }).handler(async (
 });
 
 export const getAdminClientsPage = createServerFn({ method: "GET" })
-  .inputValidator((data: unknown) =>
-    z.object({ page: z.number().int().min(1).max(1000) }).parse(data),
-  )
+  .validator((data: unknown) => z.object({ page: z.number().int().min(1).max(1000) }).parse(data))
   .handler(async ({ data }) => {
     const client = await getAdminClient();
     if (!client) return null;

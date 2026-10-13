@@ -580,7 +580,7 @@ export function renderEmailTemplate(
         html: shell(
           heading(`Your package is ready, ${esc(pick(data, "clientName", "there"))}.`) +
             p(
-              "Use this private link whenever you want to schedule a remaining session from your package.",
+              "Use this private link whenever you want to schedule one of your remaining sessions from your package.",
             ) +
             detailList([
               ["Package reference", esc(pick(data, "packageReference"))],
