@@ -318,11 +318,16 @@ test("admin services controls the public booking service dropdown", () => {
   assert.match(adminServices, /inputMode="numeric"/);
   assert.match(adminServices, /85,000/);
   assert.match(adminServices, /Display order/);
+  assert.match(adminServices, /up\/down arrows/);
+  assert.match(adminServices, /Move .* up/);
+  assert.match(adminServices, /Move .* down/);
+  assert.match(adminServices, /reorderServices/);
   assert.match(adminServices, /Assigned therapists/);
   assert.match(adminFunctions, /getTrustedServiceWriteClient/);
   assert.match(adminFunctions, /SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(adminFunctions, /await requireAdmin\(\)/);
   assert.match(adminFunctions, /syncTherapistAssignments\(writeClient/);
+  assert.match(adminFunctions, /export const reorderServices/);
   assert.match(bookingFunctions, /\.from\("services"\)[\s\S]*\.eq\("is_active", true\)/);
   assert.match(bookingFunctions, /\.order\("display_order"\)/);
   assert.match(assessmentDurationMigration, /code = 'psychotherapy'/);

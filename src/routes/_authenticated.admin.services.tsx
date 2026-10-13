@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { AdminWorkspaceShell } from "@/components/progress/AdminSidebar";
@@ -26,6 +26,7 @@ import {
   deleteService,
   getAdminServicesWorkspace,
   listAdminServices,
+  reorderServices,
   setServiceActive,
   updateService,
   type AdminServiceRow,
@@ -140,6 +141,7 @@ function ServicesAdminRoute() {
   const { services: initialServices, therapists } = Route.useLoaderData() as LoaderData;
   const [rows, setRows] = useState<AdminServiceRow[]>(initialServices);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [reordering, setReordering] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm());
   const [saving, setSaving] = useState(false);
@@ -180,6 +182,31 @@ function ServicesAdminRoute() {
       toast.error(err instanceof Error ? err.message : "Update failed.");
     } finally {
       setSavingId(null);
+    }
+  }
+
+  async function moveService(index: number, direction: -1 | 1) {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= rows.length || reordering) return;
+
+    const previous = rows;
+    const next = [...rows];
+    [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+    const ordered = next.map((row, order) => ({ ...row, displayOrder: order }));
+    setRows(ordered);
+    setReordering(true);
+    try {
+      await reorderServices({
+        data: {
+          order: ordered.map((row) => ({ id: row.id, displayOrder: row.displayOrder })),
+        },
+      });
+      toast.success("Booking service order updated.");
+    } catch (err) {
+      setRows(previous);
+      toast.error(err instanceof Error ? err.message : "Could not update service order.");
+    } finally {
+      setReordering(false);
     }
   }
 
@@ -262,10 +289,11 @@ function ServicesAdminRoute() {
           <AlertTitle>This controls the booking service dropdown.</AlertTitle>
           <AlertDescription>
             The public “Choose a service” list is built from the active services below. Edit a
-            service name or duration to change the dropdown label, change display order to rearrange
-            it, deactivate a service to hide it from booking, or delete unused services here. The
-            online and in-person price fields control the amount used during booking checkout. To
-            change the wording of public pricing cards, edit the Pricing page from Admin → Pages.
+            service name or duration to change the dropdown label, use the up/down arrows to
+            rearrange it, deactivate a service to hide it from booking, or delete unused services
+            here. The online and in-person price fields control the amount used during booking
+            checkout. To change the wording of public pricing cards, edit the Pricing page from
+            Admin → Pages.
           </AlertDescription>
         </Alert>
 
@@ -353,6 +381,28 @@ function ServicesAdminRoute() {
                     )}
                   </div>
                   <div className="flex flex-col items-end gap-3">
+                    <div className="flex items-center gap-1" aria-label={`Reorder ${s.name}`}>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        aria-label={`Move ${s.name} up`}
+                        title="Move up"
+                        onClick={() => moveService(rows.indexOf(s), -1)}
+                        disabled={reordering || rows.indexOf(s) === 0}
+                      >
+                        <ArrowUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        aria-label={`Move ${s.name} down`}
+                        title="Move down"
+                        onClick={() => moveService(rows.indexOf(s), 1)}
+                        disabled={reordering || rows.indexOf(s) === rows.length - 1}
+                      >
+                        <ArrowDown className="h-4 w-4" />
+                      </Button>
+                    </div>
                     <div className="flex items-center gap-2 text-xs">
                       <Switch
                         checked={s.isActive}

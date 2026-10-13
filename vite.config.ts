@@ -46,7 +46,7 @@ export default defineConfig({
           // before `createMiddleware` is initialised — every SSR request then
           // dies with "createMiddleware is not a function". Keeping the start
           // core in one chunk removes the cycle.
-          advancedChunks: {
+          codeSplitting: {
             groups: [
               {
                 name: "tanstack-start-core",

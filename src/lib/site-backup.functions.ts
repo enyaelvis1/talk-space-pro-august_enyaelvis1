@@ -108,7 +108,7 @@ export const listAdminBackups = createServerFn({ method: "GET" }).handler(
 );
 
 export const createAdminSiteBackup = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => backupLabelSchema.parse(data))
+  .validator((data: unknown) => backupLabelSchema.parse(data))
   .handler(async ({ data }) => {
     const { context, supabaseAdmin } = await getAdminClient();
     const backupId = crypto.randomUUID();
@@ -209,7 +209,7 @@ export const createAdminSiteBackup = createServerFn({ method: "POST" })
   });
 
 export const getAdminBackupDownloadUrl = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => backupIdSchema.parse(data))
+  .validator((data: unknown) => backupIdSchema.parse(data))
   .handler(async ({ data }) => {
     const { context, supabaseAdmin } = await getAdminClient();
     const { data: backup, error } = await supabaseAdmin
@@ -235,7 +235,7 @@ export const getAdminBackupDownloadUrl = createServerFn({ method: "POST" })
   });
 
 export const validateAdminBackup = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => backupIdSchema.parse(data))
+  .validator((data: unknown) => backupIdSchema.parse(data))
   .handler(async ({ data }) => {
     const { context, supabaseAdmin } = await getAdminClient();
     const { data: backup, error } = await supabaseAdmin
@@ -272,7 +272,7 @@ export const validateAdminBackup = createServerFn({ method: "POST" })
   });
 
 export const restoreAdminSiteBackup = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     backupIdSchema.extend({ confirmation: z.literal("RESTORE SITE BACKUP") }).parse(data),
   )
   .handler(async ({ data }) => {
