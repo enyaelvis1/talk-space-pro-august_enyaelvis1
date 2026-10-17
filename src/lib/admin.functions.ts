@@ -37,6 +37,7 @@ import {
 } from "@/lib/form-templates";
 import { fallbackInPersonPriceNgn, isMissingInPersonPriceColumn } from "@/lib/service-pricing";
 import { requireRequestRole } from "@/lib/server-auth";
+import { isPendingPaymentForAdminDashboard } from "@/lib/payment-booking-review";
 
 function getConfiguredClient() {
   const bag = createRequestSupabase(getRequest());
@@ -1206,8 +1207,7 @@ async function loadAdminDashboardSummary(
     clients,
     upcomingBookings,
     pendingMessages,
-    pendingPayments,
-    paidBookingReviewPayments,
+    pendingPaymentRows,
     pendingForms,
     failedGoogleSyncs,
   ] = await Promise.all([
@@ -1240,9 +1240,8 @@ async function loadAdminDashboardSummary(
       .is("ack_sent_at", null),
     bag.client
       .from("payments")
-      .select("id", { count: "exact", head: true })
-      .in("status", ["initiated", "awaiting_confirmation"]),
-    bag.client.from("payments").select("metadata").eq("status", "succeeded"),
+      .select("status, provider, payment_kind, appointments(status, archived_at)")
+      .in("status", ["initiated", "pending", "awaiting_confirmation", "succeeded"]),
     bag.client
       .from("intake_submissions")
       .select("id", { count: "exact", head: true })
@@ -1260,20 +1259,23 @@ async function loadAdminDashboardSummary(
     clients,
     upcomingBookings,
     pendingMessages,
-    pendingPayments,
-    paidBookingReviewPayments,
+    pendingPaymentRows,
     pendingForms,
     failedGoogleSyncs,
   ].find((result) => result.error)?.error;
   if (firstError) throw firstError;
-  const paidBookingReviewCount = (paidBookingReviewPayments.data ?? []).filter((row) => {
-    const metadata = row.metadata;
-    return (
-      metadata !== null &&
-      typeof metadata === "object" &&
-      !Array.isArray(metadata) &&
-      (metadata as Record<string, unknown>).booking_review_required === true
-    );
+  const pendingTransferCount = (pendingPaymentRows.data ?? []).filter((row) => {
+    const appointment = row.appointments as {
+      status?: string;
+      archived_at?: string | null;
+    } | null;
+    return isPendingPaymentForAdminDashboard({
+      status: String(row.status),
+      provider: String(row.provider),
+      paymentKind: String(row.payment_kind),
+      appointmentStatus: appointment?.status ?? null,
+      appointmentArchivedAt: appointment?.archived_at ?? null,
+    });
   }).length;
   return {
     pages: pages.count ?? 0,
@@ -1283,7 +1285,7 @@ async function loadAdminDashboardSummary(
     clients: clients.count ?? 0,
     upcomingBookings: upcomingBookings.count ?? 0,
     pendingMessages: pendingMessages.count ?? 0,
-    pendingTransfers: (pendingPayments.count ?? 0) + paidBookingReviewCount,
+    pendingTransfers: pendingTransferCount,
     pendingForms: pendingForms.count ?? 0,
     failedGoogleSyncs: failedGoogleSyncs.count ?? 0,
   };
