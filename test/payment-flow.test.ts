@@ -446,11 +446,17 @@ test("admin dashboard counts unresolved and paid-review payments", async () => {
     "utf8",
   );
 
-  assert.match(adminFunctions, /\.in\("status", \["initiated", "awaiting_confirmation"\]\)/);
+  assert.match(
+    adminFunctions,
+    /\.in\("status", \["initiated", "awaiting_confirmation", "succeeded"\]\)/,
+  );
   assert.doesNotMatch(adminFunctions, /\.in\("status", \["initiated", "pending"/);
-  assert.match(adminFunctions, /\.from\("payments"\)\.select\("metadata"\)/);
-  assert.match(adminFunctions, /booking_review_required === true/);
-  assert.match(adminFunctions, /pendingPayments\.count \?\? 0\) \+ paidBookingReviewCount/);
+  assert.match(
+    adminFunctions,
+    /\.from\("payments"\)[\s\S]*\.select\("status, provider, payment_kind, appointments\(status, archived_at\)"\)/,
+  );
+  assert.match(adminFunctions, /isPendingPaymentForAdminDashboard/);
+  assert.match(adminFunctions, /pendingTransferCount/);
 });
 
 test("website package payments send one client email with the package link embedded", async () => {
