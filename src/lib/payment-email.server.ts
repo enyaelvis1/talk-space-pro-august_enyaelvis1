@@ -41,7 +41,7 @@ export async function sendPaymentEmail(params: {
   let query = supabaseAdmin
     .from("payments")
     .select(
-      "id, provider, reference, amount_kobo, currency, status, metadata, payment_success_email_claimed_at, payment_failed_email_claimed_at, payment_review_email_claimed_at, bank_transfer_received_email_claimed_at, appointments(client_email, client_name, partner_name, partner_email, booking_reference, starts_at, session_mode, google_meet_url, status, manage_token, manage_token_expires_at, manage_token_revoked_at, services(name), therapists(full_name, location))",
+      "id, provider, reference, amount_kobo, currency, status, metadata, payment_success_email_claimed_at, payment_failed_email_claimed_at, payment_review_email_claimed_at, bank_transfer_received_email_claimed_at, payment_partner_email_claimed_at, appointments(id, client_email, client_name, partner_name, partner_email, booking_reference, starts_at, session_mode, google_meet_url, status, manage_token, manage_token_expires_at, manage_token_revoked_at, services(name), therapists(full_name, location))",
     );
   query = params.paymentId
     ? query.eq("id", params.paymentId)
@@ -93,7 +93,16 @@ export async function sendPaymentEmail(params: {
   const claimColumn = needsReview
     ? "payment_review_email_claimed_at"
     : CLAIM_COLUMNS[params.templateKey];
-  if (payment[claimColumn] && !params.force) {
+  const primaryAlreadyNotified = Boolean(payment[claimColumn]) && !params.force;
+  const primaryShouldSend = !primaryAlreadyNotified || Boolean(params.force);
+  const partnerAlreadyNotified =
+    params.templateKey === "payment_success" &&
+    Boolean(
+      (payment as { payment_partner_email_claimed_at?: string | null })
+        .payment_partner_email_claimed_at,
+    ) &&
+    !params.force;
+  if (primaryAlreadyNotified && (!appointment.partner_email || partnerAlreadyNotified)) {
     return { sent: false as const, reason: "already_notified", logId: null };
   }
 
@@ -108,11 +117,14 @@ export async function sendPaymentEmail(params: {
         : claimColumn === "payment_failed_email_claimed_at"
           ? { payment_failed_email_claimed_at: claimTimestamp }
           : { bank_transfer_received_email_claimed_at: claimTimestamp };
-  let claimQuery = supabaseAdmin.from("payments").update(claimUpdate).eq("id", payment.id);
-  if (!params.force) claimQuery = claimQuery.is(claimColumn, null);
-  const { data: claimed, error: claimError } = await claimQuery.select("id").maybeSingle();
-  if (claimError) throw claimError;
-  if (!claimed) return { sent: false as const, reason: "already_notified", logId: null };
+  let primaryClaimed = primaryAlreadyNotified;
+  if (!primaryAlreadyNotified || params.force) {
+    let claimQuery = supabaseAdmin.from("payments").update(claimUpdate).eq("id", payment.id);
+    if (!params.force) claimQuery = claimQuery.is(claimColumn, null);
+    const { data: claimed, error: claimError } = await claimQuery.select("id").maybeSingle();
+    if (claimError) throw claimError;
+    primaryClaimed = Boolean(claimed);
+  }
 
   const bookingNeedsReview =
     params.templateKey === "payment_success" &&
@@ -135,60 +147,84 @@ export async function sendPaymentEmail(params: {
     payment.provider === "paystack" && params.templateKey === "payment_success"
       ? readPaymentReceipt(payment.metadata)
       : null;
-  const result = await sendTemplateEmail(params.templateKey, appointment.client_email, {
-    clientName: appointment.client_name,
-    bookingNeedsReview: bookingNeedsReview ? "yes" : "",
-    paymentReference: payment.reference,
-    bookingReference: appointment.booking_reference,
-    amountKobo: payment.amount_kobo,
-    checkoutPaidKobo: receipt?.amountKobo ?? "",
-    checkoutFeeKobo: receipt?.customerFeeKobo ?? "",
-    currency: payment.currency ?? "NGN",
-    paymentMethod: payment.provider === "bank_transfer" ? "Bank transfer" : "Paystack",
-    serviceName: appointment.services?.name ?? "",
-    therapistName: appointment.therapists?.full_name ?? "",
-    startsAt: appointment.starts_at,
-    mode: appointment.session_mode,
-    meetingLink: appointment.google_meet_url ?? "",
-    location: (appointment.therapists as { location?: string | null } | null)?.location ?? "",
-    manageUrl: canonicalUrl(activeManagePath(appointment)),
-    packageBookingUrl: packageInfo?.bookingUrl ?? "",
-    packagePurchasedSessions: packageInfo?.purchasedSessions ?? "",
-    packageRemainingSessions: packageInfo?.remainingSessions ?? "",
-  });
+  const result =
+    primaryClaimed && primaryShouldSend
+      ? await sendTemplateEmail(params.templateKey, appointment.client_email, {
+          clientName: appointment.client_name,
+          bookingNeedsReview: bookingNeedsReview ? "yes" : "",
+          paymentReference: payment.reference,
+          bookingReference: appointment.booking_reference,
+          amountKobo: payment.amount_kobo,
+          checkoutPaidKobo: receipt?.amountKobo ?? "",
+          checkoutFeeKobo: receipt?.customerFeeKobo ?? "",
+          currency: payment.currency ?? "NGN",
+          paymentMethod: payment.provider === "bank_transfer" ? "Bank transfer" : "Paystack",
+          serviceName: appointment.services?.name ?? "",
+          therapistName: appointment.therapists?.full_name ?? "",
+          startsAt: appointment.starts_at,
+          mode: appointment.session_mode,
+          meetingLink: appointment.google_meet_url ?? "",
+          location: (appointment.therapists as { location?: string | null } | null)?.location ?? "",
+          manageUrl: canonicalUrl(activeManagePath(appointment)),
+          packageBookingUrl: packageInfo?.bookingUrl ?? "",
+          packagePurchasedSessions: packageInfo?.purchasedSessions ?? "",
+          packageRemainingSessions: packageInfo?.remainingSessions ?? "",
+        })
+      : { sent: true as const, reason: "already_notified", logId: null };
 
-  if (appointment.partner_email && params.templateKey === "payment_success") {
-    await sendTemplateEmail(params.templateKey, appointment.partner_email, {
-      clientName: appointment.partner_name || "there",
-      bookingNeedsReview: bookingNeedsReview ? "yes" : "",
-      paymentReference: payment.reference,
-      bookingReference: appointment.booking_reference,
-      amountKobo: payment.amount_kobo,
-      checkoutPaidKobo: receipt?.amountKobo ?? "",
-      checkoutFeeKobo: receipt?.customerFeeKobo ?? "",
-      currency: payment.currency ?? "NGN",
-      paymentMethod: payment.provider === "bank_transfer" ? "Bank transfer" : "Paystack",
-      serviceName: appointment.services?.name ?? "",
-      therapistName: appointment.therapists?.full_name ?? "",
-      startsAt: appointment.starts_at,
-      mode: appointment.session_mode,
-      meetingLink: appointment.google_meet_url ?? "",
-      location: appointment.therapists?.location ?? "",
-      manageUrl: canonicalUrl(activeManagePath(appointment)),
-      packageBookingUrl: packageInfo?.bookingUrl ?? "",
-      packagePurchasedSessions: packageInfo?.purchasedSessions ?? "",
-      packageRemainingSessions: packageInfo?.remainingSessions ?? "",
-    });
-  }
-
-  // Provider failures have an encrypted retry queued. Configuration skips do
-  // not, so release their claim to allow delivery after the settings are fixed.
   const configurationSkips = new Set([
     "emails_disabled",
     "from_email_not_configured",
     "template_disabled",
     "api_key_not_configured",
   ]);
+  let partnerResult: typeof result | null = null;
+  if (
+    appointment.partner_email &&
+    params.templateKey === "payment_success" &&
+    !partnerAlreadyNotified
+  ) {
+    const { data: partnerClaim, error: partnerClaimError } = await supabaseAdmin
+      .from("payments")
+      .update({ payment_partner_email_claimed_at: new Date().toISOString() })
+      .eq("id", payment.id)
+      .is("payment_partner_email_claimed_at", null)
+      .select("id")
+      .maybeSingle();
+    if (partnerClaimError) throw partnerClaimError;
+    if (partnerClaim) {
+      partnerResult = await sendTemplateEmail(params.templateKey, appointment.partner_email, {
+        clientName: appointment.partner_name || "there",
+        bookingNeedsReview: bookingNeedsReview ? "yes" : "",
+        paymentReference: payment.reference,
+        bookingReference: appointment.booking_reference,
+        amountKobo: payment.amount_kobo,
+        checkoutPaidKobo: receipt?.amountKobo ?? "",
+        checkoutFeeKobo: receipt?.customerFeeKobo ?? "",
+        currency: payment.currency ?? "NGN",
+        paymentMethod: payment.provider === "bank_transfer" ? "Bank transfer" : "Paystack",
+        serviceName: appointment.services?.name ?? "",
+        therapistName: appointment.therapists?.full_name ?? "",
+        startsAt: appointment.starts_at,
+        mode: appointment.session_mode,
+        meetingLink: appointment.google_meet_url ?? "",
+        location: appointment.therapists?.location ?? "",
+        manageUrl: canonicalUrl(activeManagePath(appointment)),
+        packageBookingUrl: packageInfo?.bookingUrl ?? "",
+        packagePurchasedSessions: packageInfo?.purchasedSessions ?? "",
+        packageRemainingSessions: packageInfo?.remainingSessions ?? "",
+      });
+      if (!partnerResult.sent && configurationSkips.has(partnerResult.reason)) {
+        await supabaseAdmin
+          .from("payments")
+          .update({ payment_partner_email_claimed_at: null })
+          .eq("id", payment.id);
+      }
+    }
+  }
+
+  // Provider failures have an encrypted retry queued. Configuration skips do
+  // not, so release their claim to allow delivery after the settings are fixed.
   if (!result.sent && configurationSkips.has(result.reason)) {
     const releaseUpdate =
       claimColumn === "payment_review_email_claimed_at"
@@ -205,5 +241,5 @@ export async function sendPaymentEmail(params: {
     if (releaseError) console.error("[email] failed to release payment email claim", releaseError);
   }
 
-  return result;
+  return primaryAlreadyNotified && partnerResult ? partnerResult : result;
 }

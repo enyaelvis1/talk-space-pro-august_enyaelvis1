@@ -30,4 +30,12 @@ test("couple booking contract includes optional partner notification details", (
   assert.match(form, /Invite your partner/);
   assert.match(migration, /partner_email/);
   assert.match(booking, /recipientRole: "partner"/);
+  assert.match(booking, /Use a different email for your partner/);
+  assert.match(form, /Their details are stored on this\s+booking only/);
+  assert.match(booking, /firePartnerLifecycleNotice/);
+  assert.match(read("src/lib/payment-email.server.ts"), /payment_partner_email_claimed_at/);
+  assert.match(
+    read("supabase/migrations/20261019123000_partner_payment_notification_claim.sql"),
+    /payment_partner_email_claimed_at/,
+  );
 });
