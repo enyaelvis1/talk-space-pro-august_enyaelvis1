@@ -1185,6 +1185,7 @@ export type Database = {
           payment_failed_email_claimed_at: string | null;
           payment_kind: Database["public"]["Enums"]["payment_kind"];
           payment_review_email_claimed_at: string | null;
+          payment_partner_email_claimed_at: string | null;
           payment_success_email_claimed_at: string | null;
           provider: Database["public"]["Enums"]["payment_provider"];
           provider_reference: string | null;
@@ -1212,6 +1213,7 @@ export type Database = {
           payment_failed_email_claimed_at?: string | null;
           payment_kind?: Database["public"]["Enums"]["payment_kind"];
           payment_review_email_claimed_at?: string | null;
+          payment_partner_email_claimed_at?: string | null;
           payment_success_email_claimed_at?: string | null;
           provider: Database["public"]["Enums"]["payment_provider"];
           provider_reference?: string | null;
@@ -1239,6 +1241,7 @@ export type Database = {
           payment_failed_email_claimed_at?: string | null;
           payment_kind?: Database["public"]["Enums"]["payment_kind"];
           payment_review_email_claimed_at?: string | null;
+          payment_partner_email_claimed_at?: string | null;
           payment_success_email_claimed_at?: string | null;
           provider?: Database["public"]["Enums"]["payment_provider"];
           provider_reference?: string | null;

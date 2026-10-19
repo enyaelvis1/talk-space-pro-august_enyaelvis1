@@ -157,10 +157,12 @@ test("homepage loads inline editing tools after the visitor render path", () => 
 
 test("dev server refreshes optimized dependency cache for lazy public routes", () => {
   const pkg = JSON.parse(read("package.json")) as { scripts?: Record<string, string> };
+  const devScript = read("scripts/dev-with-env.mjs");
   const viteConfig = read("vite.config.ts");
   const booking = read("src/routes/book.tsx");
 
-  assert.match(pkg.scripts?.dev ?? "", /vite dev --force/);
+  assert.match(pkg.scripts?.dev ?? "", /dev-with-env/);
+  assert.match(devScript, /vite.*dev.*--force/);
   assert.match(booking, /@\/components\/ui\/select/);
   assert.match(booking, /@\/components\/ui\/radio-group/);
   assert.match(viteConfig, /@radix-ui\/react-select/);

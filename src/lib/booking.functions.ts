@@ -38,7 +38,12 @@ async function fireTherapistLifecycleEmail(
 
 async function fireEmail(
   key:
-    "booking_confirmation" | "booking_admin_notice" | "reschedule_notice" | "cancellation_notice",
+    | "booking_confirmation"
+    | "booking_admin_notice"
+    | "reschedule_notice"
+    | "cancellation_notice"
+    | "booking_reminder_24h"
+    | "booking_reminder_1h",
   to: string,
   data: Record<string, unknown>,
   claim?: { appointmentId: string; notificationKey: string; recipientRole: string },
@@ -113,6 +118,26 @@ async function firePartnerBookingNotice(
     {
       appointmentId,
       notificationKey: "booking_confirmation",
+      recipientRole: "partner",
+    },
+  );
+}
+
+async function firePartnerLifecycleNotice(
+  appointmentId: string,
+  templateKey:
+    "reschedule_notice" | "cancellation_notice" | "booking_reminder_24h" | "booking_reminder_1h",
+  ctx: { partner_name?: string | null; partner_email?: string | null },
+  data: Record<string, unknown>,
+) {
+  if (!ctx.partner_email) return;
+  await fireEmail(
+    templateKey,
+    ctx.partner_email,
+    { ...data, clientName: ctx.partner_name || "there" },
+    {
+      appointmentId,
+      notificationKey: `${templateKey}:partner`,
       recipientRole: "partner",
     },
   );
@@ -536,6 +561,31 @@ const holdSlotInput = z.object({
   packageToken: z.string().trim().min(16).max(128).optional(),
 });
 
+const holdSlotValidatedInput = holdSlotInput.superRefine((data, ctx) => {
+  const hasPartnerDetails = Boolean(data.partnerName || data.partnerEmail || data.partnerPhone);
+  if (!hasPartnerDetails) return;
+  if (!data.partnerName) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["partnerName"],
+      message: "Enter your partner's name.",
+    });
+  }
+  if (!data.partnerEmail) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["partnerEmail"],
+      message: "Enter your partner's email.",
+    });
+  } else if (data.partnerEmail.trim().toLowerCase() === data.email.trim().toLowerCase()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["partnerEmail"],
+      message: "Use a different email for your partner.",
+    });
+  }
+});
+
 const holdSlotsInput = holdSlotInput
   .omit({ therapistId: true, startsAt: true, packageToken: true })
   .extend({
@@ -550,6 +600,31 @@ const holdSlotsInput = holdSlotInput
       .max(10),
   })
   .superRefine((data, ctx) => {
+    const hasPartnerDetails = Boolean(data.partnerName || data.partnerEmail || data.partnerPhone);
+    if (hasPartnerDetails && !data.partnerName) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["partnerName"],
+        message: "Enter your partner's name.",
+      });
+    }
+    if (hasPartnerDetails && !data.partnerEmail) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["partnerEmail"],
+        message: "Enter your partner's email.",
+      });
+    }
+    if (
+      data.partnerEmail &&
+      data.partnerEmail.trim().toLowerCase() === data.email.trim().toLowerCase()
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["partnerEmail"],
+        message: "Use a different email for your partner.",
+      });
+    }
     const uniqueStarts = new Set(
       data.slots.map((slot) => `${slot.therapistId}:${new Date(slot.startsAt).toISOString()}`),
     );
@@ -563,7 +638,7 @@ const holdSlotsInput = holdSlotInput
   });
 
 export const holdSlot = createServerFn({ method: "POST" })
-  .validator((data: z.infer<typeof holdSlotInput>) => holdSlotInput.parse(data))
+  .validator((data: z.infer<typeof holdSlotValidatedInput>) => holdSlotValidatedInput.parse(data))
   .handler(async ({ data }) => {
     // Abuse guard: booking holds lock real slots, so cap attempts per device.
     await guardPublicRequest({
@@ -1167,6 +1242,13 @@ export const rescheduleAppointment = createServerFn({ method: "POST" })
           },
         );
       }
+      await firePartnerLifecycleNotice(result.id, "reschedule_notice", ctx, {
+        reference: result.bookingReference,
+        startsAt: result.startsAt,
+        serviceName: ctx.services?.name ?? "",
+        meetingLink: ctx.google_meet_url ?? "",
+        manageUrl: buildActiveManageUrl(result.bookingReference, ctx),
+      });
       await fireTherapistLifecycleEmail(result.id, "therapist_reschedule_notice", {
         clientName: ctx.client_name,
         reference: result.bookingReference,
@@ -1222,6 +1304,11 @@ export const cancelAppointment = createServerFn({ method: "POST" })
           },
         );
       }
+      await firePartnerLifecycleNotice(result.id, "cancellation_notice", ctx, {
+        reference: ctx.booking_reference,
+        startsAt: ctx.starts_at,
+        manageUrl: buildActiveManageUrl(ctx.booking_reference, ctx),
+      });
       await fireTherapistLifecycleEmail(result.id, "therapist_cancellation_notice", {
         clientName: ctx.client_name,
         reference: ctx.booking_reference,
@@ -2319,7 +2406,7 @@ export const resendBookingConfirmation = createServerFn({ method: "POST" })
     const { data: row, error } = await supabaseAdmin
       .from("appointments")
       .select(
-        "id, booking_reference, client_name, client_email, starts_at, session_mode, status, google_meet_url, manage_token, manage_token_expires_at, manage_token_revoked_at, services(name), therapists(full_name, location)",
+        "id, booking_reference, client_name, client_email, partner_name, partner_email, starts_at, session_mode, status, google_meet_url, manage_token, manage_token_expires_at, manage_token_revoked_at, services(name), therapists(full_name, location)",
       )
       .eq("id", data.appointmentId)
       .maybeSingle();
@@ -2344,6 +2431,20 @@ export const resendBookingConfirmation = createServerFn({ method: "POST" })
     if (!result.sent) {
       throw new Error(result.reason || "The confirmation email could not be sent.");
     }
+    await firePartnerBookingNotice(
+      row.id as string,
+      row as { partner_name?: string | null; partner_email?: string | null },
+      {
+        reference: row.booking_reference,
+        serviceName: (row.services as { name?: string } | null)?.name ?? "",
+        therapistName: (row.therapists as { full_name?: string } | null)?.full_name ?? "",
+        startsAt: row.starts_at,
+        mode: row.session_mode,
+        meetingLink: row.google_meet_url ?? "",
+        location: (row.therapists as { location?: string | null } | null)?.location ?? "",
+        manageUrl: buildActiveManageUrl(row.booking_reference as string, row),
+      },
+    );
     return { ok: true, sentAt: new Date().toISOString(), logId: result.logId };
   });
 
@@ -2356,7 +2457,7 @@ export const resendReminder = createServerFn({ method: "POST" })
     const { data: row, error } = await supabaseAdmin
       .from("appointments")
       .select(
-        "id, booking_reference, client_name, client_email, starts_at, session_mode, status, manage_token, manage_token_expires_at, manage_token_revoked_at, reminder_24h_sent_at, reminder_1h_sent_at, services(name), therapists(full_name, location)",
+        "id, booking_reference, client_name, client_email, partner_name, partner_email, starts_at, session_mode, status, manage_token, manage_token_expires_at, manage_token_revoked_at, reminder_24h_sent_at, reminder_1h_sent_at, services(name), therapists(full_name, location)",
       )
       .eq("id", data.appointmentId)
       .maybeSingle();
@@ -2386,6 +2487,21 @@ export const resendReminder = createServerFn({ method: "POST" })
             : result.reason || "The reminder could not be sent.",
       );
     }
+
+    await firePartnerLifecycleNotice(
+      data.appointmentId,
+      data.reminder,
+      row as { partner_name?: string | null; partner_email?: string | null },
+      {
+        reference: row.booking_reference,
+        serviceName: (row.services as { name?: string } | null)?.name ?? "",
+        therapistName: (row.therapists as { full_name?: string } | null)?.full_name ?? "",
+        startsAt: row.starts_at,
+        mode: row.session_mode,
+        location: (row.therapists as { location?: string | null } | null)?.location ?? "",
+        manageUrl: buildActiveManageUrl(row.booking_reference as string, row),
+      },
+    );
 
     const stamp = new Date().toISOString();
     const patch =
