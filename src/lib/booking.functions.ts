@@ -544,7 +544,7 @@ export const listAvailableSlots = createServerFn({ method: "GET" })
       }));
   });
 
-const holdSlotBaseInput = z.object({
+const holdSlotInput = z.object({
   serviceId: z.string().uuid(),
   therapistId: z.string().uuid(),
   mode: z.enum(["online", "in_person"]),
@@ -561,7 +561,7 @@ const holdSlotBaseInput = z.object({
   packageToken: z.string().trim().min(16).max(128).optional(),
 });
 
-const holdSlotInput = holdSlotBaseInput.superRefine((data, ctx) => {
+const holdSlotValidatedInput = holdSlotInput.superRefine((data, ctx) => {
   const hasPartnerDetails = Boolean(data.partnerName || data.partnerEmail || data.partnerPhone);
   if (!hasPartnerDetails) return;
   if (!data.partnerName) {
@@ -586,7 +586,7 @@ const holdSlotInput = holdSlotBaseInput.superRefine((data, ctx) => {
   }
 });
 
-const holdSlotsInput = holdSlotBaseInput
+const holdSlotsInput = holdSlotInput
   .omit({ therapistId: true, startsAt: true, packageToken: true })
   .extend({
     slots: z
@@ -638,7 +638,7 @@ const holdSlotsInput = holdSlotBaseInput
   });
 
 export const holdSlot = createServerFn({ method: "POST" })
-  .validator((data: z.infer<typeof holdSlotInput>) => holdSlotInput.parse(data))
+  .validator((data: z.infer<typeof holdSlotValidatedInput>) => holdSlotValidatedInput.parse(data))
   .handler(async ({ data }) => {
     // Abuse guard: booking holds lock real slots, so cap attempts per device.
     await guardPublicRequest({
