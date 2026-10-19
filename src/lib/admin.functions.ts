@@ -1405,8 +1405,30 @@ export const getAdminOperationsWorkspace = createServerFn({ method: "GET" }).han
   async (): Promise<AdminOperationsWorkspace> => {
     const bag = await requireAdmin();
     const [summary, failureQueues] = await Promise.all([
-      loadAdminDashboardSummary(bag),
-      loadAdminFailureQueues(bag),
+      loadAdminDashboardSummary(bag).catch((error) => {
+        console.error("[admin dashboard] summary failed:", error);
+        return {
+          pages: 0,
+          posts: 0,
+          media: 0,
+          activeTherapists: 0,
+          clients: 0,
+          upcomingBookings: 0,
+          pendingMessages: 0,
+          pendingTransfers: 0,
+          pendingForms: 0,
+          failedGoogleSyncs: 0,
+        } satisfies AdminDashboardSummary;
+      }),
+      loadAdminFailureQueues(bag).catch((error) => {
+        console.error("[admin dashboard] failure queues failed:", error);
+        return {
+          notificationCount: 0,
+          meetCount: 0,
+          notifications: [],
+          meetSyncs: [],
+        } satisfies AdminFailureQueues;
+      }),
     ]);
     bag.commitCookies();
     return { summary, failureQueues };

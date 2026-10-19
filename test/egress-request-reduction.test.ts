@@ -364,6 +364,8 @@ test("admin dashboard consolidates summary and failure queue reads", () => {
   assert.match(admin, /export const getAdminOperationsWorkspace/);
   assert.match(admin, /loadAdminDashboardSummary\(bag\)/);
   assert.match(admin, /loadAdminFailureQueues\(bag\)/);
+  assert.match(admin, /loadAdminDashboardSummary\(bag\)\.catch/);
+  assert.match(admin, /loadAdminFailureQueues\(bag\)\.catch/);
 });
 
 test("admin dashboard receives progress permission with the server payload", () => {
