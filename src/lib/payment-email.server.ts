@@ -41,7 +41,7 @@ export async function sendPaymentEmail(params: {
   let query = supabaseAdmin
     .from("payments")
     .select(
-      "id, provider, reference, amount_kobo, currency, status, metadata, payment_success_email_claimed_at, payment_failed_email_claimed_at, payment_review_email_claimed_at, bank_transfer_received_email_claimed_at, appointments(client_email, client_name, booking_reference, starts_at, session_mode, google_meet_url, status, manage_token, manage_token_expires_at, manage_token_revoked_at, services(name), therapists(full_name, location))",
+      "id, provider, reference, amount_kobo, currency, status, metadata, payment_success_email_claimed_at, payment_failed_email_claimed_at, payment_review_email_claimed_at, bank_transfer_received_email_claimed_at, appointments(client_email, client_name, partner_name, partner_email, booking_reference, starts_at, session_mode, google_meet_url, status, manage_token, manage_token_expires_at, manage_token_revoked_at, services(name), therapists(full_name, location))",
     );
   query = params.paymentId
     ? query.eq("id", params.paymentId)
@@ -62,6 +62,8 @@ export async function sendPaymentEmail(params: {
   const appointment = payment.appointments as {
     client_email?: string;
     client_name?: string;
+    partner_name?: string | null;
+    partner_email?: string | null;
     booking_reference?: string;
     starts_at?: string;
     session_mode?: string;
@@ -154,6 +156,30 @@ export async function sendPaymentEmail(params: {
     packagePurchasedSessions: packageInfo?.purchasedSessions ?? "",
     packageRemainingSessions: packageInfo?.remainingSessions ?? "",
   });
+
+  if (appointment.partner_email && params.templateKey === "payment_success") {
+    await sendTemplateEmail(params.templateKey, appointment.partner_email, {
+      clientName: appointment.partner_name || "there",
+      bookingNeedsReview: bookingNeedsReview ? "yes" : "",
+      paymentReference: payment.reference,
+      bookingReference: appointment.booking_reference,
+      amountKobo: payment.amount_kobo,
+      checkoutPaidKobo: receipt?.amountKobo ?? "",
+      checkoutFeeKobo: receipt?.customerFeeKobo ?? "",
+      currency: payment.currency ?? "NGN",
+      paymentMethod: payment.provider === "bank_transfer" ? "Bank transfer" : "Paystack",
+      serviceName: appointment.services?.name ?? "",
+      therapistName: appointment.therapists?.full_name ?? "",
+      startsAt: appointment.starts_at,
+      mode: appointment.session_mode,
+      meetingLink: appointment.google_meet_url ?? "",
+      location: appointment.therapists?.location ?? "",
+      manageUrl: canonicalUrl(activeManagePath(appointment)),
+      packageBookingUrl: packageInfo?.bookingUrl ?? "",
+      packagePurchasedSessions: packageInfo?.purchasedSessions ?? "",
+      packageRemainingSessions: packageInfo?.remainingSessions ?? "",
+    });
+  }
 
   // Provider failures have an encrypted retry queued. Configuration skips do
   // not, so release their claim to allow delivery after the settings are fixed.

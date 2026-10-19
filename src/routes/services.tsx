@@ -91,7 +91,7 @@ const SERVICES = [
     bullets: [
       "CBT, ACT, psychodynamic and integrative approaches",
       "Online video or in-person at our Lagos rooms",
-      "Free 15-minute intro call available on request",
+      "Paid 15-minute Clarity Call available on request",
     ],
     image: contentMediaUrl(serviceImages.individual),
     alt: "A Nigerian therapist and client in a warm one-to-one counselling session",
@@ -159,6 +159,7 @@ const SERVICES = [
     tagline: "Specialist care for younger clients.",
     desc: "Support for children and adolescents experiencing behavioural concerns, anxiety, school-related stress, emotional regulation challenges or family transitions.",
     bullets: [
+      "60-minute sessions",
       "Behavioural, play-informed and art-informed therapy",
       "Parent guidance and family collaboration",
       "Age-appropriate care from specialist clinicians",
@@ -181,6 +182,14 @@ const SERVICES = [
     alt: "A small group of African adults in a circle in a family therapy session",
   },
 ];
+
+const SERVICE_DETAIL_SLUGS: Record<string, string> = {
+  individual: "individual-therapy",
+  couple: "couple-therapy",
+  teen: "teen-child-therapy",
+  premarital: "premarital-counselling",
+  family: "family-therapy",
+};
 
 function RouteComponent() {
   const { entry } = Route.useLoaderData();
@@ -274,6 +283,16 @@ function RouteComponent() {
                             <ArrowRight className="h-4 w-4" />
                           </Link>
                         </Button>
+                        {SERVICE_DETAIL_SLUGS[s.id] ? (
+                          <Button asChild variant="pillOutline" size="pill">
+                            <Link
+                              to="/services/$slug"
+                              params={{ slug: SERVICE_DETAIL_SLUGS[s.id] }}
+                            >
+                              Learn more
+                            </Link>
+                          </Button>
+                        ) : null}
                         <Button asChild variant="pillOutline" size="pill">
                           <Link to="/pricing">See pricing</Link>
                         </Button>

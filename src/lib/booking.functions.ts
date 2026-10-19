@@ -100,13 +100,31 @@ async function fireAdminBookingNotice(data: Record<string, unknown>, appointment
   }
 }
 
+async function firePartnerBookingNotice(
+  appointmentId: string,
+  ctx: { partner_name?: string | null; partner_email?: string | null },
+  data: Record<string, unknown>,
+) {
+  if (!ctx.partner_email) return;
+  await fireEmail(
+    "booking_confirmation",
+    ctx.partner_email,
+    { ...data, clientName: ctx.partner_name || "there" },
+    {
+      appointmentId,
+      notificationKey: "booking_confirmation",
+      recipientRole: "partner",
+    },
+  );
+}
+
 async function loadAppointmentContext(appointmentId: string) {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data } = await supabaseAdmin
       .from("appointments")
       .select(
-        "booking_reference, client_name, client_email, client_phone, notes, starts_at, session_mode, google_meet_url, manage_token, manage_token_expires_at, manage_token_revoked_at, status, services(name), therapists(full_name, location)",
+        "booking_reference, client_name, client_email, client_phone, partner_name, partner_email, partner_phone, notes, starts_at, session_mode, google_meet_url, manage_token, manage_token_expires_at, manage_token_revoked_at, status, services(name), therapists(full_name, location)",
       )
       .eq("id", appointmentId)
       .maybeSingle();
@@ -116,6 +134,9 @@ async function loadAppointmentContext(appointmentId: string) {
       client_name: string;
       client_email: string;
       client_phone: string | null;
+      partner_name: string | null;
+      partner_email: string | null;
+      partner_phone: string | null;
       notes: string | null;
       starts_at: string;
       session_mode: string;
@@ -508,6 +529,9 @@ const holdSlotInput = z.object({
   email: z.string().trim().email().max(255),
   phone: clientPhoneSchema,
   notes: z.string().trim().max(1000),
+  partnerName: z.string().trim().max(100).optional(),
+  partnerEmail: z.string().trim().email().max(255).optional().or(z.literal("")),
+  partnerPhone: clientPhoneSchema.optional().or(z.literal("")),
   consentAcknowledged: z.literal(true),
   packageToken: z.string().trim().min(16).max(128).optional(),
 });
@@ -567,18 +591,24 @@ export const holdSlot = createServerFn({ method: "POST" })
       mode: data.mode,
     });
 
-    const { data: appointment, error } = await requestSupabase.client.rpc("hold_appointment", {
-      p_service_id: data.serviceId,
-      p_therapist_id: data.therapistId,
-      p_session_mode: data.mode,
-      p_starts_at: data.startsAt,
-      p_client_name: data.fullName,
-      p_client_email: data.email,
-      p_client_phone: data.phone,
-      p_notes: data.notes,
-      p_manage_token_hash: manageTokenHash,
-      p_client_id: clientId,
-    });
+    const { data: appointment, error } = await requestSupabase.client.rpc(
+      "hold_appointment_with_partner",
+      {
+        p_service_id: data.serviceId,
+        p_therapist_id: data.therapistId,
+        p_session_mode: data.mode,
+        p_starts_at: data.startsAt,
+        p_client_name: data.fullName,
+        p_client_email: data.email,
+        p_client_phone: data.phone,
+        p_notes: data.notes,
+        p_manage_token_hash: manageTokenHash,
+        p_client_id: clientId,
+        p_partner_name: data.partnerName || null,
+        p_partner_email: data.partnerEmail || null,
+        p_partner_phone: data.partnerPhone || null,
+      },
+    );
 
     requestSupabase.commitCookies();
     if (error) throwBookingError(error);
@@ -712,6 +742,16 @@ export const holdSlot = createServerFn({ method: "POST" })
           location: ctx.therapists?.location ?? "",
           manageUrl: canonicalUrl(`/manage/${held.booking_reference}?token=${manageToken}`),
         });
+        await firePartnerBookingNotice(held.id, ctx, {
+          reference: held.booking_reference,
+          serviceName: ctx.services?.name ?? "",
+          therapistName: ctx.therapists?.full_name ?? "",
+          startsAt: held.starts_at,
+          mode: data.mode,
+          meetingLink: ctx.google_meet_url ?? "",
+          location: ctx.therapists?.location ?? "",
+          manageUrl: canonicalUrl(`/manage/${held.booking_reference}?token=${manageToken}`),
+        });
       }
       await fireAdminBookingNotice(
         {
@@ -775,18 +815,24 @@ export const holdSlots = createServerFn({ method: "POST" })
       for (const slot of data.slots) {
         const manageToken = randomBytes(32).toString("hex");
         const manageTokenHash = createHash("sha256").update(manageToken).digest("hex");
-        const { data: appointment, error } = await requestSupabase.client.rpc("hold_appointment", {
-          p_service_id: data.serviceId,
-          p_therapist_id: slot.therapistId,
-          p_session_mode: data.mode,
-          p_starts_at: slot.startsAt,
-          p_client_name: data.fullName,
-          p_client_email: data.email,
-          p_client_phone: data.phone,
-          p_notes: data.notes,
-          p_manage_token_hash: manageTokenHash,
-          p_client_id: clientId,
-        });
+        const { data: appointment, error } = await requestSupabase.client.rpc(
+          "hold_appointment_with_partner",
+          {
+            p_service_id: data.serviceId,
+            p_therapist_id: slot.therapistId,
+            p_session_mode: data.mode,
+            p_starts_at: slot.startsAt,
+            p_client_name: data.fullName,
+            p_client_email: data.email,
+            p_client_phone: data.phone,
+            p_notes: data.notes,
+            p_manage_token_hash: manageTokenHash,
+            p_client_id: clientId,
+            p_partner_name: data.partnerName || null,
+            p_partner_email: data.partnerEmail || null,
+            p_partner_phone: data.partnerPhone || null,
+          },
+        );
         if (error) throwBookingError(error);
         const held = Array.isArray(appointment) ? appointment[0] : appointment;
         if (!held) throw new Error("The booking hold could not be created.");
@@ -1538,6 +1584,7 @@ export const createAdminBooking = createServerFn({ method: "POST" })
           notes: context.notes ?? data.notes,
         };
         await fireEmail("booking_confirmation", context.client_email, common);
+        await firePartnerBookingNotice(appointmentId, context, common);
         await fireAdminBookingNotice(common, appointmentId);
         try {
           const { sendTherapistBookingEmail } = await import("@/lib/therapist-email.server");
