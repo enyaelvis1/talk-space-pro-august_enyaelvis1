@@ -595,6 +595,13 @@ test("admin payments puts unresolved Paystack transactions in pending review", (
   assert.match(paymentsAdminRoute, /same test\/live Paystack account/);
 });
 
+test("admin payments paginates each tab at 50 records", () => {
+  assert.match(paymentsAdminRoute, /usePagination\(rows, 50\)/);
+  assert.match(paymentsAdminRoute, /pageItems\.map\(\(row\) =>/);
+  assert.match(paymentsAdminRoute, /PaginationBar/);
+  assert.match(paymentsAdminRoute, /setPage\(1\)/);
+});
+
 test("admin payments can retry a paid bank-transfer booking left in review", () => {
   assert.match(paymentsAdminRoute, /row\.bookingReviewRequired/);
   assert.match(paymentsAdminRoute, /Retry booking/);

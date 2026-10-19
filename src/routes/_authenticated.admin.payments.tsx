@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import {
   Loader2,
@@ -23,6 +23,7 @@ import {
   paymentLifecycleLabel,
 } from "@/lib/payment-booking-review";
 import { AdminPageSkeleton } from "@/components/admin/AdminSkeletons";
+import { PaginationBar, usePagination } from "@/components/admin/Pagination";
 import { PaymentReceiptDetails } from "@/components/booking/PaymentReceiptDetails";
 import { SensitiveActionDialog } from "@/components/admin/SensitiveActionDialog";
 import { Button } from "@/components/ui/button";
@@ -604,6 +605,11 @@ function PaymentsAdminScreen({
           : tab === "archived"
             ? archived
             : payments;
+  const { page, setPage, pageItems, total, totalPages, pageSize } = usePagination(rows, 50);
+
+  useEffect(() => {
+    setPage(1);
+  }, [setPage, tab]);
 
   const onDeletePayment = async (row: PaymentRow) => {
     if (!confirm(`Delete payment ${row.reference}? This cannot be undone.`)) return;
@@ -1240,7 +1246,7 @@ function PaymentsAdminScreen({
                   </td>
                 </tr>
               ) : (
-                rows.map((row) => (
+                pageItems.map((row) => (
                   <tr key={row.id} className="border-b border-border/60 last:border-none">
                     <td className="py-3 pr-3">
                       <div className="font-mono text-xs text-brand-deep">
@@ -1443,6 +1449,14 @@ function PaymentsAdminScreen({
             </tbody>
           </table>
         </div>
+        <PaginationBar
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          label="payments"
+        />
       </section>
 
       <Dialog open={!!reviewing} onOpenChange={(open) => !open && setReviewing(null)}>

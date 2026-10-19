@@ -6,6 +6,7 @@ import {
   bookingNeedsPaymentReview,
   canRestorePaidBankBooking,
   isActivePaymentReview,
+  isPendingPaymentForAdminDashboard,
   paymentLifecycleLabel,
   type PaymentBookingState,
 } from "../src/lib/payment-booking-review.ts";
@@ -83,6 +84,29 @@ test("unarchived paid cancellations and pending approvals remain actionable", ()
   );
   assert.equal(
     isActivePaymentReview({ ...paid, status: "initiated", bookingReviewRequired: false }),
+    true,
+  );
+});
+
+test("dashboard pending count excludes archived unresolved payments", () => {
+  assert.equal(
+    isPendingPaymentForAdminDashboard({
+      status: "initiated",
+      provider: "paystack",
+      paymentKind: "appointment",
+      appointmentStatus: "pending_payment",
+      appointmentArchivedAt: "2030-10-07T08:00:00Z",
+    }),
+    false,
+  );
+  assert.equal(
+    isPendingPaymentForAdminDashboard({
+      status: "awaiting_confirmation",
+      provider: "bank_transfer",
+      paymentKind: "appointment",
+      appointmentStatus: "pending_payment",
+      appointmentArchivedAt: null,
+    }),
     true,
   );
 });

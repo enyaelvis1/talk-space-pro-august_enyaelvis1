@@ -32,6 +32,25 @@ export function isActivePaymentReview(row: PaymentBookingState): boolean {
   );
 }
 
+export type AdminDashboardPaymentState = Pick<
+  PaymentBookingState,
+  "status" | "provider" | "appointmentStatus" | "appointmentArchivedAt"
+> & {
+  paymentKind: string;
+};
+
+export function isPendingPaymentForAdminDashboard(row: AdminDashboardPaymentState): boolean {
+  return isActivePaymentReview({
+    ...row,
+    bookingReviewRequired: bookingNeedsPaymentReview(
+      row.status,
+      row.paymentKind,
+      row.appointmentStatus,
+    ),
+    appointmentStartsAt: null,
+  });
+}
+
 export function canRestorePaidBankBooking(row: PaymentBookingState, now = Date.now()): boolean {
   return (
     row.provider === "bank_transfer" &&
