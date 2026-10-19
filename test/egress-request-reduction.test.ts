@@ -368,6 +368,12 @@ test("admin dashboard consolidates summary and failure queue reads", () => {
   assert.match(admin, /loadAdminFailureQueues\(bag\)\.catch/);
 });
 
+test("admin dashboard only filters payments by valid payment statuses", () => {
+  const admin = read("src/lib/admin.functions.ts");
+  assert.match(admin, /\.in\("status", \["initiated", "awaiting_confirmation", "succeeded"\]\)/);
+  assert.doesNotMatch(admin, /\.in\("status", \[[^\]]*"pending"/);
+});
+
 test("admin dashboard receives progress permission with the server payload", () => {
   const route = read("src/routes/_authenticated.admin.index.tsx");
   const progress = read("src/lib/progress.functions.ts");
