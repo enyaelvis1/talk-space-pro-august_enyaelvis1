@@ -1242,7 +1242,7 @@ async function loadAdminDashboardSummary(
     bag.client
       .from("payments")
       .select("status, provider, payment_kind, appointments(status, archived_at)")
-      .in("status", ["initiated", "pending", "awaiting_confirmation", "succeeded"]),
+      .in("status", ["initiated", "awaiting_confirmation", "succeeded"]),
     bag.client
       .from("intake_submissions")
       .select("id", { count: "exact", head: true })
