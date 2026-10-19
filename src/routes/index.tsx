@@ -1305,7 +1305,7 @@ const FAQS = [
   },
   {
     q: "How much do sessions cost?",
-    a: "Individual therapy is ₦55,000 (60 minutes), couple therapy is ₦90,000 (90 minutes) and teen/child therapy is ₦50,000. One-month plans are available at a discount.",
+    a: "Individual therapy is ₦55,000 (60 minutes), couple therapy is ₦90,000 (90 minutes) and teen/child therapy is ₦50,000 (60 minutes). One-month plans are available at a discount.",
   },
   {
     q: "What if I'm in a crisis right now?",

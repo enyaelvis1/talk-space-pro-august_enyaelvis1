@@ -28,7 +28,9 @@ import { Route as BlogRouteImport } from './routes/blog'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ServicesSlugRouteImport } from './routes/services.$slug'
 import { Route as ManageReferenceRouteImport } from './routes/manage.$reference'
+import { Route as LocationsCityRouteImport } from './routes/locations.$city'
 import { Route as BookPaymentCallbackRouteImport } from './routes/book.payment-callback'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 import { Route as AuthenticatedTherapistRouteImport } from './routes/_authenticated.therapist'
@@ -172,9 +174,19 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ServicesSlugRoute = ServicesSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => ServicesRoute,
+} as any)
 const ManageReferenceRoute = ManageReferenceRouteImport.update({
   id: '/manage/$reference',
   path: '/manage/$reference',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LocationsCityRoute = LocationsCityRouteImport.update({
+  id: '/locations/$city',
+  path: '/locations/$city',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BookPaymentCallbackRoute = BookPaymentCallbackRouteImport.update({
@@ -460,7 +472,7 @@ export interface FileRoutesByFullPath {
   '/purchase': typeof PurchaseRoute
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
-  '/services': typeof ServicesRoute
+  '/services': typeof ServicesRouteWithChildren
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/therapists': typeof TherapistsRoute
@@ -469,7 +481,9 @@ export interface FileRoutesByFullPath {
   '/therapist': typeof AuthenticatedTherapistRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/book/payment-callback': typeof BookPaymentCallbackRoute
+  '/locations/$city': typeof LocationsCityRoute
   '/manage/$reference': typeof ManageReferenceRoute
+  '/services/$slug': typeof ServicesSlugRoute
   '/account/appointments': typeof AuthenticatedAccountAppointmentsRoute
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/availability': typeof AuthenticatedAdminAvailabilityRoute
@@ -528,7 +542,7 @@ export interface FileRoutesByTo {
   '/purchase': typeof PurchaseRoute
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
-  '/services': typeof ServicesRoute
+  '/services': typeof ServicesRouteWithChildren
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/therapists': typeof TherapistsRoute
@@ -536,7 +550,9 @@ export interface FileRoutesByTo {
   '/therapist': typeof AuthenticatedTherapistRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/book/payment-callback': typeof BookPaymentCallbackRoute
+  '/locations/$city': typeof LocationsCityRoute
   '/manage/$reference': typeof ManageReferenceRoute
+  '/services/$slug': typeof ServicesSlugRoute
   '/account/appointments': typeof AuthenticatedAccountAppointmentsRoute
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/availability': typeof AuthenticatedAdminAvailabilityRoute
@@ -596,7 +612,7 @@ export interface FileRoutesById {
   '/purchase': typeof PurchaseRoute
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
-  '/services': typeof ServicesRoute
+  '/services': typeof ServicesRouteWithChildren
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/therapists': typeof TherapistsRoute
@@ -605,7 +621,9 @@ export interface FileRoutesById {
   '/_authenticated/therapist': typeof AuthenticatedTherapistRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/book/payment-callback': typeof BookPaymentCallbackRoute
+  '/locations/$city': typeof LocationsCityRoute
   '/manage/$reference': typeof ManageReferenceRoute
+  '/services/$slug': typeof ServicesSlugRoute
   '/_authenticated/account_/appointments': typeof AuthenticatedAccountAppointmentsRoute
   '/_authenticated/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/_authenticated/admin/availability': typeof AuthenticatedAdminAvailabilityRoute
@@ -675,7 +693,9 @@ export interface FileRouteTypes {
     | '/therapist'
     | '/blog/$slug'
     | '/book/payment-callback'
+    | '/locations/$city'
     | '/manage/$reference'
+    | '/services/$slug'
     | '/account/appointments'
     | '/admin/audit'
     | '/admin/availability'
@@ -742,7 +762,9 @@ export interface FileRouteTypes {
     | '/therapist'
     | '/blog/$slug'
     | '/book/payment-callback'
+    | '/locations/$city'
     | '/manage/$reference'
+    | '/services/$slug'
     | '/account/appointments'
     | '/admin/audit'
     | '/admin/availability'
@@ -810,7 +832,9 @@ export interface FileRouteTypes {
     | '/_authenticated/therapist'
     | '/blog/$slug'
     | '/book/payment-callback'
+    | '/locations/$city'
     | '/manage/$reference'
+    | '/services/$slug'
     | '/_authenticated/account_/appointments'
     | '/_authenticated/admin/audit'
     | '/_authenticated/admin/availability'
@@ -871,10 +895,11 @@ export interface RootRouteChildren {
   PurchaseRoute: typeof PurchaseRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
-  ServicesRoute: typeof ServicesRoute
+  ServicesRoute: typeof ServicesRouteWithChildren
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
   TherapistsRoute: typeof TherapistsRoute
+  LocationsCityRoute: typeof LocationsCityRoute
   ManageReferenceRoute: typeof ManageReferenceRoute
   ApiPublicPaystackWebhookRoute: typeof ApiPublicPaystackWebhookRoute
   ContentKindSlugRoute: typeof ContentKindSlugRoute
@@ -1022,11 +1047,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/services/$slug': {
+      id: '/services/$slug'
+      path: '/$slug'
+      fullPath: '/services/$slug'
+      preLoaderRoute: typeof ServicesSlugRouteImport
+      parentRoute: typeof ServicesRoute
+    }
     '/manage/$reference': {
       id: '/manage/$reference'
       path: '/manage/$reference'
       fullPath: '/manage/$reference'
       preLoaderRoute: typeof ManageReferenceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/locations/$city': {
+      id: '/locations/$city'
+      path: '/locations/$city'
+      fullPath: '/locations/$city'
+      preLoaderRoute: typeof LocationsCityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/book/payment-callback': {
@@ -1498,6 +1537,18 @@ const BookRouteChildren: BookRouteChildren = {
 
 const BookRouteWithChildren = BookRoute._addFileChildren(BookRouteChildren)
 
+interface ServicesRouteChildren {
+  ServicesSlugRoute: typeof ServicesSlugRoute
+}
+
+const ServicesRouteChildren: ServicesRouteChildren = {
+  ServicesSlugRoute: ServicesSlugRoute,
+}
+
+const ServicesRouteWithChildren = ServicesRoute._addFileChildren(
+  ServicesRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
@@ -1514,10 +1565,11 @@ const rootRouteChildren: RootRouteChildren = {
   PurchaseRoute: PurchaseRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
-  ServicesRoute: ServicesRoute,
+  ServicesRoute: ServicesRouteWithChildren,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
   TherapistsRoute: TherapistsRoute,
+  LocationsCityRoute: LocationsCityRoute,
   ManageReferenceRoute: ManageReferenceRoute,
   ApiPublicPaystackWebhookRoute: ApiPublicPaystackWebhookRoute,
   ContentKindSlugRoute: ContentKindSlugRoute,

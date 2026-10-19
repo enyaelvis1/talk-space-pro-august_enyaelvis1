@@ -126,7 +126,7 @@ const SERVICE_CARDS = [
     [
       "CBT, ACT, psychodynamic and integrative approaches",
       "Online video or in-person at our Lagos rooms",
-      "Free 15-minute intro call available on request",
+      "Paid 15-minute Clarity Call available on request",
     ],
     {
       src: "asset:individual-therapy",

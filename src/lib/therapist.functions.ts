@@ -75,10 +75,6 @@ export type TherapistDashboardAppointment = {
   endsAt: string;
   status: string;
   mode: string;
-  clientName: string;
-  clientEmail: string | null;
-  clientPhone: string | null;
-  notes: string | null;
   serviceName: string | null;
   googleMeetUrl: string | null;
   googleSyncError: string | null;
@@ -128,10 +124,6 @@ function mapAppointment(row: Record<string, unknown>): TherapistDashboardAppoint
     endsAt: row.ends_at as string,
     status: row.status as string,
     mode: row.session_mode as string,
-    clientName: row.client_name as string,
-    clientEmail: (row.client_email as string | null) ?? null,
-    clientPhone: (row.client_phone as string | null) ?? null,
-    notes: (row.notes as string | null) ?? null,
     serviceName: (row.services as { name?: string } | null)?.name ?? null,
     googleMeetUrl: (row.google_meet_url as string | null) ?? null,
     googleSyncError: (row.google_sync_error as string | null) ?? null,
@@ -174,7 +166,7 @@ export const getTherapistDashboard = createServerFn({ method: "GET" }).handler(
       supabaseAdmin
         .from("appointments")
         .select(
-          "id, booking_reference, status, starts_at, ends_at, session_mode, client_name, client_email, client_phone, notes, google_meet_url, google_sync_error, services(name)",
+          "id, booking_reference, status, starts_at, ends_at, session_mode, google_meet_url, google_sync_error, services(name)",
         )
         .eq("therapist_id", ctx.therapistId)
         .is("archived_at", null)
@@ -186,7 +178,7 @@ export const getTherapistDashboard = createServerFn({ method: "GET" }).handler(
       supabaseAdmin
         .from("appointments")
         .select(
-          "id, booking_reference, status, starts_at, ends_at, session_mode, client_name, client_email, client_phone, notes, google_meet_url, google_sync_error, services(name)",
+          "id, booking_reference, status, starts_at, ends_at, session_mode, google_meet_url, google_sync_error, services(name)",
         )
         .eq("therapist_id", ctx.therapistId)
         .is("archived_at", null)

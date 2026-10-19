@@ -116,6 +116,9 @@ export type Database = {
           manage_token_revocation_reason: string | null;
           package_id: string | null;
           notes: string | null;
+          partner_name: string | null;
+          partner_email: string | null;
+          partner_phone: string | null;
           paid_amount_kobo: number | null;
           payment_reference: string | null;
           reminder_1h_sent_at: string | null;
@@ -156,6 +159,9 @@ export type Database = {
           manage_token_revocation_reason?: string | null;
           package_id?: string | null;
           notes?: string | null;
+          partner_name?: string | null;
+          partner_email?: string | null;
+          partner_phone?: string | null;
           paid_amount_kobo?: number | null;
           payment_reference?: string | null;
           reminder_1h_sent_at?: string | null;
@@ -196,6 +202,9 @@ export type Database = {
           manage_token_revocation_reason?: string | null;
           package_id?: string | null;
           notes?: string | null;
+          partner_name?: string | null;
+          partner_email?: string | null;
+          partner_phone?: string | null;
           paid_amount_kobo?: number | null;
           payment_reference?: string | null;
           reminder_1h_sent_at?: string | null;

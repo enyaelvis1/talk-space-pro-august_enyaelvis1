@@ -170,6 +170,15 @@ const bookingSchema = z.object({
     .min(7, "Enter a valid phone number")
     .max(20, "Phone must be under 20 characters")
     .regex(/^[+\d\s()-]+$/, "Only digits, spaces and + ( ) - are allowed"),
+  partnerName: z.string().trim().max(100).optional(),
+  partnerEmail: z
+    .string()
+    .trim()
+    .email("Enter a valid partner email")
+    .max(255)
+    .optional()
+    .or(z.literal("")),
+  partnerPhone: z.string().trim().max(20).optional(),
   serviceId: z.string().uuid("Choose a service"),
   mode: z.enum(["online", "in_person"], { message: "Choose a session mode" }),
   preferredDate: z
@@ -244,6 +253,9 @@ const emptyForm: FormState = {
   fullName: "",
   email: "",
   phone: "",
+  partnerName: "",
+  partnerEmail: "",
+  partnerPhone: "",
   serviceId: "",
   mode: "online",
   preferredDate: "",
@@ -300,7 +312,6 @@ function BookPage() {
   const [packageAccess, setPackageAccess] = useState<PackageBookingAccess | null>(null);
   const [packageError, setPackageError] = useState<string | null>(null);
   const [packageLoading, setPackageLoading] = useState(Boolean(search.package));
-
   useEffect(() => {
     if (search.package) return;
     const draft = loadFormDraft<BookingInput>(BOOKING_DRAFT_KEY);
@@ -523,6 +534,9 @@ function BookPage() {
         fullName: parsed.data.fullName,
         email: parsed.data.email,
         phone: parsed.data.phone,
+        partnerName: parsed.data.partnerName || undefined,
+        partnerEmail: parsed.data.partnerEmail || undefined,
+        partnerPhone: parsed.data.partnerPhone || undefined,
         notes: parsed.data.notes ?? "",
         consentAcknowledged: parsed.data.consent,
       };
@@ -777,6 +791,8 @@ function BookingForm({
   const preferredTimeField = getTemplateField(template, "preferredTime");
   const notesField = getTemplateField(template, "notes");
   const notesLabel = notesField?.label ?? "Anything you'd like us to know? (Optional)";
+  const selectedService = services.find((service) => service.id === form.serviceId);
+  const isCouplesBooking = /couple|family|premarital/i.test(selectedService?.name ?? "");
   const displayedNotesLabel =
     notesField?.required === false && !/\(optional\)\s*$/i.test(notesLabel)
       ? `${notesLabel} (Optional)`
@@ -943,6 +959,46 @@ function BookingForm({
             </Field>
           </div>
         </FieldGroup>
+
+        {isCouplesBooking ? (
+          <FieldGroup legend="Invite your partner (optional)">
+            <p className="mb-4 text-sm text-muted-foreground">
+              Add your partner’s details so they receive the booking and payment notifications too.
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Partner name" htmlFor="partnerName" error={errors.partnerName}>
+                <Input
+                  id="partnerName"
+                  value={form.partnerName}
+                  onChange={(e) => onChange("partnerName", e.target.value)}
+                  maxLength={100}
+                />
+              </Field>
+              <Field label="Partner email" htmlFor="partnerEmail" error={errors.partnerEmail}>
+                <Input
+                  id="partnerEmail"
+                  type="email"
+                  value={form.partnerEmail}
+                  onChange={(e) => onChange("partnerEmail", e.target.value)}
+                  maxLength={255}
+                />
+              </Field>
+              <Field
+                label="Partner WhatsApp/phone"
+                htmlFor="partnerPhone"
+                error={errors.partnerPhone}
+              >
+                <Input
+                  id="partnerPhone"
+                  type="tel"
+                  value={form.partnerPhone}
+                  onChange={(e) => onChange("partnerPhone", e.target.value)}
+                  maxLength={20}
+                />
+              </Field>
+            </div>
+          </FieldGroup>
+        ) : null}
 
         <FieldGroup legend="Session details">
           <div className="grid gap-4 sm:grid-cols-2">
