@@ -12,6 +12,7 @@ import { getTemplateVersion } from "@/lib/form-templates";
 import { guardPublicRequest } from "@/lib/rate-limit.server";
 import { fallbackInPersonPriceNgn, isMissingInPersonPriceColumn } from "@/lib/service-pricing";
 import { clientPhoneSchema } from "@/lib/client-profile";
+import { publicBookingServicesCache, type PublicBookingService } from "@/lib/public-service-cache";
 
 async function fireGoogleSync(appointmentId: string) {
   try {
@@ -164,16 +165,7 @@ function buildActiveManageUrl(
 
 export type BookingSessionMode = "online" | "in_person";
 
-export type BookingService = {
-  id: string;
-  code: string;
-  name: string;
-  description: string | null;
-  durationMinutes: number;
-  sessionsPerPackage: number;
-  priceNgn: number | null;
-  inPersonPriceNgn: number | null;
-};
+export type BookingService = PublicBookingService;
 
 export type AvailableSlot = {
   therapistId: string;
@@ -301,42 +293,47 @@ function throwBookingError(error: { code?: string; message?: string }) {
 }
 
 export const listBookingServices = createServerFn({ method: "GET" }).handler(async () => {
-  const requestSupabase = getConfiguredClient();
-  let result = await requestSupabase.client
-    .from("services")
-    .select(
-      "id, code, name, description, duration_minutes, sessions_per_package, price_ngn, in_person_price_ngn",
-    )
-    .eq("is_active", true)
-    .order("display_order");
-
-  if (isMissingInPersonPriceColumn(result.error)) {
-    const fallback = await requestSupabase.client
+  return publicBookingServicesCache.get(async () => {
+    const requestSupabase = getConfiguredClient();
+    let result = await requestSupabase.client
       .from("services")
-      .select("id, code, name, description, duration_minutes, sessions_per_package, price_ngn")
+      .select(
+        "id, code, name, description, duration_minutes, sessions_per_package, price_ngn, in_person_price_ngn",
+      )
       .eq("is_active", true)
       .order("display_order");
-    result = fallback.error
-      ? fallback
-      : { ...fallback, data: fallback.data.map((row) => ({ ...row, in_person_price_ngn: null })) };
-  }
 
-  requestSupabase.commitCookies();
-  if (result.error) throw result.error;
+    if (isMissingInPersonPriceColumn(result.error)) {
+      const fallback = await requestSupabase.client
+        .from("services")
+        .select("id, code, name, description, duration_minutes, sessions_per_package, price_ngn")
+        .eq("is_active", true)
+        .order("display_order");
+      result = fallback.error
+        ? fallback
+        : {
+            ...fallback,
+            data: fallback.data.map((row) => ({ ...row, in_person_price_ngn: null })),
+          };
+    }
 
-  return (result.data ?? []).map((service): BookingService => ({
-    id: service.id,
-    code: service.code,
-    name: service.name,
-    description: service.description,
-    durationMinutes: service.duration_minutes,
-    sessionsPerPackage: service.sessions_per_package ?? 1,
-    priceNgn: service.price_ngn == null ? null : Number(service.price_ngn),
-    inPersonPriceNgn:
-      "in_person_price_ngn" in service && service.in_person_price_ngn != null
-        ? Number(service.in_person_price_ngn)
-        : fallbackInPersonPriceNgn(service.code),
-  }));
+    requestSupabase.commitCookies();
+    if (result.error) throw result.error;
+
+    return (result.data ?? []).map((service): BookingService => ({
+      id: service.id,
+      code: service.code,
+      name: service.name,
+      description: service.description,
+      durationMinutes: service.duration_minutes,
+      sessionsPerPackage: service.sessions_per_package ?? 1,
+      priceNgn: service.price_ngn == null ? null : Number(service.price_ngn),
+      inPersonPriceNgn:
+        "in_person_price_ngn" in service && service.in_person_price_ngn != null
+          ? Number(service.in_person_price_ngn)
+          : fallbackInPersonPriceNgn(service.code),
+    }));
+  });
 });
 
 export type PackageBookingAccess = {

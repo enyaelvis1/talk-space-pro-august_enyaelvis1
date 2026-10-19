@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import {
   Loader2,
@@ -10,6 +10,7 @@ import {
   XCircle,
   Trash2,
   Send,
+  Archive,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -22,6 +23,7 @@ import {
   paymentLifecycleLabel,
 } from "@/lib/payment-booking-review";
 import { AdminPageSkeleton } from "@/components/admin/AdminSkeletons";
+import { PaginationBar, usePagination } from "@/components/admin/Pagination";
 import { PaymentReceiptDetails } from "@/components/booking/PaymentReceiptDetails";
 import { SensitiveActionDialog } from "@/components/admin/SensitiveActionDialog";
 import { Button } from "@/components/ui/button";
@@ -47,6 +49,7 @@ import {
 } from "@/components/ui/dialog";
 import { useSensitiveActionGate } from "@/hooks/useSensitiveActionGate";
 import { canonicalUrl } from "@/lib/seo";
+import { archiveAppointmentForAdmin } from "@/lib/booking.functions";
 import {
   clearPaystackSecret,
   clearPaystackWebhookSecret,
@@ -422,6 +425,29 @@ function PaymentsAdminScreen({
     }
   };
 
+  const onArchiveBooking = async (row: PaymentRow) => {
+    if (!row.appointmentId || row.appointmentArchivedAt) return;
+    const ok = confirm(
+      `Archive booking ${row.bookingReference ?? row.reference}? It will be removed from active payment review, while its payment and audit history are kept.`,
+    );
+    if (!ok) return;
+    const stepUpAllowed = await stepUp.requestStepUp(`archive booking ${row.reference}`);
+    if (!stepUpAllowed) return;
+
+    setUpdatingStatusId(row.id);
+    try {
+      await archiveAppointmentForAdmin({
+        data: { appointmentId: row.appointmentId, reason: "manual_admin_archive" },
+      });
+      await refresh();
+      toast.success("Booking archived. Payment history remains available in the ledger.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to archive booking.");
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
+
   const onSaveSettings = async () => {
     const stepUpAllowed = await stepUp.requestStepUp("save the payment provider settings");
     if (!stepUpAllowed) return;
@@ -579,6 +605,11 @@ function PaymentsAdminScreen({
           : tab === "archived"
             ? archived
             : payments;
+  const { page, setPage, pageItems, total, totalPages, pageSize } = usePagination(rows, 50);
+
+  useEffect(() => {
+    setPage(1);
+  }, [setPage, tab]);
 
   const onDeletePayment = async (row: PaymentRow) => {
     if (!confirm(`Delete payment ${row.reference}? This cannot be undone.`)) return;
@@ -1215,7 +1246,7 @@ function PaymentsAdminScreen({
                   </td>
                 </tr>
               ) : (
-                rows.map((row) => (
+                pageItems.map((row) => (
                   <tr key={row.id} className="border-b border-border/60 last:border-none">
                     <td className="py-3 pr-3">
                       <div className="font-mono text-xs text-brand-deep">
@@ -1377,6 +1408,21 @@ function PaymentsAdminScreen({
                             </Link>
                           </Button>
                         ) : null}
+                        {row.appointmentId && !row.appointmentArchivedAt ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={updatingStatusId === row.id}
+                            onClick={() => void onArchiveBooking(row)}
+                          >
+                            {updatingStatusId === row.id ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Archive className="mr-2 h-4 w-4" />
+                            )}
+                            Archive booking
+                          </Button>
+                        ) : null}
                         {canDeletePayment(row) ? (
                           <Button
                             size="sm"
@@ -1403,6 +1449,14 @@ function PaymentsAdminScreen({
             </tbody>
           </table>
         </div>
+        <PaginationBar
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          label="payments"
+        />
       </section>
 
       <Dialog open={!!reviewing} onOpenChange={(open) => !open && setReviewing(null)}>

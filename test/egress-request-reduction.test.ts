@@ -474,6 +474,14 @@ test("authoritative private reads do not use the public read cache", () => {
   }
 });
 
+test("public booking service reads use a bounded cache and admin writes invalidate it", () => {
+  const booking = read("src/lib/booking.functions.ts");
+  const admin = read("src/lib/admin.functions.ts");
+  assert.match(booking, /publicBookingServicesCache\.get/);
+  assert.match(booking, /type BookingService = PublicBookingService/);
+  assert.match(admin, /clearPublicBookingServicesCache\(\)/);
+});
+
 test("shell reuses root details and only public reads use the bounded cache", () => {
   for (const path of ["src/components/site/SiteHeader.tsx", "src/components/site/SiteFooter.tsx"]) {
     const source = read(path);

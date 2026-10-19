@@ -24,6 +24,7 @@ import {
   type PublicSiteDetails,
   normalizeHomePricingSettings,
 } from "@/lib/content.functions";
+import { clearPublicBookingServicesCache } from "@/lib/public-service-cache";
 import { PUBLIC_PAGE_CONFIG, type PublicPageKey } from "@/lib/public-pages";
 import { sectionsSchema } from "@/lib/page-sections";
 import { APP_TIME_ZONE } from "@/lib/time";
@@ -37,6 +38,7 @@ import {
 } from "@/lib/form-templates";
 import { fallbackInPersonPriceNgn, isMissingInPersonPriceColumn } from "@/lib/service-pricing";
 import { requireRequestRole } from "@/lib/server-auth";
+import { isPendingPaymentForAdminDashboard } from "@/lib/payment-booking-review";
 
 function getConfiguredClient() {
   const bag = createRequestSupabase(getRequest());
@@ -95,7 +97,7 @@ export const getAdminHeroSettings = createServerFn({ method: "GET" }).handler(
 );
 
 export const updateAdminHeroSettings = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => heroSettingsSchema.parse(data))
+  .validator((data: unknown) => heroSettingsSchema.parse(data))
   .handler(async ({ data }): Promise<{ ok: true }> => {
     const bag = await requireAdmin();
     const { error } = await bag.client
@@ -122,7 +124,7 @@ export const getAdminHomepageSectionCopy = createServerFn({ method: "GET" }).han
 );
 
 export const updateAdminHomepageSectionCopy = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         copy: z.record(
@@ -217,7 +219,7 @@ export const getAdminHomepageSections = createServerFn({ method: "GET" }).handle
 );
 
 export const updateAdminHomepageSections = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         sections: z
@@ -310,7 +312,7 @@ export const getAdminHomepageWorkspace = createServerFn({ method: "GET" }).handl
 );
 
 export const updateAdminHomePricingSettings = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => homePricingSettingsSchema.parse(data))
+  .validator((data: unknown) => homePricingSettingsSchema.parse(data))
   .handler(async ({ data }): Promise<{ ok: true }> => {
     const bag = await requireAdmin();
     const { error } = await bag.client
@@ -348,7 +350,7 @@ export const getAdminCarousel = createServerFn({ method: "GET" }).handler(
 );
 
 export const updateAdminCarousel = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z.object({ items: z.array(carouselItemSchema).min(1).max(12) }).parse(data),
   )
   .handler(async ({ data }): Promise<{ ok: true }> => {
@@ -405,7 +407,7 @@ export const getAdminSpecialtyCards = createServerFn({ method: "GET" }).handler(
 );
 
 export const updateAdminSpecialtyCards = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z.object({ cards: z.array(specialtyCardSchema).min(1).max(24) }).parse(data),
   )
   .handler(async ({ data }): Promise<{ ok: true }> => {
@@ -522,7 +524,7 @@ export const getAdminGoogleReviewSettings = createServerFn({ method: "GET" }).ha
 );
 
 export const updateAdminGoogleReviewSettings = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => googleReviewSettingsSchema.parse(data))
+  .validator((data: unknown) => googleReviewSettingsSchema.parse(data))
   .handler(async ({ data }): Promise<{ ok: true }> => {
     const bag = await requireAdmin();
     await saveGoogleReviewSettings(bag.client, {
@@ -835,7 +837,7 @@ export const getAdminFormTemplates = createServerFn({ method: "GET" }).handler(
 );
 
 export const updateAdminFormTemplates = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z.object({ templates: z.array(formTemplateSchema).min(1).max(20) }).parse(data),
   )
   .handler(async ({ data }): Promise<{ ok: true }> => {
@@ -1033,7 +1035,7 @@ export const getAdminSiteDetails = createServerFn({ method: "GET" }).handler(
 );
 
 export const updateAdminSiteDetails = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => siteDetailsSchema.parse(data))
+  .validator((data: unknown) => siteDetailsSchema.parse(data))
   .handler(async ({ data }): Promise<{ ok: true }> => {
     const bag = await requireAdmin();
     const { error } = await bag.client
@@ -1088,7 +1090,7 @@ export const getAdminSiteSettingsWorkspace = createServerFn({ method: "GET" }).h
 );
 
 export const updateAdminFooterSettings = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => footerSettingsSchema.parse(data))
+  .validator((data: unknown) => footerSettingsSchema.parse(data))
   .handler(async ({ data }): Promise<{ ok: true }> => {
     const bag = await requireAdmin();
     const { error } = await bag.client
@@ -1120,7 +1122,7 @@ export type AdminContentRow = {
 };
 
 export const listAdminContent = createServerFn({ method: "GET" })
-  .inputValidator((data: unknown) => z.object({ kind: contentKindSchema }).parse(data))
+  .validator((data: unknown) => z.object({ kind: contentKindSchema }).parse(data))
   .handler(async ({ data }): Promise<AdminContentRow[]> => {
     const bag = await requireAdmin();
     const { data: rows, error } = await bag.client
@@ -1206,8 +1208,7 @@ async function loadAdminDashboardSummary(
     clients,
     upcomingBookings,
     pendingMessages,
-    pendingPayments,
-    paidBookingReviewPayments,
+    pendingPaymentRows,
     pendingForms,
     failedGoogleSyncs,
   ] = await Promise.all([
@@ -1240,9 +1241,8 @@ async function loadAdminDashboardSummary(
       .is("ack_sent_at", null),
     bag.client
       .from("payments")
-      .select("id", { count: "exact", head: true })
-      .in("status", ["initiated", "awaiting_confirmation"]),
-    bag.client.from("payments").select("metadata").eq("status", "succeeded"),
+      .select("status, provider, payment_kind, appointments(status, archived_at)")
+      .in("status", ["initiated", "pending", "awaiting_confirmation", "succeeded"]),
     bag.client
       .from("intake_submissions")
       .select("id", { count: "exact", head: true })
@@ -1260,20 +1260,23 @@ async function loadAdminDashboardSummary(
     clients,
     upcomingBookings,
     pendingMessages,
-    pendingPayments,
-    paidBookingReviewPayments,
+    pendingPaymentRows,
     pendingForms,
     failedGoogleSyncs,
   ].find((result) => result.error)?.error;
   if (firstError) throw firstError;
-  const paidBookingReviewCount = (paidBookingReviewPayments.data ?? []).filter((row) => {
-    const metadata = row.metadata;
-    return (
-      metadata !== null &&
-      typeof metadata === "object" &&
-      !Array.isArray(metadata) &&
-      (metadata as Record<string, unknown>).booking_review_required === true
-    );
+  const pendingTransferCount = (pendingPaymentRows.data ?? []).filter((row) => {
+    const appointment = row.appointments as {
+      status?: string;
+      archived_at?: string | null;
+    } | null;
+    return isPendingPaymentForAdminDashboard({
+      status: String(row.status),
+      provider: String(row.provider),
+      paymentKind: String(row.payment_kind),
+      appointmentStatus: appointment?.status ?? null,
+      appointmentArchivedAt: appointment?.archived_at ?? null,
+    });
   }).length;
   return {
     pages: pages.count ?? 0,
@@ -1283,7 +1286,7 @@ async function loadAdminDashboardSummary(
     clients: clients.count ?? 0,
     upcomingBookings: upcomingBookings.count ?? 0,
     pendingMessages: pendingMessages.count ?? 0,
-    pendingTransfers: (pendingPayments.count ?? 0) + paidBookingReviewCount,
+    pendingTransfers: pendingTransferCount,
     pendingForms: pendingForms.count ?? 0,
     failedGoogleSyncs: failedGoogleSyncs.count ?? 0,
   };
@@ -1595,7 +1598,7 @@ export const listMigrationContentReviews = createServerFn({ method: "GET" }).han
 );
 
 export const updateMigrationContentReview = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -1665,7 +1668,7 @@ export type UpdateContentPatch = {
 };
 
 export const updateContentFields = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -1734,7 +1737,7 @@ export const updateContentFields = createServerFn({ method: "POST" })
   });
 
 export const createContentEntry = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z.object({ kind: contentKindSchema, title: z.string().trim().min(1).max(300) }).parse(data),
   )
   .handler(async ({ data }): Promise<{ id: string }> => {
@@ -1814,7 +1817,7 @@ async function loadAdminContentEntry(
 }
 
 export const getAdminContentEntry = createServerFn({ method: "GET" })
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }): Promise<AdminContentDetail | null> => {
     const bag = await requireAdmin();
     try {
@@ -1830,7 +1833,7 @@ export type AdminContentEditWorkspace = {
 };
 
 export const getAdminContentEditWorkspace = createServerFn({ method: "GET" })
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }): Promise<AdminContentEditWorkspace> => {
     const bag = await requireAdmin();
     try {
@@ -1845,7 +1848,7 @@ export const getAdminContentEditWorkspace = createServerFn({ method: "GET" })
   });
 
 export const getAdminContentEntryBySlug = createServerFn({ method: "GET" })
-  .inputValidator((d: unknown) =>
+  .validator((d: unknown) =>
     z.object({ kind: contentKindSchema, slug: z.string().trim().min(1).max(200) }).parse(d),
   )
   .handler(async ({ data }): Promise<AdminContentDetail | null> => {
@@ -1864,7 +1867,7 @@ export const getAdminContentEntryBySlug = createServerFn({ method: "GET" })
   });
 
 export const updateContentBody = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) =>
+  .validator((d: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -1891,7 +1894,7 @@ export const updateContentBody = createServerFn({ method: "POST" })
   });
 
 export const setContentStatus = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z.object({ id: z.string().uuid(), status: z.enum(["publish", "draft"]) }).parse(data),
   )
   .handler(async ({ data }) => {
@@ -1906,7 +1909,7 @@ export const setContentStatus = createServerFn({ method: "POST" })
   });
 
 export const bulkSetContentStatus = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         ids: z.array(z.string().uuid()).min(1).max(500),
@@ -1929,7 +1932,7 @@ export const bulkSetContentStatus = createServerFn({ method: "POST" })
   });
 
 export const bulkDeleteContent = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z.object({ ids: z.array(z.string().uuid()).min(1).max(500) }).parse(data),
   )
   .handler(async ({ data }) => {
@@ -2032,7 +2035,7 @@ const adminMediaPageInput = z.object({
 });
 
 export const listAdminMediaPage = createServerFn({ method: "GET" })
-  .inputValidator((data: unknown) => adminMediaPageInput.parse(data))
+  .validator((data: unknown) => adminMediaPageInput.parse(data))
   .handler(async ({ data }): Promise<AdminMediaPage> => {
     const bag = await requireAdmin();
     const start = (data.page - 1) * data.pageSize;
@@ -2095,7 +2098,7 @@ export const listTrashedMedia = createServerFn({ method: "GET" }).handler(
 );
 
 export const restoreMedia = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z.object({ ids: z.array(z.string().uuid()).min(1).max(500) }).parse(data),
   )
   .handler(async ({ data }): Promise<{ ok: true; count: number }> => {
@@ -2111,7 +2114,7 @@ export const restoreMedia = createServerFn({ method: "POST" })
   });
 
 export const purgeTrashedMedia = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z.object({ ids: z.array(z.string().uuid()).max(500).optional() }).parse(data ?? {}),
   )
   .handler(async ({ data }): Promise<{ ok: true; count: number; storageErrors: number }> => {
@@ -2154,7 +2157,7 @@ const tagsSchema = z
   .transform((arr) => Array.from(new Set(arr.map((t) => t.toLowerCase().replace(/\s+/g, "-")))));
 
 export const updateMediaMetadata = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -2185,7 +2188,7 @@ export const updateMediaMetadata = createServerFn({ method: "POST" })
   });
 
 export const refreshMediaAfterReplace = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -2221,7 +2224,7 @@ export const refreshMediaAfterReplace = createServerFn({ method: "POST" })
 // Used when we need a URL-shaped value we can drop straight into fields like
 // `therapists.image_url` that are rendered on the public site.
 export const signContentMediaUrl = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         path: z.string().min(1).max(1000),
@@ -2389,7 +2392,7 @@ async function inviteOrFindTherapistUser(
 }
 
 export const linkTherapistLogin = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => therapistAccountInput.parse(data))
+  .validator((data: unknown) => therapistAccountInput.parse(data))
   .handler(async ({ data }): Promise<AdminTherapistRow & { invitationSent: boolean }> => {
     const bag = await requireAdmin();
     const invitation = await inviteOrFindTherapistUser(data.email);
@@ -2429,7 +2432,7 @@ export const linkTherapistLogin = createServerFn({ method: "POST" })
   });
 
 export const resendTherapistInvitation = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => z.object({ therapistId: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ therapistId: z.string().uuid() }).parse(data))
   .handler(async ({ data }): Promise<{ sent: boolean; email: string }> => {
     const bag = await requireAdmin();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -2474,7 +2477,7 @@ export const resendTherapistInvitation = createServerFn({ method: "POST" })
   });
 
 export const revokeTherapistLogin = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => z.object({ therapistId: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ therapistId: z.string().uuid() }).parse(data))
   .handler(async ({ data }): Promise<{ ok: true }> => {
     const bag = await requireAdmin();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -2528,7 +2531,7 @@ export const revokeTherapistLogin = createServerFn({ method: "POST" })
   });
 
 export const deleteTherapist = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data }): Promise<{ ok: true; archived: boolean }> => {
     const bag = await requireAdmin();
     const { error } = await bag.client.from("therapists").delete().eq("id", data.id);
@@ -2550,7 +2553,7 @@ export const deleteTherapist = createServerFn({ method: "POST" })
   });
 
 export const setTherapistActive = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z.object({ id: z.string().uuid(), isActive: z.boolean() }).parse(data),
   )
   .handler(async ({ data }) => {
@@ -2565,7 +2568,7 @@ export const setTherapistActive = createServerFn({ method: "POST" })
   });
 
 export const reorderTherapists = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         order: z
@@ -2626,7 +2629,7 @@ function mapRule(r: Record<string, unknown>): TherapistAvailabilityRule {
 }
 
 export const listTherapistAvailability = createServerFn({ method: "GET" })
-  .inputValidator((data: unknown) => z.object({ therapistId: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ therapistId: z.string().uuid() }).parse(data))
   .handler(async ({ data }): Promise<TherapistAvailabilityRule[]> => {
     const bag = await requireAdmin();
     const { data: rows, error } = await bag.client
@@ -2641,7 +2644,7 @@ export const listTherapistAvailability = createServerFn({ method: "GET" })
   });
 
 export const createAvailabilityRule = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => availabilityRuleInput.parse(data))
+  .validator((data: unknown) => availabilityRuleInput.parse(data))
   .handler(async ({ data }): Promise<TherapistAvailabilityRule> => {
     const bag = await requireAdmin();
     const { data: row, error } = await bag.client
@@ -2663,7 +2666,7 @@ export const createAvailabilityRule = createServerFn({ method: "POST" })
   });
 
 export const updateAvailabilityRule = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     availabilityRuleInput.partial().extend({ id: z.string().uuid() }).parse(data),
   )
   .handler(async ({ data }): Promise<TherapistAvailabilityRule> => {
@@ -2687,7 +2690,7 @@ export const updateAvailabilityRule = createServerFn({ method: "POST" })
   });
 
 export const deleteAvailabilityRule = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data }) => {
     const bag = await requireAdmin();
     const { error } = await bag.client.from("availability_rules").delete().eq("id", data.id);
@@ -2701,7 +2704,7 @@ export const deleteAvailabilityRule = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const bulkUpdateMediaTags = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         ids: z.array(z.string().uuid()).min(1).max(500),
@@ -2743,7 +2746,7 @@ export const bulkUpdateMediaTags = createServerFn({ method: "POST" })
   });
 
 export const bulkDeleteMedia = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z.object({ ids: z.array(z.string().uuid()).min(1).max(200) }).parse(data),
   )
   .handler(
@@ -3007,7 +3010,7 @@ async function syncTherapistAssignments(
 }
 
 export const createService = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => servicePayloadSchema.parse(data))
+  .validator((data: unknown) => servicePayloadSchema.parse(data))
   .handler(async ({ data }): Promise<{ ok: true; id: string }> => {
     const bag = await requireAdmin();
     const writeClient = await getTrustedServiceWriteClient(bag);
@@ -3033,13 +3036,12 @@ export const createService = createServerFn({ method: "POST" })
     } finally {
       bag.commitCookies();
     }
+    clearPublicBookingServicesCache();
     return { ok: true, id: row.id as string };
   });
 
 export const updateService = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
-    servicePayloadSchema.extend({ id: z.string().uuid() }).parse(data),
-  )
+  .validator((data: unknown) => servicePayloadSchema.extend({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data }): Promise<{ ok: true }> => {
     const bag = await requireAdmin();
     const writeClient = await getTrustedServiceWriteClient(bag);
@@ -3064,11 +3066,12 @@ export const updateService = createServerFn({ method: "POST" })
     } finally {
       bag.commitCookies();
     }
+    clearPublicBookingServicesCache();
     return { ok: true };
   });
 
 export const setServiceActive = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z.object({ id: z.string().uuid(), isActive: z.boolean() }).parse(data),
   )
   .handler(async ({ data }) => {
@@ -3080,11 +3083,39 @@ export const setServiceActive = createServerFn({ method: "POST" })
       .eq("id", data.id);
     bag.commitCookies();
     if (error) throw error;
+    clearPublicBookingServicesCache();
+    return { ok: true };
+  });
+
+export const reorderServices = createServerFn({ method: "POST" })
+  .validator((data: unknown) =>
+    z
+      .object({
+        order: z
+          .array(
+            z.object({
+              id: z.string().uuid(),
+              displayOrder: z.number().int().nonnegative().max(999),
+            }),
+          )
+          .min(1)
+          .max(500),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const bag = await requireAdmin();
+    const { error } = await bag.client.rpc("reorder_services", {
+      p_order: data.order.map((item) => ({ id: item.id, display_order: item.displayOrder })),
+    });
+    bag.commitCookies();
+    if (error) throw error;
+    clearPublicBookingServicesCache();
     return { ok: true };
   });
 
 export const deleteService = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data }): Promise<{ ok: true }> => {
     const bag = await requireAdmin();
     const writeClient = await getTrustedServiceWriteClient(bag);
@@ -3100,6 +3131,7 @@ export const deleteService = createServerFn({ method: "POST" })
       }
       throw error;
     }
+    clearPublicBookingServicesCache();
     return { ok: true };
   });
 
@@ -3110,7 +3142,7 @@ export const deleteService = createServerFn({ method: "POST" })
 const sessionModeSchema = z.enum(["online", "in_person", "phone"]);
 
 export const updateTherapist = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -3169,7 +3201,7 @@ export const updateTherapist = createServerFn({ method: "POST" })
   });
 
 export const createTherapist = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         fullName: z.string().trim().min(1).max(200),
@@ -3220,7 +3252,7 @@ export const createTherapist = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const scheduleContentPublish = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -3267,7 +3299,7 @@ export const scheduleContentPublish = createServerFn({ method: "POST" })
   });
 
 export const setContentArchived = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z.object({ id: z.string().uuid(), archived: z.boolean() }).parse(data),
   )
   .handler(async ({ data }) => {
@@ -3359,7 +3391,7 @@ const testimonialInputSchema = z.object({
 });
 
 export const createTestimonial = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => testimonialInputSchema.parse(d))
+  .validator((d: unknown) => testimonialInputSchema.parse(d))
   .handler(async ({ data }): Promise<AdminTestimonialRow> => {
     const bag = await requireAdmin();
     const { data: row, error } = await bag.client
@@ -3381,7 +3413,7 @@ export const createTestimonial = createServerFn({ method: "POST" })
   });
 
 export const updateTestimonial = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) =>
+  .validator((d: unknown) =>
     testimonialInputSchema.partial().extend({ id: z.string().uuid() }).parse(d),
   )
   .handler(async ({ data }): Promise<AdminTestimonialRow> => {
@@ -3406,7 +3438,7 @@ export const updateTestimonial = createServerFn({ method: "POST" })
   });
 
 export const deleteTestimonial = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
     const bag = await requireAdmin();
     const { error } = await bag.client.from("testimonials").delete().eq("id", data.id);
@@ -3416,7 +3448,7 @@ export const deleteTestimonial = createServerFn({ method: "POST" })
   });
 
 export const reorderTestimonials = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) =>
+  .validator((d: unknown) =>
     z
       .object({
         items: z.array(z.object({ id: z.string().uuid(), displayOrder: z.number().int() })),
@@ -3491,7 +3523,7 @@ const faqInputSchema = z.object({
 });
 
 export const createFaq = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => faqInputSchema.parse(d))
+  .validator((d: unknown) => faqInputSchema.parse(d))
   .handler(async ({ data }): Promise<AdminFaqRow> => {
     const bag = await requireAdmin();
     const { data: row, error } = await bag.client
@@ -3511,9 +3543,7 @@ export const createFaq = createServerFn({ method: "POST" })
   });
 
 export const updateFaq = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) =>
-    faqInputSchema.partial().extend({ id: z.string().uuid() }).parse(d),
-  )
+  .validator((d: unknown) => faqInputSchema.partial().extend({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }): Promise<AdminFaqRow> => {
     const bag = await requireAdmin();
     const patch: Record<string, unknown> = {};
@@ -3534,7 +3564,7 @@ export const updateFaq = createServerFn({ method: "POST" })
   });
 
 export const deleteFaq = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
     const bag = await requireAdmin();
     const { error } = await bag.client.from("faqs").delete().eq("id", data.id);
@@ -3544,7 +3574,7 @@ export const deleteFaq = createServerFn({ method: "POST" })
   });
 
 export const reorderFaqs = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) =>
+  .validator((d: unknown) =>
     z
       .object({
         items: z.array(z.object({ id: z.string().uuid(), displayOrder: z.number().int() })),
@@ -3599,7 +3629,7 @@ function mapRevision(r: Record<string, unknown>): ContentRevisionRow {
 }
 
 export const listContentRevisions = createServerFn({ method: "GET" })
-  .inputValidator((d: unknown) =>
+  .validator((d: unknown) =>
     z
       .object({
         entityType: z.enum(["faq", "testimonial", "content_entry"]),
@@ -3622,7 +3652,7 @@ export const listContentRevisions = createServerFn({ method: "GET" })
   });
 
 export const restoreContentRevision = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ revisionId: z.string().uuid() }).parse(d))
+  .validator((d: unknown) => z.object({ revisionId: z.string().uuid() }).parse(d))
   .handler(async ({ data }): Promise<{ ok: true }> => {
     const bag = await requireAdmin();
     const { error } = await bag.client.rpc("restore_content_revision", {
@@ -3683,7 +3713,7 @@ export const listRedirects = createServerFn({ method: "GET" }).handler(
 );
 
 export const upsertRedirect = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) =>
+  .validator((d: unknown) =>
     z
       .object({
         id: z.string().uuid().optional(),
@@ -3725,7 +3755,7 @@ export const upsertRedirect = createServerFn({ method: "POST" })
   });
 
 export const deleteRedirect = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }): Promise<{ ok: true }> => {
     const bag = await requireAdmin();
     const { error } = await bag.client
@@ -3788,7 +3818,7 @@ export const listPublicPageEntries = createServerFn({ method: "GET" }).handler(
 );
 
 export const ensurePublicPageEntry = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ key: z.string().trim().min(1).max(120) }).parse(d))
+  .validator((d: unknown) => z.object({ key: z.string().trim().min(1).max(120) }).parse(d))
   .handler(async ({ data }): Promise<AdminContentDetail> => {
     const page = PUBLIC_PAGE_CONFIG.find((candidate) => candidate.key === data.key);
     if (!page) throw new Error("Unknown public page.");
@@ -3852,7 +3882,7 @@ export type ContentEntryPreview = {
 };
 
 export const getContentEntryPreview = createServerFn({ method: "GET" })
-  .inputValidator((d: unknown) =>
+  .validator((d: unknown) =>
     z
       .object({
         kind: z.enum(["page", "post"]).default("page"),
@@ -3951,7 +3981,7 @@ const seoSchema = z.object({
 });
 
 export const updateContentSeo = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => seoSchema.parse(d))
+  .validator((d: unknown) => seoSchema.parse(d))
   .handler(async ({ data }): Promise<{ ok: true }> => {
     const bag = await requireAdmin();
     const { data: row, error: readError } = await bag.client
@@ -4026,7 +4056,7 @@ export type SectionAuditOpInput = z.infer<typeof sectionAuditOpSchema>;
  * duplicate, hide, delete, and setting change is auditable.
  */
 export const updateContentSections = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) =>
+  .validator((d: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -4096,7 +4126,7 @@ export const updateContentSections = createServerFn({ method: "POST" })
 
 /** Throw away unpublished section changes and keep the live layout. */
 export const discardContentSectionsDraft = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }): Promise<{ ok: true }> => {
     const bag = await requireAdmin();
     const { data: row, error: readError } = await bag.client

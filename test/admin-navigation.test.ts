@@ -101,6 +101,13 @@ const adminServices = await readFile(
   new URL("../src/routes/_authenticated.admin.services.tsx", import.meta.url),
   "utf8",
 );
+const serviceReorderMigration = await readFile(
+  new URL(
+    "../supabase/migrations/20261013100000_atomic_admin_service_reorder.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
 const assessmentDurationMigration = await readFile(
   new URL(
     "../supabase/migrations/20260822101000_psychotherapy_assessment_duration.sql",
@@ -318,11 +325,25 @@ test("admin services controls the public booking service dropdown", () => {
   assert.match(adminServices, /inputMode="numeric"/);
   assert.match(adminServices, /85,000/);
   assert.match(adminServices, /Display order/);
+  assert.match(adminServices, /up\/down arrows/);
+  assert.match(adminServices, /Move .* up/);
+  assert.match(adminServices, /Move .* down/);
+  assert.match(adminServices, /reorderServices/);
+  assert.match(adminFunctions, /rpc\("reorder_services"/);
+  assert.doesNotMatch(
+    adminFunctions.slice(adminFunctions.indexOf("export const reorderServices")),
+    /for \(const item of data\.order\)/,
+  );
+  assert.match(serviceReorderMigration, /create or replace function public\.reorder_services/);
+  assert.match(serviceReorderMigration, /complete service order required/);
+  assert.match(serviceReorderMigration, /duplicate service display order/);
+  assert.match(serviceReorderMigration, /set_config\('app\.audit_reason', 'admin service reorder'/);
   assert.match(adminServices, /Assigned therapists/);
   assert.match(adminFunctions, /getTrustedServiceWriteClient/);
   assert.match(adminFunctions, /SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(adminFunctions, /await requireAdmin\(\)/);
   assert.match(adminFunctions, /syncTherapistAssignments\(writeClient/);
+  assert.match(adminFunctions, /export const reorderServices/);
   assert.match(bookingFunctions, /\.from\("services"\)[\s\S]*\.eq\("is_active", true\)/);
   assert.match(bookingFunctions, /\.order\("display_order"\)/);
   assert.match(assessmentDurationMigration, /code = 'psychotherapy'/);

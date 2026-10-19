@@ -1699,6 +1699,14 @@ export type Database = {
           status: Database["public"]["Enums"]["appointment_status"];
         }[];
       };
+      claim_appointment_notification: {
+        Args: {
+          p_appointment_id: string;
+          p_notification_key: string;
+          p_recipient_role: string;
+        };
+        Returns: boolean;
+      };
       consume_rate_limit: {
         Args: {
           p_bucket: string;
@@ -1713,6 +1721,15 @@ export type Database = {
         }[];
       };
       expire_stale_holds: { Args: never; Returns: number };
+      finalize_appointment_notification: {
+        Args: {
+          p_appointment_id: string;
+          p_notification_key: string;
+          p_recipient_role: string;
+          p_sent: boolean;
+        };
+        Returns: undefined;
+      };
       get_booking_checkout_clock: {
         Args: { p_appointment_ids: string[] };
         Returns: {
@@ -1917,6 +1934,10 @@ export type Database = {
       restore_content_revision: {
         Args: { p_revision_id: string };
         Returns: Json;
+      };
+      reorder_services: {
+        Args: { p_order: Json };
+        Returns: number;
       };
       submit_bank_transfer: {
         Args: {
