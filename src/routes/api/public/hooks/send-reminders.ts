@@ -10,6 +10,8 @@ type AppointmentRow = {
   booking_reference: string;
   client_name: string;
   client_email: string;
+  partner_name: string | null;
+  partner_email: string | null;
   starts_at: string;
   session_mode: string;
   google_meet_url: string | null;
@@ -32,6 +34,71 @@ function activeManagePath(row: AppointmentRow) {
   return active
     ? `/manage/${row.booking_reference}?token=${row.manage_token}`
     : `/manage/${row.booking_reference}`;
+}
+
+async function sendReminderRecipient(
+  supabaseAdmin: typeof import("@/integrations/supabase/client.server").supabaseAdmin,
+  sendTemplateEmail: typeof import("@/lib/email.server").sendTemplateEmail,
+  row: AppointmentRow,
+  key: ReminderKey,
+  recipient: "client" | "partner",
+): Promise<import("@/lib/email.server").SendResult | { sent: false; reason: "no_recipient" }> {
+  const email = recipient === "client" ? row.client_email : row.partner_email;
+  if (!email) return { sent: false, reason: "no_recipient" };
+  const notificationKey = recipient === "client" ? key : `${key}:partner`;
+  const claim = await supabaseAdmin.rpc("claim_appointment_notification", {
+    p_appointment_id: row.id,
+    p_notification_key: notificationKey,
+    p_recipient_role: recipient,
+  });
+  if (claim.error) throw claim.error;
+  if (!claim.data) return { sent: false as const, reason: "notification_claimed", logId: null };
+
+  let result: import("@/lib/email.server").SendResult;
+  try {
+    result = await sendTemplateEmail(key, email, {
+      clientName: recipient === "client" ? row.client_name : row.partner_name || "there",
+      reference: row.booking_reference,
+      serviceName: row.services?.name ?? "",
+      therapistName: row.therapists?.full_name ?? "",
+      startsAt: row.starts_at,
+      mode: row.session_mode,
+      meetingLink: row.google_meet_url ?? "",
+      manageUrl: canonicalUrl(activeManagePath(row)),
+    });
+  } catch (error) {
+    await supabaseAdmin.rpc("finalize_appointment_notification", {
+      p_appointment_id: row.id,
+      p_notification_key: notificationKey,
+      p_recipient_role: recipient,
+      p_sent: false,
+    });
+    throw error;
+  }
+
+  const finalize = await supabaseAdmin.rpc("finalize_appointment_notification", {
+    p_appointment_id: row.id,
+    p_notification_key: notificationKey,
+    p_recipient_role: recipient,
+    p_sent: result.sent,
+  });
+  if (finalize.error) throw finalize.error;
+  const resultReason = "reason" in result ? result.reason : undefined;
+
+  if (
+    recipient === "client" &&
+    (!result.sent || resultReason === "emails_disabled" || resultReason === "template_disabled")
+  ) {
+    const stamp = new Date().toISOString();
+    const patch =
+      key === "booking_reminder_24h"
+        ? { reminder_24h_sent_at: stamp }
+        : { reminder_1h_sent_at: stamp };
+    if (result.sent || resultReason === "emails_disabled" || resultReason === "template_disabled") {
+      await supabaseAdmin.from("appointments").update(patch).eq("id", row.id);
+    }
+  }
+  return result;
 }
 
 async function processReminders() {
@@ -62,7 +129,7 @@ async function processReminders() {
   const { data, error } = await supabaseAdmin
     .from("appointments")
     .select(
-      "id, booking_reference, client_name, client_email, starts_at, session_mode, google_meet_url, status, reminder_24h_sent_at, reminder_1h_sent_at, manage_token, manage_token_expires_at, manage_token_revoked_at, services(name), therapists(full_name)",
+      "id, booking_reference, client_name, client_email, partner_name, partner_email, starts_at, session_mode, google_meet_url, status, reminder_24h_sent_at, reminder_1h_sent_at, manage_token, manage_token_expires_at, manage_token_revoked_at, services(name), therapists(full_name)",
     )
     .eq("status", "confirmed")
     .is("archived_at", null)
@@ -74,7 +141,13 @@ async function processReminders() {
   if (error) throw error;
 
   const rows = (data ?? []) as unknown as AppointmentRow[];
-  const results: Array<{ id: string; key: ReminderKey; sent: boolean; reason?: string }> = [];
+  const results: Array<{
+    id: string;
+    key: ReminderKey;
+    recipient: "client" | "partner";
+    sent: boolean;
+    reason?: string;
+  }> = [];
 
   for (const row of rows) {
     const startsMs = new Date(row.starts_at).getTime();
@@ -90,72 +163,31 @@ async function processReminders() {
     if (toSend.length === 0) continue;
 
     for (const key of toSend) {
-      let claimed = false;
-      try {
-        const claim = await supabaseAdmin.rpc("claim_appointment_notification", {
-          p_appointment_id: row.id,
-          p_notification_key: key,
-          p_recipient_role: "client",
-        });
-        if (claim.error) throw claim.error;
-        if (!claim.data) {
-          results.push({ id: row.id, key, sent: false, reason: "notification_claimed" });
-          continue;
-        }
-        claimed = true;
-        const result = await sendTemplateEmail(key, row.client_email, {
-          clientName: row.client_name,
-          reference: row.booking_reference,
-          serviceName: row.services?.name ?? "",
-          therapistName: row.therapists?.full_name ?? "",
-          startsAt: row.starts_at,
-          mode: row.session_mode,
-          meetingLink: row.google_meet_url ?? "",
-          manageUrl: canonicalUrl(activeManagePath(row)),
-        });
-
-        if (result.sent) {
-          const stamp = new Date().toISOString();
-          const patch =
-            key === "booking_reminder_24h"
-              ? { reminder_24h_sent_at: stamp }
-              : { reminder_1h_sent_at: stamp };
-          await supabaseAdmin.from("appointments").update(patch).eq("id", row.id);
-          results.push({ id: row.id, key, sent: true });
-        } else {
-          results.push({ id: row.id, key, sent: false, reason: result.reason });
-          // If emails are globally disabled or template disabled, no point retrying every run —
-          // stamp the row so we don't loop on it, unless the failure is transient.
-          if (result.reason === "emails_disabled" || result.reason === "template_disabled") {
-            const stamp = new Date().toISOString();
-            const patch =
-              key === "booking_reminder_24h"
-                ? { reminder_24h_sent_at: stamp }
-                : { reminder_1h_sent_at: stamp };
-            await supabaseAdmin.from("appointments").update(patch).eq("id", row.id);
-          }
-        }
-        const finalize = await supabaseAdmin.rpc("finalize_appointment_notification", {
-          p_appointment_id: row.id,
-          p_notification_key: key,
-          p_recipient_role: "client",
-          p_sent: result.sent,
-        });
-        if (finalize.error) throw finalize.error;
-      } catch (err) {
-        console.error(`[reminders] failed for ${row.id}/${key}:`, err);
-        results.push({
-          id: row.id,
-          key,
-          sent: false,
-          reason: err instanceof Error ? err.message : "unknown",
-        });
-        if (claimed) {
-          await supabaseAdmin.rpc("finalize_appointment_notification", {
-            p_appointment_id: row.id,
-            p_notification_key: key,
-            p_recipient_role: "client",
-            p_sent: false,
+      for (const recipient of ["client", "partner"] as const) {
+        if (recipient === "partner" && !row.partner_email) continue;
+        try {
+          const result = await sendReminderRecipient(
+            supabaseAdmin,
+            sendTemplateEmail,
+            row,
+            key,
+            recipient,
+          );
+          results.push({
+            id: row.id,
+            key,
+            recipient,
+            sent: result.sent,
+            reason: result.sent ? undefined : result.reason,
+          });
+        } catch (err) {
+          console.error(`[reminders] ${recipient} failed for ${row.id}/${key}:`, err);
+          results.push({
+            id: row.id,
+            key,
+            recipient,
+            sent: false,
+            reason: err instanceof Error ? err.message : "unknown",
           });
         }
       }

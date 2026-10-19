@@ -27,6 +27,7 @@ import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { clientPhoneSchema } from "@/lib/client-profile";
 import {
   Select,
   SelectContent,
@@ -155,47 +156,72 @@ export const Route = createFileRoute("/book")({
   component: BookPage,
 });
 
-const bookingSchema = z.object({
-  // Date and time are optional. A concrete time uses the hold flow; without one,
-  // the request continues through purchase-first so no incomplete appointment is created.
-  fullName: z
-    .string()
-    .trim()
-    .min(2, "Please enter your full name")
-    .max(100, "Name must be under 100 characters"),
-  email: z.string().trim().email("Enter a valid email address").max(255),
-  phone: z
-    .string()
-    .trim()
-    .min(7, "Enter a valid phone number")
-    .max(20, "Phone must be under 20 characters")
-    .regex(/^[+\d\s()-]+$/, "Only digits, spaces and + ( ) - are allowed"),
-  partnerName: z.string().trim().max(100).optional(),
-  partnerEmail: z
-    .string()
-    .trim()
-    .email("Enter a valid partner email")
-    .max(255)
-    .optional()
-    .or(z.literal("")),
-  partnerPhone: z.string().trim().max(20).optional(),
-  serviceId: z.string().uuid("Choose a service"),
-  mode: z.enum(["online", "in_person"], { message: "Choose a session mode" }),
-  preferredDate: z
-    .string()
-    .trim()
-    .optional()
-    .refine((d) => {
-      if (!d) return true;
-      const chosen = new Date(d);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return chosen >= today;
-    }, "Date must be today or later"),
-  preferredTime: z.string().trim().optional(),
-  notes: z.string().trim().max(1000, "Notes must be under 1000 characters").optional(),
-  consent: z.literal(true, { message: "Please acknowledge the privacy policy" }),
-});
+const bookingSchema = z
+  .object({
+    // Date and time are optional. A concrete time uses the hold flow; without one,
+    // the request continues through purchase-first so no incomplete appointment is created.
+    fullName: z
+      .string()
+      .trim()
+      .min(2, "Please enter your full name")
+      .max(100, "Name must be under 100 characters"),
+    email: z.string().trim().email("Enter a valid email address").max(255),
+    phone: z
+      .string()
+      .trim()
+      .min(7, "Enter a valid phone number")
+      .max(20, "Phone must be under 20 characters")
+      .regex(/^[+\d\s()-]+$/, "Only digits, spaces and + ( ) - are allowed"),
+    partnerName: z.string().trim().max(100).optional(),
+    partnerEmail: z
+      .string()
+      .trim()
+      .email("Enter a valid partner email")
+      .max(255)
+      .optional()
+      .or(z.literal("")),
+    partnerPhone: clientPhoneSchema.optional().or(z.literal("")),
+    serviceId: z.string().uuid("Choose a service"),
+    mode: z.enum(["online", "in_person"], { message: "Choose a session mode" }),
+    preferredDate: z
+      .string()
+      .trim()
+      .optional()
+      .refine((d) => {
+        if (!d) return true;
+        const chosen = new Date(d);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return chosen >= today;
+      }, "Date must be today or later"),
+    preferredTime: z.string().trim().optional(),
+    notes: z.string().trim().max(1000, "Notes must be under 1000 characters").optional(),
+    consent: z.literal(true, { message: "Please acknowledge the privacy policy" }),
+  })
+  .superRefine((data, ctx) => {
+    const hasPartnerDetails = Boolean(data.partnerName || data.partnerEmail || data.partnerPhone);
+    if (!hasPartnerDetails) return;
+    if (!data.partnerName) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["partnerName"],
+        message: "Enter your partner's name.",
+      });
+    }
+    if (!data.partnerEmail) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["partnerEmail"],
+        message: "Enter your partner's email.",
+      });
+    } else if (data.partnerEmail.trim().toLowerCase() === data.email.trim().toLowerCase()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["partnerEmail"],
+        message: "Use a different email for your partner.",
+      });
+    }
+  });
 
 type BookingInput = z.infer<typeof bookingSchema>;
 type FormState = Omit<BookingInput, "consent"> & { consent: boolean };
@@ -963,7 +989,9 @@ function BookingForm({
         {isCouplesBooking ? (
           <FieldGroup legend="Invite your partner (optional)">
             <p className="mb-4 text-sm text-muted-foreground">
-              Add your partner’s details so they receive the booking and payment notifications too.
+              With your partner’s consent, add their details so they receive booking, payment,
+              reminder, reschedule, and cancellation notifications. Their details are stored on this
+              booking only and are not shared with the therapist.
             </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Partner name" htmlFor="partnerName" error={errors.partnerName}>
