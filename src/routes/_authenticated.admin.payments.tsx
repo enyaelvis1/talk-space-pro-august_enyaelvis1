@@ -1230,7 +1230,7 @@ function PaymentsAdminScreen({
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
                 <th className="py-2 pr-3">Booking</th>
-                <th className="py-2 pr-3">Client</th>
+                <th className="py-2 pr-3">Client details</th>
                 <th className="py-2 pr-3">Provider</th>
                 <th className="py-2 pr-3">Amount</th>
                 <th className="py-2 pr-3">Status</th>
@@ -1255,8 +1255,9 @@ function PaymentsAdminScreen({
                       <div className="text-xs text-muted-foreground">{row.reference}</div>
                     </td>
                     <td className="py-3 pr-3">
-                      <div className="text-brand-deep">{row.clientName ?? "—"}</div>
-                      <div className="text-xs text-muted-foreground">{row.clientEmail ?? ""}</div>
+                      <span className="text-xs text-muted-foreground">
+                        Hidden from payment review
+                      </span>
                     </td>
                     <td className="py-3 pr-3 capitalize">{row.provider.replace("_", " ")}</td>
                     <td className="py-3 pr-3 font-medium">
@@ -1477,11 +1478,6 @@ function PaymentsAdminScreen({
                 <div>
                   <p className="text-xs uppercase tracking-wider text-muted-foreground">Amount</p>
                   <p className="font-medium text-brand-deep">{formatNaira(reviewing.amountKobo)}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Client</p>
-                  <p>{reviewing.clientName ?? "—"}</p>
-                  <p className="text-xs text-muted-foreground">{reviewing.clientEmail}</p>
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-wider text-muted-foreground">

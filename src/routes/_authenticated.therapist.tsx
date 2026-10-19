@@ -247,7 +247,8 @@ function TherapistDashboardContent({ initial }: { initial: TherapistDashboardDat
                       {formatDate(nextSession.startsAt)}
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {nextSession.clientName} · {nextSession.serviceName ?? "Talk Space session"}
+                      {nextSession.serviceName ?? "Talk Space session"} ·{" "}
+                      {modeLabel(nextSession.mode)}
                     </p>
                   </>
                 ) : (
@@ -474,21 +475,11 @@ function AppointmentList({
               </span>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              {appointment.clientName} · {appointment.serviceName ?? "Talk Space session"} ·{" "}
-              {modeLabel(appointment.mode)}
+              {appointment.serviceName ?? "Talk Space session"} · {modeLabel(appointment.mode)}
             </p>
-            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-              {appointment.clientEmail ? <span>{appointment.clientEmail}</span> : null}
-              {appointment.clientPhone ? <span>{appointment.clientPhone}</span> : null}
-            </div>
             <p className="mt-1 text-xs text-muted-foreground">
               Reference {appointment.bookingReference}
             </p>
-            {appointment.notes ? (
-              <p className="mt-2 rounded-lg bg-brand-mint/20 px-3 py-2 text-xs text-brand-deep">
-                {appointment.notes}
-              </p>
-            ) : null}
             {appointment.googleSyncError ? (
               <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-800">
                 Calendar sync issue: {appointment.googleSyncError}
