@@ -544,49 +544,49 @@ export const listAvailableSlots = createServerFn({ method: "GET" })
       }));
   });
 
-const holdSlotInput = z
-  .object({
-    serviceId: z.string().uuid(),
-    therapistId: z.string().uuid(),
-    mode: z.enum(["online", "in_person"]),
-    startsAt: z.string().datetime({ offset: true }),
-    templateKey: z.string().trim().min(1).max(120),
-    fullName: z.string().trim().min(2).max(100),
-    email: z.string().trim().email().max(255),
-    phone: clientPhoneSchema,
-    notes: z.string().trim().max(1000),
-    partnerName: z.string().trim().max(100).optional(),
-    partnerEmail: z.string().trim().email().max(255).optional().or(z.literal("")),
-    partnerPhone: clientPhoneSchema.optional().or(z.literal("")),
-    consentAcknowledged: z.literal(true),
-    packageToken: z.string().trim().min(16).max(128).optional(),
-  })
-  .superRefine((data, ctx) => {
-    const hasPartnerDetails = Boolean(data.partnerName || data.partnerEmail || data.partnerPhone);
-    if (!hasPartnerDetails) return;
-    if (!data.partnerName) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["partnerName"],
-        message: "Enter your partner's name.",
-      });
-    }
-    if (!data.partnerEmail) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["partnerEmail"],
-        message: "Enter your partner's email.",
-      });
-    } else if (data.partnerEmail.trim().toLowerCase() === data.email.trim().toLowerCase()) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["partnerEmail"],
-        message: "Use a different email for your partner.",
-      });
-    }
-  });
+const holdSlotBaseInput = z.object({
+  serviceId: z.string().uuid(),
+  therapistId: z.string().uuid(),
+  mode: z.enum(["online", "in_person"]),
+  startsAt: z.string().datetime({ offset: true }),
+  templateKey: z.string().trim().min(1).max(120),
+  fullName: z.string().trim().min(2).max(100),
+  email: z.string().trim().email().max(255),
+  phone: clientPhoneSchema,
+  notes: z.string().trim().max(1000),
+  partnerName: z.string().trim().max(100).optional(),
+  partnerEmail: z.string().trim().email().max(255).optional().or(z.literal("")),
+  partnerPhone: clientPhoneSchema.optional().or(z.literal("")),
+  consentAcknowledged: z.literal(true),
+  packageToken: z.string().trim().min(16).max(128).optional(),
+});
 
-const holdSlotsInput = holdSlotInput
+const holdSlotInput = holdSlotBaseInput.superRefine((data, ctx) => {
+  const hasPartnerDetails = Boolean(data.partnerName || data.partnerEmail || data.partnerPhone);
+  if (!hasPartnerDetails) return;
+  if (!data.partnerName) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["partnerName"],
+      message: "Enter your partner's name.",
+    });
+  }
+  if (!data.partnerEmail) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["partnerEmail"],
+      message: "Enter your partner's email.",
+    });
+  } else if (data.partnerEmail.trim().toLowerCase() === data.email.trim().toLowerCase()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["partnerEmail"],
+      message: "Use a different email for your partner.",
+    });
+  }
+});
+
+const holdSlotsInput = holdSlotBaseInput
   .omit({ therapistId: true, startsAt: true, packageToken: true })
   .extend({
     slots: z
