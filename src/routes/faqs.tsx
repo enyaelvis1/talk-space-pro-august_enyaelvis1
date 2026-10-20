@@ -29,11 +29,20 @@ function groupFaqs(rows: PublicFaq[]): Group[] {
 
 export const Route = createFileRoute("/faqs")({
   loader: async () => {
-    const [faqs, entry] = await Promise.all([
+    const [faqsResult, entryResult] = await Promise.allSettled([
       listPublicFaqs(),
       getPublishedEntry({ data: { kind: "page", slug: "faqs" } }),
     ]);
-    return { faqs, entry };
+    const faqs = faqsResult.status === "fulfilled" ? faqsResult.value : [];
+    const entry = entryResult.status === "fulfilled" ? entryResult.value : null;
+    return {
+      faqs,
+      entry,
+      loadError:
+        faqsResult.status === "rejected" || entryResult.status === "rejected"
+          ? "Some questions are temporarily unavailable. Please try again or contact us."
+          : null,
+    };
   },
   head: ({ loaderData }) => {
     const groups = groupFaqs(loaderData?.faqs ?? []);
@@ -66,7 +75,7 @@ function anchorFor(title: string) {
 }
 
 function RouteComponent() {
-  const { entry, faqs } = Route.useLoaderData();
+  const { entry, faqs, loadError } = Route.useLoaderData();
   const groups = useMemo(() => groupFaqs(faqs), [faqs]);
 
   if (entry) {
@@ -114,6 +123,18 @@ function RouteComponent() {
               </nav>
 
               <div className="space-y-14">
+                {loadError ? (
+                  <div
+                    role="status"
+                    className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950"
+                  >
+                    {loadError} Please use the{" "}
+                    <Link to="/contact" className="font-semibold underline">
+                      contact page
+                    </Link>{" "}
+                    if you need an answer today.
+                  </div>
+                ) : null}
                 {groups.length === 0 ? (
                   <p className="text-muted-foreground">No FAQs published yet.</p>
                 ) : null}

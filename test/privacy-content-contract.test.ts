@@ -15,11 +15,33 @@ test("public therapist and payment-review surfaces do not expose client details"
 
 test("service copy keeps the consultation and teen-session durations consistent", () => {
   const services = read("src/routes/services.tsx");
+  const servicePage = read("src/routes/services.$slug.tsx");
+  const pricing = read("src/routes/pricing.tsx");
+  const catalog = read("src/lib/service-catalog.ts");
   const seed = read("src/lib/page-seed-content.ts");
   const home = read("src/routes/index.tsx");
   assert.doesNotMatch(`${services}\n${seed}`, /Free 15-minute intro call/);
-  assert.match(`${services}\n${seed}\n${home}`, /60-minute/);
+  assert.match(`${services}\n${seed}\n${home}\n${servicePage}\n${pricing}`, /60-minute/);
+  assert.doesNotMatch(`${services}\n${seed}`, /50-minute|75-minute/);
   assert.match(`${services}\n${seed}`, /Paid 15-minute Clarity Call/);
+  assert.match(catalog, /individual:.*durationMinutes: 60/s);
+  assert.match(catalog, /couple:.*durationMinutes: 90/s);
+  assert.match(catalog, /teenChild:.*durationMinutes: 60/s);
+});
+
+test("public FAQ, therapist, service and location pages expose resilient SEO/content contracts", () => {
+  const faqs = read("src/routes/faqs.tsx");
+  const therapists = read("src/routes/therapists.tsx");
+  const services = read("src/routes/services.$slug.tsx");
+  const locations = read("src/routes/locations.$city.tsx");
+  assert.match(faqs, /Promise\.allSettled/);
+  assert.match(faqs, /role="status"/);
+  assert.match(therapists, /Promise\.allSettled/);
+  assert.match(therapists, /request a therapist match/);
+  assert.match(services, /servicePageJsonLd/);
+  assert.match(services, /privacy-policy/);
+  assert.match(locations, /locationPageJsonLd/);
+  assert.match(locations, /Confirm availability/);
 });
 
 test("couple booking contract includes optional partner notification details", () => {
