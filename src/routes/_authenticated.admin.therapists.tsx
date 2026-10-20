@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
 import {
   ArrowDown,
   ArrowUp,
@@ -382,6 +382,13 @@ function TherapistsAdminRoute() {
                     <Button size="sm" variant="outline" onClick={() => setAvailabilityFor(t)}>
                       Availability
                     </Button>
+                    {t.isActive ? (
+                      <Button size="sm" variant="outline" asChild>
+                        <Link to="/therapist" search={{ as: t.id }}>
+                          View dashboard
+                        </Link>
+                      </Button>
+                    ) : null}
                     <Button size="sm" variant="outline" onClick={() => setLoginFor(t)}>
                       {t.userId ? (
                         <UserCheck className="mr-1 h-3.5 w-3.5" />

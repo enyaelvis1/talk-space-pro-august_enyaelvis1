@@ -36,17 +36,25 @@ test("therapist dashboard is protected and scoped to the linked therapist profil
   assert.match(route, /getTherapistDashboard/);
 
   const dashboardBody = exportBody(functions, "getTherapistDashboard");
-  assert.match(dashboardBody, /requireTherapist\(\)/);
+  assert.match(dashboardBody, /requireTherapistDashboardContext\(data\.therapistId\)/);
+  assert.match(functions, /requireTherapist\(\)/);
   assert.match(functions, /requireRequestRole\("therapist"\)/);
   assert.match(functions, /\.eq\("user_id", user\.id\)/);
   assert.doesNotMatch(functions, /!therapist\.is_active/);
   assert.match(functions, /\.eq\("therapist_id", ctx\.therapistId\)/);
+  assert.match(functions, /requireRequestRole\("admin"\)/);
+  assert.match(functions, /adminPreview: true/);
   assert.match(functions, /\.is\("archived_at", null\)/);
   assert.match(functions, /\.eq\("status", "confirmed"\)/);
   assert.match(functions, /client_name/);
   assert.doesNotMatch(functions, /client_email/);
   assert.doesNotMatch(functions, /client_phone/);
   assert.doesNotMatch(functions, /notes, google_meet_url/);
+  assert.match(
+    route,
+    /validateSearch: z\.object\(\{ as: z\.string\(\)\.uuid\(\)\.optional\(\) \}\)/,
+  );
+  assert.match(adminTherapistsRoute, /View dashboard/);
 });
 
 test("hidden public therapist profiles can still use linked dashboard access", () => {
@@ -127,7 +135,7 @@ test("therapist users are kept out of the client account experience", () => {
 });
 
 test("therapist dashboard keeps access failures in the therapist workspace", () => {
-  assert.match(route, /return \{ ok: true as const, data: await getTherapistDashboard\(\) \}/);
+  assert.match(route, /loaderDeps: \(\{ search \}\) => \(\{ therapistId: search\.as \}\)/);
   assert.match(route, /return \{\s*ok: false as const,/);
   assert.match(route, /TherapistDashboardUnavailable/);
   assert.doesNotMatch(route, /href: "\/account\?error=forbidden"/);
