@@ -43,9 +43,9 @@ test("therapist dashboard is protected and scoped to the linked therapist profil
   assert.match(functions, /\.eq\("therapist_id", ctx\.therapistId\)/);
   assert.match(functions, /\.is\("archived_at", null\)/);
   assert.match(functions, /\.eq\("status", "confirmed"\)/);
+  assert.match(functions, /client_name/);
   assert.doesNotMatch(functions, /client_email/);
   assert.doesNotMatch(functions, /client_phone/);
-  assert.doesNotMatch(functions, /client_name/);
   assert.doesNotMatch(functions, /notes, google_meet_url/);
 });
 
