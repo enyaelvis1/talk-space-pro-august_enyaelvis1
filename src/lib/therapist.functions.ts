@@ -70,6 +70,7 @@ export const disconnectTherapistGoogle = createServerFn({ method: "POST" }).hand
 
 export type TherapistDashboardAppointment = {
   id: string;
+  clientName: string;
   bookingReference: string;
   startsAt: string;
   endsAt: string;
@@ -119,6 +120,7 @@ function lagosDayBounds(base = new Date()) {
 function mapAppointment(row: Record<string, unknown>): TherapistDashboardAppointment {
   return {
     id: row.id as string,
+    clientName: row.client_name as string,
     bookingReference: row.booking_reference as string,
     startsAt: row.starts_at as string,
     endsAt: row.ends_at as string,
@@ -166,7 +168,7 @@ export const getTherapistDashboard = createServerFn({ method: "GET" }).handler(
       supabaseAdmin
         .from("appointments")
         .select(
-          "id, booking_reference, status, starts_at, ends_at, session_mode, google_meet_url, google_sync_error, services(name)",
+          "id, client_name, booking_reference, status, starts_at, ends_at, session_mode, google_meet_url, google_sync_error, services(name)",
         )
         .eq("therapist_id", ctx.therapistId)
         .is("archived_at", null)
@@ -178,7 +180,7 @@ export const getTherapistDashboard = createServerFn({ method: "GET" }).handler(
       supabaseAdmin
         .from("appointments")
         .select(
-          "id, booking_reference, status, starts_at, ends_at, session_mode, google_meet_url, google_sync_error, services(name)",
+          "id, client_name, booking_reference, status, starts_at, ends_at, session_mode, google_meet_url, google_sync_error, services(name)",
         )
         .eq("therapist_id", ctx.therapistId)
         .is("archived_at", null)
