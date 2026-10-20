@@ -13,6 +13,16 @@ test("public therapist and payment-review surfaces do not expose client details"
   assert.doesNotMatch(paymentRoute, /reviewing\.client(Name|Email|Phone)/);
 });
 
+test("therapist dashboard exposes client name but not private client contact fields", () => {
+  const therapistFunctions = read("src/lib/therapist.functions.ts");
+  const therapistRoute = read("src/routes/_authenticated.therapist.tsx");
+  assert.match(therapistFunctions, /clientName: string/);
+  assert.match(therapistFunctions, /client_name/);
+  assert.match(therapistRoute, /appointment\.clientName/);
+  assert.doesNotMatch(therapistFunctions, /client_email|client_phone|client_notes|intake/);
+  assert.match(therapistFunctions, /Cache-Control.*private, no-store/);
+});
+
 test("service copy keeps the consultation and teen-session durations consistent", () => {
   const services = read("src/routes/services.tsx");
   const servicePage = read("src/routes/services.$slug.tsx");
