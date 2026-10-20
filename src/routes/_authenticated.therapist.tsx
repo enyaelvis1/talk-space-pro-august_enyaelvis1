@@ -477,6 +477,7 @@ function AppointmentList({
             <p className="mt-1 text-sm text-muted-foreground">
               {appointment.serviceName ?? "Talk Space session"} · {modeLabel(appointment.mode)}
             </p>
+            <p className="mt-2 font-medium text-brand-deep">{appointment.clientName}</p>
             <p className="mt-1 text-xs text-muted-foreground">
               Reference {appointment.bookingReference}
             </p>
