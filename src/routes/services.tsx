@@ -23,6 +23,7 @@ import { AutoPlayGallery } from "@/components/site/AutoPlayGallery";
 import { Button } from "@/components/ui/button";
 import { getPublishedEntry } from "@/lib/content.functions";
 import { canonicalUrl, pageSeoHead } from "@/lib/seo";
+import { SERVICE_CATALOG, durationLabel } from "@/lib/service-catalog";
 
 function contentMediaUrl(path: string) {
   const base = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, "") ?? "";
@@ -87,7 +88,7 @@ const SERVICES = [
     icon: UserRound,
     title: "Individual Therapy",
     tagline: "One-to-one support, at your pace.",
-    desc: "For anxiety, depression, burnout, grief, self-esteem, identity and life transitions. Weekly or fortnightly 50-minute sessions with the same therapist throughout.",
+    desc: `For anxiety, depression, burnout, grief, self-esteem, identity and life transitions. Weekly or fortnightly ${durationLabel(SERVICE_CATALOG.individual.durationMinutes)} with the same therapist throughout.`,
     bullets: [
       "CBT, ACT, psychodynamic and integrative approaches",
       "Online video or in-person at our Lagos rooms",
@@ -104,7 +105,7 @@ const SERVICES = [
     desc: "For couples navigating conflict, communication, intimacy, parenting differences, trust issues, or the pressure of repeated unresolved arguments.",
     bullets: [
       "Emotion-focused and Gottman-informed approaches",
-      "75-minute sessions with a relational therapist",
+      `${durationLabel(SERVICE_CATALOG.couple.durationMinutes)} with a relational therapist`,
       "Individual check-ins available alongside joint sessions",
     ],
     image: contentMediaUrl(serviceImages.couple),
@@ -159,7 +160,7 @@ const SERVICES = [
     tagline: "Specialist care for younger clients.",
     desc: "Support for children and adolescents experiencing behavioural concerns, anxiety, school-related stress, emotional regulation challenges or family transitions.",
     bullets: [
-      "60-minute sessions",
+      `${durationLabel(SERVICE_CATALOG.teenChild.durationMinutes)}`,
       "Behavioural, play-informed and art-informed therapy",
       "Parent guidance and family collaboration",
       "Age-appropriate care from specialist clinicians",

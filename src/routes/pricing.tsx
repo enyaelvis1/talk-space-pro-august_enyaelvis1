@@ -18,6 +18,7 @@ import { resolveServicePriceNgn } from "@/lib/service-pricing";
 import { cn } from "@/lib/utils";
 import { WHATSAPP_HREF } from "@/lib/talkspace";
 import { canonicalUrl, pageSeoHead } from "@/lib/seo";
+import { SERVICE_CATALOG } from "@/lib/service-catalog";
 
 export const Route = createFileRoute("/pricing")({
   loader: async () => {
@@ -99,7 +100,7 @@ const PRICING_GROUPS: PricingGroup[] = [
         name: "Individual Therapy",
         price: "₦55,000",
         usd: "≈ $40",
-        cadence: "per 60-minute session",
+        cadence: `per ${SERVICE_CATALOG.individual.durationMinutes}-minute session`,
         desc: "One-to-one online counselling tailored to your current concerns and treatment goals.",
         features: [
           "Online video session",
@@ -116,7 +117,7 @@ const PRICING_GROUPS: PricingGroup[] = [
         name: "Couple Therapy",
         price: "₦90,000",
         usd: "≈ $70",
-        cadence: "per 90-minute session",
+        cadence: `per ${SERVICE_CATALOG.couple.durationMinutes}-minute session`,
         desc: "Structured couple therapy for communication, trust repair, conflict and emotional intimacy.",
         features: [
           "Online video session",
@@ -134,7 +135,7 @@ const PRICING_GROUPS: PricingGroup[] = [
         name: "Child/Teen Therapy",
         price: "₦50,000",
         usd: "≈ $37",
-        cadence: "per 60-minute session",
+        cadence: `per ${SERVICE_CATALOG.teenChild.durationMinutes}-minute session`,
         desc: "Specialist support for children and adolescents, with age-appropriate therapeutic methods.",
         features: [
           "Behavioural and emotional support",

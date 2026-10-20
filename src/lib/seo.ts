@@ -99,6 +99,46 @@ export function faqPageJsonLd(groups: readonly { items: readonly { q: string; a:
   };
 }
 
+export function servicePageJsonLd(input: { name: string; description: string; path: string }) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    name: input.name,
+    description: input.description,
+    provider: {
+      "@type": "Organization",
+      name: TS.brandName,
+      url: SITE_URL,
+    },
+    areaServed: { "@type": "Country", name: "Nigeria" },
+    url: canonicalUrl(input.path),
+  };
+}
+
+export function locationPageJsonLd(input: {
+  name: string;
+  description: string;
+  path: string;
+  address?: readonly string[];
+}) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Place",
+    name: `Talk Space Counselling Services — ${input.name}`,
+    description: input.description,
+    url: canonicalUrl(input.path),
+    address: input.address
+      ? {
+          "@type": "PostalAddress",
+          streetAddress: input.address.join(", "),
+          addressLocality: input.name,
+          addressCountry: "NG",
+        }
+      : undefined,
+    parentOrganization: { "@type": "Organization", name: TS.brandName, url: SITE_URL },
+  };
+}
+
 export type PageSeoInput = {
   path: string;
   title: string;
