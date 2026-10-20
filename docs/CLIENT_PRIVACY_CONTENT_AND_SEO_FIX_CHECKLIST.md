@@ -26,12 +26,16 @@ production verification have passed.
   exactly once for the booking/payment lifecycle.
 - [~] **P1 — Pricing and service source of truth:** reconcile Teen/Child Therapy
   duration and the free introductory call versus paid Clarity Call.
-- [ ] **P1 — Public content reliability:** fix FAQ and therapist-page loading
-  states and verify published content works without authenticated access.
-- [~] **P1 — Focused service pages:** add approved landing pages and connect each
-  page to the correct booking/service option.
-- [~] **P2 — Local search and editorial improvements:** add Lagos/Abuja pages,
-  internal links, authorship, and clinical-content review.
+- [~] **P1 — Public content reliability:** resilient FAQ and therapist-page
+  loaders, meaningful failure states, and public SEO/content contracts are now
+  implemented; browser/UAT and production verification remain.
+- [~] **P1 — Focused service pages:** service landing pages now include audience,
+  concerns, format, pricing/FAQ/privacy links, related services, and booking
+  CTAs; clinical/content approval and browser/UAT remain.
+- [~] **P2 — Local search and editorial improvements:** Lagos/Abuja technical
+  pages, canonical metadata, structured data, and internal links are now in
+  place; owner approval of location claims, authorship, clinical review, and
+  indexing verification remain.
 
 ## 1. P0 privacy and account isolation
 
@@ -146,10 +150,12 @@ production verification have passed.
 
 ### 3.1 Source-of-truth decision
 
-- [ ] Decide the approved duration for Teen/Child Therapy: 50 or 60 minutes.
-- [ ] Decide whether the introductory call is free, paid Clarity Call, or two
-  distinct offerings with different names, durations, prices, and booking
-  rules.
+- [~] Existing booking seed and pricing source use Teen/Child Therapy at 60
+  minutes; this pass aligned public copy and tests to that value. Owner should
+  confirm before production publication.
+- [~] Existing pricing/source copy uses a paid 15-minute Clarity Call and no
+  free introductory-call offering; this pass aligned public copy and tests to
+  that value. Owner should confirm before production publication.
 - [ ] Record the approved service code, duration, price, mode availability,
   description, and Paystack/payment behavior in the source-of-truth matrix.
 

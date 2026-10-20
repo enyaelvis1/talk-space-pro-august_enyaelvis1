@@ -122,7 +122,7 @@ const SERVICE_CARDS = [
     "svc-individual",
     "Individual Therapy",
     "One-to-one support, at your pace.",
-    "For anxiety, depression, burnout, grief, self-esteem, identity and life transitions. Weekly or fortnightly 50-minute sessions with the same therapist throughout.",
+    "For anxiety, depression, burnout, grief, self-esteem, identity and life transitions. Weekly or fortnightly 60-minute sessions with the same therapist throughout.",
     [
       "CBT, ACT, psychodynamic and integrative approaches",
       "Online video or in-person at our Lagos rooms",
@@ -143,7 +143,7 @@ const SERVICE_CARDS = [
     "For couples navigating conflict, communication, intimacy, parenting differences, trust issues, or the pressure of repeated unresolved arguments.",
     [
       "Emotion-focused and Gottman-informed approaches",
-      "75-minute sessions with a relational therapist",
+      "90-minute sessions with a relational therapist",
       "Individual check-ins available alongside joint sessions",
     ],
     {

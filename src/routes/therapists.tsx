@@ -25,11 +25,18 @@ const FALLBACK_THERAPIST_IMAGES = [t1, t2, t3];
 
 export const Route = createFileRoute("/therapists")({
   loader: async () => {
-    const [therapists, entry] = await Promise.all([
+    const [therapistsResult, entryResult] = await Promise.allSettled([
       getPublicTherapists(),
       getPublishedEntry({ data: { kind: "page", slug: "therapists" } }),
     ]);
-    return { therapists, entry };
+    return {
+      therapists: therapistsResult.status === "fulfilled" ? therapistsResult.value : [],
+      entry: entryResult.status === "fulfilled" ? entryResult.value : null,
+      loadError:
+        therapistsResult.status === "rejected" || entryResult.status === "rejected"
+          ? "Our therapist profiles are temporarily unavailable. Please try again or request a personal match."
+          : null,
+    };
   },
   head: ({ loaderData }) => ({
     ...pageSeoHead({
@@ -46,9 +53,10 @@ export const Route = createFileRoute("/therapists")({
 });
 
 function RouteComponent() {
-  const { therapists, entry } = Route.useLoaderData() as {
+  const { therapists, entry, loadError } = Route.useLoaderData() as {
     therapists: PublicTherapist[];
     entry: Awaited<ReturnType<typeof getPublishedEntry>>;
+    loadError: string | null;
   };
 
   if (entry) {
@@ -79,6 +87,18 @@ function RouteComponent() {
 
         <section className="bg-surface-page pb-24">
           <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-6 px-4 pt-16 sm:px-6 md:grid-cols-2 lg:px-8 xl:grid-cols-3">
+            {loadError ? (
+              <div
+                role="status"
+                className="col-span-full rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950"
+              >
+                {loadError} You can still{" "}
+                <Link to="/book" className="font-semibold underline">
+                  request a therapist match
+                </Link>{" "}
+                without choosing a profile first.
+              </div>
+            ) : null}
             {therapists.map((t, i) => (
               <Reveal
                 key={t.slug}
