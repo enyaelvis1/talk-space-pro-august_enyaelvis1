@@ -54,12 +54,13 @@ test("public FAQ, therapist, service and location pages expose resilient SEO/con
   assert.match(locations, /Confirm availability/);
 });
 
-test("couple booking contract includes optional partner notification details", () => {
+test("relationship booking contract includes optional partner notification details", () => {
   const booking = read("src/lib/booking.functions.ts");
   const form = read("src/routes/book.tsx");
   const migration = read("supabase/migrations/20261019120000_partner_booking_notifications.sql");
   assert.match(booking, /hold_appointment_with_partner/);
   assert.match(form, /Invite your partner/);
+  assert.match(form, /couple\|family\|premarital\|infidelity/i);
   assert.match(migration, /partner_email/);
   assert.match(booking, /recipientRole: "partner"/);
   assert.match(booking, /Use a different email for your partner/);
