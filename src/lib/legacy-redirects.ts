@@ -6,6 +6,10 @@ const LEGACY_REDIRECTS: Record<string, string> = {
   "/everybody-go-dey-alright": "/blog/everybody-go-dey-alright",
   "/blogs": "/blog",
   "/never-struggle-in-your-marriage-again": "/blog/never-struggle-in-your-marriage-again",
+  // This was the legacy WordPress slug for the homepage. The migrated CMS
+  // record is therefore homepage content, not a standalone public page.
+  "/content/pages/professional-counseling-services": "/",
+  "/professional-counseling-services": "/",
   "/whymarriagedoesnotwork": "/blog/whymarriagedoesnotwork",
 };
 
