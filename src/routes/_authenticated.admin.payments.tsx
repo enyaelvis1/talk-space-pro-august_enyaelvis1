@@ -1255,8 +1255,8 @@ function PaymentsAdminScreen({
                       <div className="text-xs text-muted-foreground">{row.reference}</div>
                     </td>
                     <td className="py-3 pr-3">
-                      <span className="text-xs text-muted-foreground">
-                        Hidden from payment review
+                      <span className="font-medium text-brand-deep">
+                        {row.clientName ?? "Client name unavailable"}
                       </span>
                     </td>
                     <td className="py-3 pr-3 capitalize">{row.provider.replace("_", " ")}</td>

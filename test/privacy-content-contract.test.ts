@@ -4,12 +4,13 @@ import test from "node:test";
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("public therapist and payment-review surfaces do not expose client details", () => {
+test("public therapist and payment-review surfaces protect client contact details", () => {
   const publicContent = read("src/lib/content.functions.ts");
   const paymentRoute = read("src/routes/_authenticated.admin.payments.tsx");
   assert.match(publicContent, /getPublicTherapists/);
   assert.doesNotMatch(publicContent, /client_email|client_phone|appointments\(/);
-  assert.match(paymentRoute, /Hidden from payment review/);
+  assert.match(paymentRoute, /row\.clientName/);
+  assert.match(paymentRoute, /Client name unavailable/);
   assert.doesNotMatch(paymentRoute, /reviewing\.client(Name|Email|Phone)/);
 });
 
