@@ -818,7 +818,7 @@ function BookingForm({
   const notesField = getTemplateField(template, "notes");
   const notesLabel = notesField?.label ?? "Anything you'd like us to know? (Optional)";
   const selectedService = services.find((service) => service.id === form.serviceId);
-  const isCouplesBooking = /couple|family|premarital/i.test(selectedService?.name ?? "");
+  const isCouplesBooking = /couple|family|premarital|infidelity/i.test(selectedService?.name ?? "");
   const displayedNotesLabel =
     notesField?.required === false && !/\(optional\)\s*$/i.test(notesLabel)
       ? `${notesLabel} (Optional)`
