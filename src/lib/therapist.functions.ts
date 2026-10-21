@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest, setResponseHeader } from "@tanstack/react-start/server";
+import { z } from "zod";
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireRequestRole } from "@/lib/server-auth";
@@ -9,11 +10,11 @@ function noStore() {
 }
 
 type TherapistContext = {
-  userId: string;
   therapistId: string;
   fullName: string;
   roleTitle: string;
   imageUrl: string | null;
+  adminPreview: boolean;
 };
 
 async function requireTherapist(): Promise<TherapistContext> {
@@ -31,11 +32,32 @@ async function requireTherapist(): Promise<TherapistContext> {
   }
 
   return {
-    userId: user.id,
     therapistId: therapist.id as string,
     fullName: therapist.full_name as string,
     roleTitle: therapist.role_title as string,
     imageUrl: (therapist.image_url as string | null) ?? null,
+    adminPreview: false,
+  };
+}
+
+async function requireTherapistDashboardContext(therapistId?: string): Promise<TherapistContext> {
+  if (!therapistId) return requireTherapist();
+
+  await requireRequestRole("admin");
+  const { data: therapist, error } = await supabaseAdmin
+    .from("therapists")
+    .select("id, full_name, role_title, image_url")
+    .eq("id", therapistId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!therapist) throw new Error("Therapist profile not found.");
+
+  return {
+    therapistId: therapist.id as string,
+    fullName: therapist.full_name as string,
+    roleTitle: therapist.role_title as string,
+    imageUrl: (therapist.image_url as string | null) ?? null,
+    adminPreview: true,
   };
 }
 
@@ -90,6 +112,7 @@ export type TherapistCalendarStatus = {
 };
 
 export type TherapistDashboardData = {
+  adminPreview: boolean;
   therapist: {
     id: string;
     fullName: string;
@@ -156,9 +179,12 @@ async function loadCalendarStatus(therapistId: string): Promise<TherapistCalenda
   };
 }
 
-export const getTherapistDashboard = createServerFn({ method: "GET" }).handler(
-  async (): Promise<TherapistDashboardData> => {
-    const ctx = await requireTherapist();
+export const getTherapistDashboard = createServerFn({ method: "GET" })
+  .validator((data: unknown) =>
+    z.object({ therapistId: z.string().uuid().optional() }).parse(data ?? {}),
+  )
+  .handler(async ({ data }): Promise<TherapistDashboardData> => {
+    const ctx = await requireTherapistDashboardContext(data.therapistId);
     const nowIso = new Date().toISOString();
     const horizonIso = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     const { startIso, endIso } = lagosDayBounds();
@@ -196,6 +222,7 @@ export const getTherapistDashboard = createServerFn({ method: "GET" }).handler(
 
     noStore();
     return {
+      adminPreview: ctx.adminPreview,
       therapist: {
         id: ctx.therapistId,
         fullName: ctx.fullName,
@@ -208,8 +235,7 @@ export const getTherapistDashboard = createServerFn({ method: "GET" }).handler(
         mapAppointment(row as Record<string, unknown>),
       ),
     };
-  },
-);
+  });
 
 export const startTherapistGoogleConnect = createServerFn({ method: "POST" }).handler(
   async (): Promise<{ authorizationUrl: string }> => {
