@@ -181,14 +181,18 @@ export function ProgressDashboard({ snapshot }: { snapshot: ProgressSnapshot }) 
                 <p className="eyebrow">Admin progress</p>
                 <h1 className="display-1 mt-3 text-brand-deep">{snapshot.projectName}</h1>
                 <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
-                  Implementation progress synchronized from the version-controlled checklist.
+                  Completion markers from the checklist bundled with this build.
                 </p>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Updated{" "}
+                  Snapshot generated{" "}
                   {new Intl.DateTimeFormat("en-NG", {
                     dateStyle: "medium",
                     timeStyle: "short",
                   }).format(new Date(snapshot.generatedAt))}
+                </p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  This is the generation time, not the last task review, deployment date or provider
+                  health check. Previously accepted work is not reopened by this timestamp.
                 </p>
               </div>
               <div className="flex flex-wrap gap-3 print:hidden">
@@ -324,6 +328,10 @@ export function ProgressDashboard({ snapshot }: { snapshot: ProgressSnapshot }) 
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    The repository link opens develop and may include changes not yet in this build.
+                    Displayed completion uses the bundled checklist, not a live GitHub fetch.
+                  </p>
                   {snapshot.checklists.map((checklist) => (
                     <div
                       key={checklist.sourceId}
