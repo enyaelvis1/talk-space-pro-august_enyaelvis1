@@ -7,6 +7,7 @@ import { parseSpecialtyCards, type SpecialtyCard } from "@/lib/specialty-cards";
 import { cleanLegacyPostBodyHtml, sanitizeContentHtml } from "@/lib/content-html";
 import { TS } from "@/lib/talkspace";
 import { DEFAULT_PHYSICAL_SESSION_ADDRESS } from "@/lib/physical-session-address";
+import { normalizeCheckoutCurrencyCopy } from "@/lib/checkout-copy";
 
 import {
   cloneFormTemplates,
@@ -1397,7 +1398,7 @@ function uniquePublicFaqs(rows: PublicFaq[]) {
     const key = normalizeFaqKey(row);
     if (seen.has(key)) continue;
     seen.add(key);
-    unique.push(row);
+    unique.push({ ...row, answer: normalizeCheckoutCurrencyCopy(row.answer) });
   }
 
   return unique;
