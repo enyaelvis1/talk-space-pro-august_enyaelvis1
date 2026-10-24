@@ -19,6 +19,11 @@ import { cn } from "@/lib/utils";
 import { WHATSAPP_HREF } from "@/lib/talkspace";
 import { canonicalUrl, pageSeoHead } from "@/lib/seo";
 import { SERVICE_CATALOG } from "@/lib/service-catalog";
+import {
+  DIASPORA_CHECKOUT_COPY,
+  normalizeCheckoutCurrencyCopy,
+  normalizeCheckoutCurrencySections,
+} from "@/lib/checkout-copy";
 
 export const Route = createFileRoute("/pricing")({
   loader: async () => {
@@ -348,7 +353,7 @@ const FAQS = [
   },
   {
     q: "Do you offer diaspora pricing?",
-    a: "Yes. USD equivalents are shown for each plan and you can pay in either currency via Paystack.",
+    a: DIASPORA_CHECKOUT_COPY,
   },
   {
     q: "Can I book a package rather than pay per session?",
@@ -418,13 +423,18 @@ const pricingFaqSection: PageSection = {
 };
 
 function ensurePricingFaq(entry: RenderedContentEntry): RenderedContentEntry {
-  const sections = entry.sections.map((section) =>
+  const sections = normalizeCheckoutCurrencySections(entry.sections).map((section) =>
     section.id === "pricing-hero" ? { ...section, align: "left" as const } : section,
   );
-  const draftSections = entry.draftSections.map((section) =>
+  const draftSections = normalizeCheckoutCurrencySections(entry.draftSections).map((section) =>
     section.id === "pricing-hero" ? { ...section, align: "left" as const } : section,
   );
-  const normalizedEntry = { ...entry, sections, draftSections };
+  const normalizedEntry = {
+    ...entry,
+    bodyHtml: normalizeCheckoutCurrencyCopy(entry.bodyHtml),
+    sections,
+    draftSections,
+  };
   const hasFaq = sections.some((section) => section.id === "pricing-faq");
   if (hasFaq) return normalizedEntry;
   const noteIndex = entry.sections.findIndex((section) => section.id === "pricing-note");

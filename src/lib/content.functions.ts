@@ -7,6 +7,7 @@ import { parseSpecialtyCards, type SpecialtyCard } from "@/lib/specialty-cards";
 import { cleanLegacyPostBodyHtml, sanitizeContentHtml } from "@/lib/content-html";
 import { TS } from "@/lib/talkspace";
 import { DEFAULT_PHYSICAL_SESSION_ADDRESS } from "@/lib/physical-session-address";
+import { normalizeCheckoutCurrencyCopy } from "@/lib/checkout-copy";
 
 import {
   cloneFormTemplates,
@@ -1415,7 +1416,12 @@ export const listPublicFaqs = createServerFn({ method: "GET" }).handler(
       .order("category", { ascending: true })
       .order("display_order", { ascending: true });
     if (error) throw error;
-    return uniquePublicFaqs((data ?? []) as PublicFaq[]);
+    return uniquePublicFaqs(
+      ((data ?? []) as PublicFaq[]).map((row) => ({
+        ...row,
+        answer: normalizeCheckoutCurrencyCopy(row.answer),
+      })),
+    );
   },
 );
 

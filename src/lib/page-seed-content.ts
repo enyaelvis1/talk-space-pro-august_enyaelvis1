@@ -1,5 +1,6 @@
 import type { PageSection } from "@/lib/page-sections";
 import type { PublicPageKey } from "@/lib/public-pages";
+import { DIASPORA_CHECKOUT_COPY } from "@/lib/checkout-copy";
 
 /**
  * Default section content for every public page.
@@ -92,8 +93,7 @@ const PRICING_FAQS = [
   {
     id: "diaspora-pricing",
     question: "Do you offer diaspora pricing?",
-    answer:
-      "Yes. USD equivalents are shown for each plan and you can pay in either currency via Paystack.",
+    answer: DIASPORA_CHECKOUT_COPY,
   },
   {
     id: "package-booking",
