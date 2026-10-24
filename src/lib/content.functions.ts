@@ -1398,7 +1398,7 @@ function uniquePublicFaqs(rows: PublicFaq[]) {
     const key = normalizeFaqKey(row);
     if (seen.has(key)) continue;
     seen.add(key);
-    unique.push(row);
+    unique.push({ ...row, answer: normalizeCheckoutCurrencyCopy(row.answer) });
   }
 
   return unique;
@@ -1416,12 +1416,7 @@ export const listPublicFaqs = createServerFn({ method: "GET" }).handler(
       .order("category", { ascending: true })
       .order("display_order", { ascending: true });
     if (error) throw error;
-    return uniquePublicFaqs(
-      ((data ?? []) as PublicFaq[]).map((row) => ({
-        ...row,
-        answer: normalizeCheckoutCurrencyCopy(row.answer),
-      })),
-    );
+    return uniquePublicFaqs((data ?? []) as PublicFaq[]);
   },
 );
 
