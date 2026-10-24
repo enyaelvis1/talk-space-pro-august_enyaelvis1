@@ -197,7 +197,7 @@ export function AdminOverview({
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <p className="hidden text-xs text-muted-foreground sm:block">
-                Synced {formatGeneratedDate(snapshot.generatedAt)}
+                Snapshot generated {formatGeneratedDate(snapshot.generatedAt)}
               </p>
               {canViewProgress ? (
                 <Button asChild className="gap-2 bg-brand-deep text-white hover:bg-brand-deep/90">
@@ -517,7 +517,7 @@ export function AdminOverview({
                   icon={<Clock3 className="h-5 w-5" aria-hidden />}
                 />
                 <MetricCard
-                  label="Needs attention"
+                  label="Blocked checklist tasks"
                   value={summary.blocked}
                   detail={`${summary.partial} partial task${summary.partial === 1 ? "" : "s"} also need review`}
                   icon={<CircleAlert className="h-5 w-5" aria-hidden />}
