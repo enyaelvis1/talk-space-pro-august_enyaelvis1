@@ -2,6 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { verifyCronRequest } from "@/lib/cron-auth";
 import { canonicalUrl } from "@/lib/seo";
+import {
+  deliverClaimedReminder,
+  reminderDeliveryOutcome,
+  reminderRecipientPending,
+} from "@/lib/reminder-delivery";
 
 type ReminderKey = "booking_reminder_24h" | "booking_reminder_1h";
 
@@ -42,63 +47,50 @@ async function sendReminderRecipient(
   row: AppointmentRow,
   key: ReminderKey,
   recipient: "client" | "partner",
-): Promise<import("@/lib/email.server").SendResult | { sent: false; reason: "no_recipient" }> {
+): Promise<import("@/lib/email.server").SendResult> {
   const email = recipient === "client" ? row.client_email : row.partner_email;
-  if (!email) return { sent: false, reason: "no_recipient" };
+  if (!email) return { sent: false, reason: "no_recipient", logId: null };
   const notificationKey = recipient === "client" ? key : `${key}:partner`;
-  const claim = await supabaseAdmin.rpc("claim_appointment_notification", {
-    p_appointment_id: row.id,
-    p_notification_key: notificationKey,
-    p_recipient_role: recipient,
+  return deliverClaimedReminder({
+    recipient,
+    claim: async () => {
+      const claim = await supabaseAdmin.rpc("claim_appointment_notification", {
+        p_appointment_id: row.id,
+        p_notification_key: notificationKey,
+        p_recipient_role: recipient,
+      });
+      if (claim.error) throw claim.error;
+      return Boolean(claim.data);
+    },
+    send: () =>
+      sendTemplateEmail(key, email, {
+        clientName: recipient === "client" ? row.client_name : row.partner_name || "there",
+        reference: row.booking_reference,
+        serviceName: row.services?.name ?? "",
+        therapistName: row.therapists?.full_name ?? "",
+        startsAt: row.starts_at,
+        mode: row.session_mode,
+        meetingLink: row.google_meet_url ?? "",
+        manageUrl: canonicalUrl(activeManagePath(row)),
+      }),
+    finalize: async (sent) => {
+      const result = await supabaseAdmin.rpc("finalize_appointment_notification", {
+        p_appointment_id: row.id,
+        p_notification_key: notificationKey,
+        p_recipient_role: recipient,
+        p_sent: sent,
+      });
+      if (result.error) throw result.error;
+    },
+    stampClient: async (stamp) => {
+      const patch =
+        key === "booking_reminder_24h"
+          ? { reminder_24h_sent_at: stamp }
+          : { reminder_1h_sent_at: stamp };
+      const result = await supabaseAdmin.from("appointments").update(patch).eq("id", row.id);
+      if (result.error) throw result.error;
+    },
   });
-  if (claim.error) throw claim.error;
-  if (!claim.data) return { sent: false as const, reason: "notification_claimed", logId: null };
-
-  let result: import("@/lib/email.server").SendResult;
-  try {
-    result = await sendTemplateEmail(key, email, {
-      clientName: recipient === "client" ? row.client_name : row.partner_name || "there",
-      reference: row.booking_reference,
-      serviceName: row.services?.name ?? "",
-      therapistName: row.therapists?.full_name ?? "",
-      startsAt: row.starts_at,
-      mode: row.session_mode,
-      meetingLink: row.google_meet_url ?? "",
-      manageUrl: canonicalUrl(activeManagePath(row)),
-    });
-  } catch (error) {
-    await supabaseAdmin.rpc("finalize_appointment_notification", {
-      p_appointment_id: row.id,
-      p_notification_key: notificationKey,
-      p_recipient_role: recipient,
-      p_sent: false,
-    });
-    throw error;
-  }
-
-  const finalize = await supabaseAdmin.rpc("finalize_appointment_notification", {
-    p_appointment_id: row.id,
-    p_notification_key: notificationKey,
-    p_recipient_role: recipient,
-    p_sent: result.sent,
-  });
-  if (finalize.error) throw finalize.error;
-  const resultReason = "reason" in result ? result.reason : undefined;
-
-  if (
-    recipient === "client" &&
-    (!result.sent || resultReason === "emails_disabled" || resultReason === "template_disabled")
-  ) {
-    const stamp = new Date().toISOString();
-    const patch =
-      key === "booking_reminder_24h"
-        ? { reminder_24h_sent_at: stamp }
-        : { reminder_1h_sent_at: stamp };
-    if (result.sent || resultReason === "emails_disabled" || resultReason === "template_disabled") {
-      await supabaseAdmin.from("appointments").update(patch).eq("id", row.id);
-    }
-  }
-  return result;
 }
 
 async function processReminders() {
@@ -146,6 +138,7 @@ async function processReminders() {
     key: ReminderKey;
     recipient: "client" | "partner";
     sent: boolean;
+    outcome: ReturnType<typeof reminderDeliveryOutcome>;
     reason?: string;
   }> = [];
 
@@ -153,9 +146,8 @@ async function processReminders() {
     const startsMs = new Date(row.starts_at).getTime();
     const minutesUntil = (startsMs - now) / 60000;
 
-    const due24h =
-      !row.reminder_24h_sent_at && minutesUntil >= win24Min && minutesUntil <= win24Max;
-    const due1h = !row.reminder_1h_sent_at && minutesUntil >= win1Min && minutesUntil <= win1Max;
+    const due24h = minutesUntil >= win24Min && minutesUntil <= win24Max;
+    const due1h = minutesUntil >= win1Min && minutesUntil <= win1Max;
 
     const toSend: ReminderKey[] = [];
     if (due24h) toSend.push("booking_reminder_24h");
@@ -165,6 +157,9 @@ async function processReminders() {
     for (const key of toSend) {
       for (const recipient of ["client", "partner"] as const) {
         if (recipient === "partner" && !row.partner_email) continue;
+        const clientSentAt =
+          key === "booking_reminder_24h" ? row.reminder_24h_sent_at : row.reminder_1h_sent_at;
+        if (!reminderRecipientPending(recipient, clientSentAt)) continue;
         try {
           const result = await sendReminderRecipient(
             supabaseAdmin,
@@ -178,6 +173,7 @@ async function processReminders() {
             key,
             recipient,
             sent: result.sent,
+            outcome: reminderDeliveryOutcome(result),
             reason: result.sent ? undefined : result.reason,
           });
         } catch (err) {
@@ -187,6 +183,7 @@ async function processReminders() {
             key,
             recipient,
             sent: false,
+            outcome: "failed",
             reason: err instanceof Error ? err.message : "unknown",
           });
         }

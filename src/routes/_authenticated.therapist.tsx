@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { z } from "zod";
 import {
   CalendarCheck,
   CalendarClock,
@@ -29,7 +30,9 @@ import {
 } from "@/lib/therapist.functions";
 
 export const Route = createFileRoute("/_authenticated/therapist")({
-  loader: async () => {
+  validateSearch: z.object({ as: z.string().uuid().optional() }),
+  loaderDeps: ({ search }) => ({ therapistId: search.as }),
+  loader: async ({ deps }) => {
     try {
       // Ensure the browser session exists on client-side navigations so unauthenticated users
       // are redirected to the login flow before attempting to load therapist data.
@@ -41,7 +44,10 @@ export const Route = createFileRoute("/_authenticated/therapist")({
         // if the redirect does not take effect in this environment.
       }
 
-      return { ok: true as const, data: await getTherapistDashboard() };
+      return {
+        ok: true as const,
+        data: await getTherapistDashboard({ data: { therapistId: deps.therapistId } }),
+      };
     } catch (error) {
       return {
         ok: false as const,
@@ -117,7 +123,11 @@ function TherapistDashboardContent({ initial }: { initial: TherapistDashboardDat
   const refresh = async () => {
     setRefreshing(true);
     try {
-      setData(await getTherapistDashboard());
+      setData(
+        await getTherapistDashboard({
+          data: data.adminPreview ? { therapistId: data.therapist.id } : {},
+        }),
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not refresh dashboard.");
     } finally {
@@ -160,6 +170,17 @@ function TherapistDashboardContent({ initial }: { initial: TherapistDashboardDat
       <SiteHeader />
       <main id="main" className="flex-1 bg-surface-page py-12 sm:py-16">
         <section className="mx-auto w-full max-w-6xl space-y-8 px-4 sm:px-6 lg:px-8">
+          {data.adminPreview ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+              <p>
+                Admin preview: you are viewing {data.therapist.fullName}&apos;s therapist dashboard.
+                Google Calendar actions are disabled in preview mode.
+              </p>
+              <Button asChild size="sm" variant="outline">
+                <Link to="/admin/therapists">Back to therapists</Link>
+              </Button>
+            </div>
+          ) : null}
           <header className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="eyebrow">Therapist workspace</p>
@@ -309,7 +330,7 @@ function TherapistDashboardContent({ initial }: { initial: TherapistDashboardDat
                     type="button"
                     size="sm"
                     onClick={() => void connectGoogle()}
-                    disabled={connecting}
+                    disabled={connecting || data.adminPreview}
                   >
                     {connecting ? (
                       <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
@@ -323,7 +344,7 @@ function TherapistDashboardContent({ initial }: { initial: TherapistDashboardDat
                         size="sm"
                         variant="outline"
                         onClick={() => void disconnectGoogle()}
-                        disabled={disconnecting}
+                        disabled={disconnecting || data.adminPreview}
                       >
                         {disconnecting ? "Disconnecting..." : "Disconnect"}
                       </Button>

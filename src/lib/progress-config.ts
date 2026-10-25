@@ -1,10 +1,6 @@
 import implementationChecklist from "../../docs/IMPLEMENTATION_CHECKLIST.md?raw";
 
-import type {
-  ChecklistSourceInput,
-  ProgressMilestoneConfig,
-  ProgressTaskLink,
-} from "@/lib/checklist-progress";
+import type { ChecklistSourceInput, ProgressTaskLink } from "@/lib/checklist-progress";
 import { normalizeTaskKey } from "@/lib/checklist-progress";
 
 export const PROGRESS_PROJECT_NAME = "Talk Space Production";
@@ -15,38 +11,12 @@ export const PROGRESS_SOURCES: ChecklistSourceInput[] = [
     label: "Implementation Checklist",
     path: "docs/IMPLEMENTATION_CHECKLIST.md",
     sourceUrl:
-      "https://github.com/enyasystem/talk-space-production/blob/develop/docs/IMPLEMENTATION_CHECKLIST.md",
+      "https://github.com/enyaelvis1/talk-space-pro-august_enyaelvis1/blob/develop/docs/IMPLEMENTATION_CHECKLIST.md",
     content: implementationChecklist,
   },
 ];
 
-export const PROGRESS_MILESTONES: ProgressMilestoneConfig[] = [
-  {
-    id: "foundation",
-    title: "Foundation and public experience",
-    sectionIds: ["01", "02", "03", "04", "05"],
-  },
-  {
-    id: "cms-auth",
-    title: "CMS and authentication",
-    sectionIds: ["06", "07"],
-  },
-  {
-    id: "care-operations",
-    title: "Care operations",
-    sectionIds: ["08", "09", "10", "11", "12", "13", "14", "15", "16", "17"],
-  },
-  {
-    id: "launch",
-    title: "Migration, hardening and launch",
-    sectionIds: ["18", "19", "20", "21", "22", "23", "24"],
-  },
-  {
-    id: "design-refresh",
-    title: "Calenira-inspired design refresh",
-    sectionIds: ["25"],
-  },
-];
+export { PROGRESS_MILESTONES } from "@/lib/progress-milestones";
 
 const taskLinks: Array<[string, ProgressTaskLink]> = [
   ["Build Blog", { href: "/blog", label: "Open Journal" }],
