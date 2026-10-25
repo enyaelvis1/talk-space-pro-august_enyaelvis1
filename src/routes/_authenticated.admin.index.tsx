@@ -3,11 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AdminOverview, AdminOverviewSkeleton } from "@/components/progress/AdminOverview";
 import { getAdminAppointmentWorkspace, type UpcomingAppointmentRow } from "@/lib/booking.functions";
 import { getAdminProgressWorkspace } from "@/lib/progress.functions";
-import {
-  getAdminOperationsWorkspace,
-  type AdminDashboardSummary,
-  type AdminFailureQueues,
-} from "@/lib/admin.functions";
+import { getAdminOperationsWorkspace } from "@/lib/admin.functions";
 import { buildProgressSnapshot } from "@/lib/checklist-progress";
 import {
   PROGRESS_MILESTONES,
@@ -23,29 +19,10 @@ export const Route = createFileRoute("/_authenticated/admin/")({
     const [progress, operations, appointments] = await Promise.all([
       getAdminProgressWorkspace(),
       getAdminOperationsWorkspace().catch(() => ({
-        summary: {
-          pages: 0,
-          posts: 0,
-          media: 0,
-          activeTherapists: 0,
-          clients: 0,
-          upcomingBookings: 0,
-          pendingMessages: 0,
-          pendingTransfers: 0,
-          pendingForms: 0,
-          failedGoogleSyncs: 0,
-        } satisfies AdminDashboardSummary,
-        failureQueues: {
-          notificationCount: 0,
-          meetCount: 0,
-          notifications: [],
-          meetSyncs: [],
-        } satisfies AdminFailureQueues,
+        summary: null,
+        failureQueues: null,
       })),
-      getAdminAppointmentWorkspace().catch(() => ({
-        todayAppointments: [] as UpcomingAppointmentRow[],
-        upcomingAppointments: [] as UpcomingAppointmentRow[],
-      })),
+      getAdminAppointmentWorkspace().catch(() => null),
     ]);
     // The dashboard is an admin landing page. A missing progress read must not
     // make the whole admin workspace disappear for other admins.
@@ -60,8 +37,9 @@ export const Route = createFileRoute("/_authenticated/admin/")({
         }),
       summary: operations.summary,
       failureQueues: operations.failureQueues,
-      todayAppointments: appointments.todayAppointments,
-      upcomingAppointments: appointments.upcomingAppointments,
+      todayAppointments: appointments?.todayAppointments ?? ([] as UpcomingAppointmentRow[]),
+      upcomingAppointments: appointments?.upcomingAppointments ?? ([] as UpcomingAppointmentRow[]),
+      appointmentsUnavailable: appointments === null,
       canViewProgress: progress?.canViewProgress ?? false,
     };
   },
@@ -77,6 +55,7 @@ function AdminPage() {
     todayAppointments,
     upcomingAppointments,
     canViewProgress,
+    appointmentsUnavailable,
   } = Route.useLoaderData();
 
   return (
@@ -87,6 +66,7 @@ function AdminPage() {
       todayAppointments={todayAppointments}
       upcomingAppointments={upcomingAppointments}
       canViewProgress={canViewProgress}
+      appointmentsUnavailable={appointmentsUnavailable}
     />
   );
 }
