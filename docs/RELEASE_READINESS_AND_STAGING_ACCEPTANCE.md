@@ -45,8 +45,11 @@ delivered features. All acceptance boxes below start unapproved.
 - Sanitized production build: passed using loopback-only Supabase placeholders
   and an empty inherited environment; no Sentry/provider keys are supplied.
 - npm audit --omit=dev --audit-level=high: passed, zero vulnerabilities reported.
-- Diff/pre-commit and final hosted checks: record after commit/push. Local
-  checks are not a substitute for hosted verification or production acceptance.
+- Diff/pre-commit: passed. Readiness source commit 3a99023 passed hosted verify,
+  dependency-audit and secret-scan; automatic preview checks also passed.
+  [Readiness PR #115](https://github.com/enyaelvis1/talk-space-pro-august_enyaelvis1/pull/115)
+  records the current head/check status, including documentation-only follow-ups.
+  Local checks are not a substitute for production acceptance.
 - No database/E2E scripts are run locally; these can execute migrations or need
   browser/backend fixtures. No live credentials, messages or transactions.
 
@@ -57,13 +60,19 @@ verify, secret-scan and preview checks pass on their recorded heads; their
 dependency-audit checks fail because those heads still contain Zod 4.6.5.
 Rerunning an unchanged old head does not install this readiness fix.
 
-- [ ] Readiness PR hosted verify (including standalone typecheck), dependency-audit
-      and secret-scan pass on the exact reviewed commit.
-- [ ] After that pass, refresh #112–#114 conflict metadata and rerun their existing
-      CI/security workflows. Record success/failure honestly per SHA.
-- [ ] Check an isolated, unpushed combined candidate of readiness + #112–#114
-      without merging PRs or altering existing branches. Require clean textual
-      application, typecheck, focused regression tests, audit and build.
+- [x] Readiness source commit 3a99023 passed hosted verify (including standalone
+      typecheck), dependency-audit and secret-scan. Any subsequent head still
+      requires its own green checks before approval.
+- [x] After that pass, refresh #112–#114 conflict metadata and rerun their existing
+      CI/security workflows. All remain OPEN/MERGEABLE at the heads above.
+      Security attempt 2 still fails dependency-audit on those unchanged heads;
+      no audit finding is suppressed or labelled resolved there. Verify reruns
+      were requested; use their current run results rather than the old pass.
+- [x] Check an isolated, unpushed combined candidate of readiness + #112–#114.
+      All 30 PR files apply cleanly without merging PRs or altering branches.
+      156 focused tests pass (0 failed/skipped); typecheck, lint, production build
+      and unsuppressed production dependency audit pass. Lint retains 7 baseline
+      warnings. This is a local compatibility fixture, not a released revision.
 - [ ] After separate merge authorization, integrate readiness into develop first;
       then update/recheck each approved feature against that base using normal
       commits, never rebase/force push. Require checks on the integrated revision.
@@ -73,6 +82,13 @@ Rerunning an unchanged old head does not install this readiness fix.
 No request to merge, promote, renew subscriptions, invoke a scheduler or run
 providers is implied by this plan. Existing Git integration may create previews
 when feature branches are pushed; no deployment command is introduced here.
+
+Hosted evidence: readiness CI run 40168713001 and security run 40168713012.
+Existing-PR verification reruns: #112 run 40082391478, #113 run 40081870234,
+#114 run 40082691280, all attempt 2. Security reruns: 40082391418, 40081870249,
+40082691206, all attempt 2. See the corresponding PR checks for terminal results.
+The prior R07/R08 engineering findings are corrected in #115, not automatically
+in develop/main or in the three unchanged feature heads.
 
 ## Bounded staging acceptance plan
 
