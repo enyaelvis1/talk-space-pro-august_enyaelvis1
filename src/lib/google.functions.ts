@@ -327,7 +327,8 @@ export const syncTherapistBusy = createServerFn({ method: "POST" })
 /**
  * Register a Google push-notification channel so the app is notified within
  * seconds whenever the therapist's calendar changes. Channels expire after
- * ~7 days (Google enforces the max TTL); the reminder cron re-registers.
+ * ~7 days (Google enforces the max TTL). Renewal is an explicit authorized
+ * operator action; do not assume the reminder cron renews subscriptions.
  */
 export const startTherapistWatch = createServerFn({ method: "POST" })
   .validator((d: z.infer<typeof therapistIdInput>) => therapistIdInput.parse(d))

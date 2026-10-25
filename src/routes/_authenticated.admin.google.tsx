@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { canonicalUrl } from "@/lib/seo";
 import { formatWATDateTime } from "@/lib/time";
 import { startVisiblePolling } from "@/lib/visible-polling";
+import { googleConnectionHealth } from "@/lib/google-connection-health";
 import {
   clearGoogleClientSecret,
   disconnectTherapistGoogle,
@@ -68,6 +69,19 @@ function GoogleAdminPage() {
   const [activity, setActivity] = useState<Record<string, GoogleSyncActivityRow[]>>({});
   const [loadingActivity, setLoadingActivity] = useState<string | null>(null);
   const [retryingAppt, setRetryingAppt] = useState<string | null>(null);
+  const [healthNow, setHealthNow] = useState(() => Date.now());
+
+  // Time-dependent labels must age while the screen stays open. This clock is
+  // local only: it never polls a provider or changes a subscription.
+  useEffect(() => {
+    const tick = () => setHealthNow(Date.now());
+    const timer = window.setInterval(tick, 60_000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, []);
 
   const reload = async () => {
     const workspace = await getGoogleAdminWorkspace();
@@ -311,7 +325,7 @@ function GoogleAdminPage() {
               connections.map((c) => {
                 const isOpen = expanded === c.therapistId;
                 const rows = activity[c.therapistId];
-                const hasFailures = c.failingAppointmentCount > 0 || Boolean(c.lastSyncError);
+                const health = googleConnectionHealth(c, healthNow);
                 const needsReconnect = !c.connected && Boolean(c.googleEmail || c.lastSyncError);
                 return (
                   <div key={c.therapistId} className="py-3">
@@ -319,23 +333,25 @@ function GoogleAdminPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="font-medium text-brand-deep">{c.therapistName || "—"}</p>
-                          {c.connected ? (
-                            hasFailures ? (
-                              <Badge variant="destructive" className="gap-1">
-                                <AlertTriangle className="h-3 w-3" /> Attention
-                              </Badge>
+                          <Badge
+                            variant={
+                              health.state === "healthy" || health.state === "disconnected"
+                                ? "outline"
+                                : "destructive"
+                            }
+                            className={
+                              health.state === "healthy"
+                                ? "gap-1 bg-emerald-100 text-emerald-800"
+                                : "gap-1"
+                            }
+                          >
+                            {health.state === "healthy" ? (
+                              <CheckCircle2 className="h-3 w-3" aria-hidden />
                             ) : (
-                              <Badge className="gap-1 bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
-                                <CheckCircle2 className="h-3 w-3" /> Healthy
-                              </Badge>
-                            )
-                          ) : needsReconnect ? (
-                            <Badge variant="destructive" className="gap-1">
-                              <AlertTriangle className="h-3 w-3" /> Reconnect required
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline">Not connected</Badge>
-                          )}
+                              <AlertTriangle className="h-3 w-3" aria-hidden />
+                            )}
+                            {health.label}
+                          </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground">
                           {c.connected
@@ -351,6 +367,10 @@ function GoogleAdminPage() {
                             : needsReconnect
                               ? `Previously connected${c.googleEmail ? ` as ${c.googleEmail}` : ""}`
                               : "Awaiting first connection"}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {needsReconnect ? "Reconnect required. " : null}
+                          {health.guidance}
                         </p>
                         {c.lastSyncError ? (
                           <p className="text-xs text-red-600">
