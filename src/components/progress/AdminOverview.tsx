@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -17,7 +17,7 @@ import {
   CreditCard,
   Settings2,
 } from "lucide-react";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
 
 import { AdminWorkspaceShell } from "@/components/progress/AdminSidebar";
 import { Badge } from "@/components/ui/badge";
@@ -155,14 +155,32 @@ export function AdminOverview({
   todayAppointments,
   upcomingAppointments,
   canViewProgress,
+  appointmentsUnavailable = false,
 }: {
   snapshot: ProgressSnapshot;
-  summary: AdminDashboardSummary;
-  failureQueues: AdminFailureQueues;
+  summary: AdminDashboardSummary | null;
+  failureQueues: AdminFailureQueues | null;
   todayAppointments: UpcomingAppointmentRow[];
   upcomingAppointments: UpcomingAppointmentRow[];
   canViewProgress: boolean;
+  appointmentsUnavailable?: boolean;
 }) {
+  const router = useRouter();
+  const [retrying, setRetrying] = useState(false);
+  const [retryFailed, setRetryFailed] = useState(false);
+  const unavailable = adminSummary === null || failureQueues === null || appointmentsUnavailable;
+  async function retryDashboard() {
+    if (retrying) return;
+    setRetrying(true);
+    setRetryFailed(false);
+    try {
+      await router.invalidate();
+    } catch {
+      setRetryFailed(true);
+    } finally {
+      setRetrying(false);
+    }
+  }
   const { summary } = snapshot;
   const directCompletionPercentage = summary.total
     ? Math.round((summary.completed / summary.total) * 100)
@@ -209,6 +227,24 @@ export function AdminOverview({
             </div>
           </header>
 
+          {unavailable || retryFailed ? (
+            <div role="status" className="rounded-xl border border-warning/30 bg-warning/10 p-4">
+              <p className="font-medium text-brand-deep">Some dashboard data is unavailable.</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Unavailable counts are not zero. Bookings, payments and other admin pages remain
+                accessible. Retry to load the latest data.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-3"
+                disabled={retrying}
+                onClick={() => void retryDashboard()}
+              >
+                {retrying ? "Retrying…" : "Retry dashboard"}
+              </Button>
+            </div>
+          ) : null}
           {/* Quick shortcuts: visible cards for easy access */}
           <h2 className="text-xl font-semibold text-brand-deep">Operations shortcuts</h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
@@ -230,7 +266,7 @@ export function AdminOverview({
                     </div>
                     <div className="text-right">
                       <p className="text-xl font-semibold text-brand-deep">
-                        {adminSummary.clients}
+                        {adminSummary?.clients ?? "Unavailable"}
                       </p>
                       <p className="text-xs text-muted-foreground">total</p>
                     </div>
@@ -284,7 +320,7 @@ export function AdminOverview({
                     </div>
                     <div className="text-right">
                       <p className="text-xl font-semibold text-brand-deep">
-                        {adminSummary.activeTherapists}
+                        {adminSummary?.activeTherapists ?? "Unavailable"}
                       </p>
                       <p className="text-xs text-muted-foreground">active</p>
                     </div>
@@ -311,7 +347,7 @@ export function AdminOverview({
                     </div>
                     <div className="text-right">
                       <p className="text-xl font-semibold text-brand-deep">
-                        {adminSummary.upcomingBookings}
+                        {adminSummary?.upcomingBookings ?? "Unavailable"}
                       </p>
                       <p className="text-xs text-muted-foreground">upcoming</p>
                     </div>
@@ -338,7 +374,7 @@ export function AdminOverview({
                     </div>
                     <div className="text-right">
                       <p className="text-xl font-semibold text-brand-deep">
-                        {adminSummary.pendingTransfers}
+                        {adminSummary?.pendingTransfers ?? "Unavailable"}
                       </p>
                       <p className="text-xs text-muted-foreground">pending</p>
                     </div>
@@ -365,7 +401,7 @@ export function AdminOverview({
                     </div>
                     <div className="text-right">
                       <p className="text-xl font-semibold text-brand-deep">
-                        {adminSummary.failedGoogleSyncs}
+                        {adminSummary?.failedGoogleSyncs ?? "Unavailable"}
                       </p>
                       <p className="text-xs text-muted-foreground">sync issues</p>
                     </div>
@@ -532,24 +568,24 @@ export function AdminOverview({
                 />
                 <MetricCard
                   label="Pending payments"
-                  value={adminSummary.pendingTransfers}
+                  value={adminSummary?.pendingTransfers ?? "Unavailable"}
                   detail="Payments awaiting confirmation or follow-up"
                   icon={<Files className="h-5 w-5" aria-hidden />}
-                  tone={adminSummary.pendingTransfers ? "danger" : "neutral"}
+                  tone={adminSummary?.pendingTransfers ? "danger" : "neutral"}
                 />
                 <MetricCard
                   label="Pending forms"
-                  value={adminSummary.pendingForms}
+                  value={adminSummary?.pendingForms ?? "Unavailable"}
                   detail="Draft and in-progress intake submissions"
                   icon={<Sparkles className="h-5 w-5" aria-hidden />}
-                  tone={adminSummary.pendingForms ? "blue" : "mint"}
+                  tone={adminSummary?.pendingForms ? "blue" : "neutral"}
                 />
                 <MetricCard
                   label="Meet sync issues"
-                  value={adminSummary.failedGoogleSyncs}
+                  value={adminSummary?.failedGoogleSyncs ?? "Unavailable"}
                   detail="Appointments that need Google Calendar attention"
                   icon={<CircleAlert className="h-5 w-5" aria-hidden />}
-                  tone={adminSummary.failedGoogleSyncs ? "danger" : "mint"}
+                  tone={adminSummary?.failedGoogleSyncs ? "danger" : "neutral"}
                 />
               </section>
             </>
@@ -581,43 +617,43 @@ export function AdminOverview({
                 <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   <MetricCard
                     label="Today"
-                    value={todayAppointmentsSorted.length}
+                    value={appointmentsUnavailable ? "Unavailable" : todayAppointmentsSorted.length}
                     detail="Appointments happening today"
                     icon={<CalendarClock className="h-5 w-5" aria-hidden />}
                     tone="blue"
                   />
                   <MetricCard
                     label="Upcoming bookings"
-                    value={adminSummary.upcomingBookings}
+                    value={adminSummary?.upcomingBookings ?? "Unavailable"}
                     detail="Confirmed or awaiting payment"
                     icon={<Clock3 className="h-5 w-5" aria-hidden />}
                   />
                   <MetricCard
                     label="Clients"
-                    value={adminSummary.clients}
+                    value={adminSummary?.clients ?? "Unavailable"}
                     detail="Client records in the workspace"
                     icon={<Files className="h-5 w-5" aria-hidden />}
                     tone="mint"
                   />
                   <MetricCard
                     label="Active therapists"
-                    value={adminSummary.activeTherapists}
+                    value={adminSummary?.activeTherapists ?? "Unavailable"}
                     detail="Profiles visible for operations"
                     icon={<CheckCircle2 className="h-5 w-5" aria-hidden />}
                   />
                   <MetricCard
                     label="Unread messages"
-                    value={adminSummary.pendingMessages}
+                    value={adminSummary?.pendingMessages ?? "Unavailable"}
                     detail="Contact messages awaiting acknowledgement"
                     icon={<CircleAlert className="h-5 w-5" aria-hidden />}
-                    tone={adminSummary.pendingMessages ? "danger" : "mint"}
+                    tone={adminSummary?.pendingMessages ? "danger" : "neutral"}
                   />
                   <MetricCard
                     label="Pending payments"
-                    value={adminSummary.pendingTransfers}
+                    value={adminSummary?.pendingTransfers ?? "Unavailable"}
                     detail="Payments awaiting confirmation or follow-up"
                     icon={<Files className="h-5 w-5" aria-hidden />}
-                    tone={adminSummary.pendingTransfers ? "danger" : "neutral"}
+                    tone={adminSummary?.pendingTransfers ? "danger" : "neutral"}
                   />
                 </div>
               </section>
@@ -636,7 +672,11 @@ export function AdminOverview({
                     <CalendarClock className="h-5 w-5 text-brand-blue" aria-hidden />
                   </CardHeader>
                   <CardContent>
-                    {todayAppointmentsSorted.length ? (
+                    {appointmentsUnavailable ? (
+                      <p className="text-sm text-muted-foreground">
+                        Today's sessions are unavailable.
+                      </p>
+                    ) : todayAppointmentsSorted.length ? (
                       <ul className="space-y-3">
                         {todayAppointmentsSorted.slice(0, 5).map((appointment) => (
                           <li
@@ -689,7 +729,11 @@ export function AdminOverview({
                     <Clock3 className="h-5 w-5 text-brand-blue" aria-hidden />
                   </CardHeader>
                   <CardContent>
-                    {upcomingSoon.length ? (
+                    {appointmentsUnavailable ? (
+                      <p className="text-sm text-muted-foreground">
+                        Upcoming sessions are unavailable.
+                      </p>
+                    ) : upcomingSoon.length ? (
                       <ol className="space-y-3">
                         {upcomingSoon.slice(0, 6).map((appointment, index) => (
                           <li
@@ -739,13 +783,13 @@ export function AdminOverview({
                 <ContentShortcut
                   href="/admin/journal"
                   label="Journal"
-                  detail={`${adminSummary.posts} posts · create or edit articles`}
+                  detail={`${adminSummary?.posts ?? "Unavailable"} posts · create or edit articles`}
                   icon={<Files className="h-5 w-5" aria-hidden />}
                 />
                 <ContentShortcut
                   href="/admin/therapists"
                   label="Therapists"
-                  detail={`${adminSummary.activeTherapists} active profiles · manage availability`}
+                  detail={`${adminSummary?.activeTherapists ?? "Unavailable"} active profiles · manage availability`}
                   icon={<CheckCircle2 className="h-5 w-5" aria-hidden />}
                 />
                 <ContentShortcut
@@ -759,132 +803,154 @@ export function AdminOverview({
           ) : null}
 
           <section aria-labelledby="failure-queues-heading">
-            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-              <div>
-                <p className="eyebrow">Needs attention</p>
-                <h2
-                  id="failure-queues-heading"
-                  className="mt-2 text-2xl font-semibold text-brand-deep"
-                >
+            {failureQueues === null ? (
+              <div className="rounded-xl border border-border p-4">
+                <h2 id="failure-queues-heading" className="text-xl font-semibold text-brand-deep">
                   Delivery failure queues
                 </h2>
-                <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-                  Unresolved notification and Google Meet failures. Successful retries disappear
-                  from these queues automatically.
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Failure queues are unavailable. This does not mean there are no delivery failures.
+                  Use Retry dashboard above or open Emails and Google Calendar to investigate.
                 </p>
               </div>
-              <Badge
-                className={`w-fit rounded-full px-3 py-1 ${
-                  failureQueues.notificationCount + failureQueues.meetCount
-                    ? "border-danger/20 bg-danger/10 text-danger"
-                    : "border-brand-mint/30 bg-brand-mint-soft text-brand-deep"
-                }`}
-              >
-                {failureQueues.notificationCount + failureQueues.meetCount} unresolved
-              </Badge>
-            </div>
-
-            <div className="mt-5 grid gap-6 lg:grid-cols-2">
-              <Card className="border-border/80 shadow-[0_8px_30px_rgba(22,50,79,0.04)]">
-                <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
+            ) : (
+              <>
+                <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
                   <div>
-                    <CardTitle className="text-lg text-brand-deep">Failed notifications</CardTitle>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Email attempts that still need a successful retry.
+                    <p className="eyebrow">Needs attention</p>
+                    <h2
+                      id="failure-queues-heading"
+                      className="mt-2 text-2xl font-semibold text-brand-deep"
+                    >
+                      Delivery failure queues
+                    </h2>
+                    <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+                      Unresolved notification and Google Meet failures. Successful retries disappear
+                      from these queues automatically.
                     </p>
                   </div>
-                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-danger/10 text-danger">
-                    <MailWarning className="h-5 w-5" aria-hidden />
-                  </span>
-                </CardHeader>
-                <CardContent>
-                  {failureQueues.notifications.length ? (
-                    <ul className="space-y-3">
-                      {failureQueues.notifications.map((row) => (
-                        <li
-                          key={row.id}
-                          className="rounded-xl border border-border/70 bg-surface-page p-4"
-                        >
-                          <div className="flex flex-wrap items-start justify-between gap-2">
-                            <p className="font-medium text-brand-deep">
-                              {row.templateKey?.replace(/_/g, " ") ?? "Direct email"}
-                            </p>
-                            <span className="text-xs text-muted-foreground">
-                              {formatLagosDateTime(row.createdAt)}
-                            </span>
-                          </div>
-                          <p className="mt-1 break-all text-xs text-muted-foreground">
-                            {row.recipient} · {row.retryCount} retries
-                          </p>
-                          <p className="mt-2 line-clamp-2 text-sm text-danger" title={row.error}>
-                            {row.error}
-                          </p>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div className="rounded-xl bg-brand-mint-soft p-4 text-sm text-brand-deep">
-                      No unresolved notification failures.
-                    </div>
-                  )}
-                  <Button asChild variant="outline" className="mt-4 w-full">
-                    <Link to="/admin/emails">
-                      Review email delivery <ArrowRight className="ml-2 h-4 w-4" />
-                    </Link>
-                  </Button>
-                </CardContent>
-              </Card>
+                  <Badge
+                    className={`w-fit rounded-full px-3 py-1 ${
+                      failureQueues.notificationCount + failureQueues.meetCount
+                        ? "border-danger/20 bg-danger/10 text-danger"
+                        : "border-brand-mint/30 bg-brand-mint-soft text-brand-deep"
+                    }`}
+                  >
+                    {failureQueues.notificationCount + failureQueues.meetCount} unresolved
+                  </Badge>
+                </div>
 
-              <Card className="border-border/80 shadow-[0_8px_30px_rgba(22,50,79,0.04)]">
-                <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
-                  <div>
-                    <CardTitle className="text-lg text-brand-deep">Failed Meet syncs</CardTitle>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Appointments missing a successful Calendar or Meet synchronisation.
-                    </p>
-                  </div>
-                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-danger/10 text-danger">
-                    <Video className="h-5 w-5" aria-hidden />
-                  </span>
-                </CardHeader>
-                <CardContent>
-                  {failureQueues.meetSyncs.length ? (
-                    <ul className="space-y-3">
-                      {failureQueues.meetSyncs.map((row) => (
-                        <li
-                          key={row.appointmentId}
-                          className="rounded-xl border border-border/70 bg-surface-page p-4"
-                        >
-                          <div className="flex flex-wrap items-start justify-between gap-2">
-                            <div>
-                              <p className="font-medium text-brand-deep">{row.clientName}</p>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                {row.bookingReference} · {row.therapistName ?? "Unassigned"}
+                <div className="mt-5 grid gap-6 lg:grid-cols-2">
+                  <Card className="border-border/80 shadow-[0_8px_30px_rgba(22,50,79,0.04)]">
+                    <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
+                      <div>
+                        <CardTitle className="text-lg text-brand-deep">
+                          Failed notifications
+                        </CardTitle>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Email attempts that still need a successful retry.
+                        </p>
+                      </div>
+                      <span className="grid h-10 w-10 place-items-center rounded-xl bg-danger/10 text-danger">
+                        <MailWarning className="h-5 w-5" aria-hidden />
+                      </span>
+                    </CardHeader>
+                    <CardContent>
+                      {failureQueues.notifications.length ? (
+                        <ul className="space-y-3">
+                          {failureQueues.notifications.map((row) => (
+                            <li
+                              key={row.id}
+                              className="rounded-xl border border-border/70 bg-surface-page p-4"
+                            >
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <p className="font-medium text-brand-deep">
+                                  {row.templateKey?.replace(/_/g, " ") ?? "Direct email"}
+                                </p>
+                                <span className="text-xs text-muted-foreground">
+                                  {formatLagosDateTime(row.createdAt)}
+                                </span>
+                              </div>
+                              <p className="mt-1 break-all text-xs text-muted-foreground">
+                                {row.recipient} · {row.retryCount} retries
                               </p>
-                            </div>
-                            <span className="text-xs text-muted-foreground">
-                              {formatLagosDateTime(row.startsAt)}
-                            </span>
-                          </div>
-                          <p className="mt-2 line-clamp-2 text-sm text-danger" title={row.error}>
-                            {row.error}
-                          </p>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div className="rounded-xl bg-brand-mint-soft p-4 text-sm text-brand-deep">
-                      No unresolved Calendar or Meet failures.
-                    </div>
-                  )}
-                  <Button asChild variant="outline" className="mt-4 w-full">
-                    <Link to="/admin/google">
-                      Review Google sync <ArrowRight className="ml-2 h-4 w-4" />
-                    </Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
+                              <p
+                                className="mt-2 line-clamp-2 text-sm text-danger"
+                                title={row.error}
+                              >
+                                {row.error}
+                              </p>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <div className="rounded-xl bg-brand-mint-soft p-4 text-sm text-brand-deep">
+                          No unresolved notification failures.
+                        </div>
+                      )}
+                      <Button asChild variant="outline" className="mt-4 w-full">
+                        <Link to="/admin/emails">
+                          Review email delivery <ArrowRight className="ml-2 h-4 w-4" />
+                        </Link>
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-border/80 shadow-[0_8px_30px_rgba(22,50,79,0.04)]">
+                    <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
+                      <div>
+                        <CardTitle className="text-lg text-brand-deep">Failed Meet syncs</CardTitle>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Appointments missing a successful Calendar or Meet synchronisation.
+                        </p>
+                      </div>
+                      <span className="grid h-10 w-10 place-items-center rounded-xl bg-danger/10 text-danger">
+                        <Video className="h-5 w-5" aria-hidden />
+                      </span>
+                    </CardHeader>
+                    <CardContent>
+                      {failureQueues.meetSyncs.length ? (
+                        <ul className="space-y-3">
+                          {failureQueues.meetSyncs.map((row) => (
+                            <li
+                              key={row.appointmentId}
+                              className="rounded-xl border border-border/70 bg-surface-page p-4"
+                            >
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                  <p className="font-medium text-brand-deep">{row.clientName}</p>
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    {row.bookingReference} · {row.therapistName ?? "Unassigned"}
+                                  </p>
+                                </div>
+                                <span className="text-xs text-muted-foreground">
+                                  {formatLagosDateTime(row.startsAt)}
+                                </span>
+                              </div>
+                              <p
+                                className="mt-2 line-clamp-2 text-sm text-danger"
+                                title={row.error}
+                              >
+                                {row.error}
+                              </p>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <div className="rounded-xl bg-brand-mint-soft p-4 text-sm text-brand-deep">
+                          No unresolved Calendar or Meet failures.
+                        </div>
+                      )}
+                      <Button asChild variant="outline" className="mt-4 w-full">
+                        <Link to="/admin/google">
+                          Review Google sync <ArrowRight className="ml-2 h-4 w-4" />
+                        </Link>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </>
+            )}
           </section>
 
           <section aria-labelledby="content-shortcuts-heading">
