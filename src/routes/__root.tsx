@@ -7,6 +7,7 @@ import {
   useRouterState,
   HeadContent,
   Scripts,
+  type ErrorComponentProps,
 } from "@tanstack/react-router";
 import * as Sentry from "@sentry/tanstackstart-react";
 import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
@@ -19,6 +20,7 @@ import { PublicRouteSkeleton } from "@/components/site/PublicRouteSkeleton";
 import { DEFAULT_PUBLIC_SHELL_DATA, getPublicShellData } from "@/lib/content.functions";
 import { reportLovableError } from "@/lib/lovable-error-reporting";
 import { claimAutomaticRouteRetry, routeRecoveryKey } from "@/lib/route-recovery";
+import { isNavigationPending, routeErrorDetails } from "@/lib/router-feedback";
 import appCss from "../styles.css?url";
 import { OG_IMAGE_URL, SITE_URL } from "../lib/seo";
 
@@ -46,7 +48,7 @@ function NotFoundComponent() {
   );
 }
 
-function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function ErrorComponent({ error, reset }: ErrorComponentProps) {
   console.error(error);
   const router = useRouter();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -79,10 +81,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     );
   }
 
-  const detail =
-    error instanceof Response
-      ? `Response ${error.status}${error.url ? ` at ${error.url}` : ""}`
-      : (error?.message ?? String(error));
+  const detail = routeErrorDetails(error);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -92,15 +91,15 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">The app reported this error:</p>
         <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md border border-destructive/30 bg-destructive/5 p-3 text-left text-xs text-destructive">
-          {detail}
+          {detail.message}
         </pre>
-        {error?.stack ? (
+        {detail.stack ? (
           <details className="mt-3 text-left">
             <summary className="cursor-pointer text-xs text-muted-foreground">
               Technical details
             </summary>
             <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md bg-foreground/90 p-3 text-xs text-background">
-              {error.stack}
+              {detail.stack}
             </pre>
           </details>
         ) : null}
@@ -129,7 +128,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 
 function PublicLoadingIndicator() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const isLoading = useRouterState({ select: (state) => state.isLoading || state.isTransitioning });
+  const isLoading = useRouterState({ select: isNavigationPending });
 
   if (!isLoading) return null;
   if (pathname.startsWith("/admin")) return null;
