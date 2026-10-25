@@ -142,7 +142,8 @@ function cleanHeading(value: string) {
 }
 
 function sectionDetails(heading: string) {
-  const value = cleanHeading(heading);
+  // Legacy hand-maintained counts are not authoritative; the UI calculates them.
+  const value = cleanHeading(heading).replace(/\s+[—–]\s+\d+\/\d+.*$/, "");
   const match = value.match(/^(\d+(?:\.\d+)?)\s*[.):-]\s*(.+)$/);
   if (match) return { id: match[1], title: match[2].trim() };
   return { id: normalizeTaskKey(value), title: value };

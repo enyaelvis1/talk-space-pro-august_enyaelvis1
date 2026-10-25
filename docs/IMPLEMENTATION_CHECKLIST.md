@@ -522,3 +522,23 @@ The larger product backlog extracted from the remaining items is tracked in
 4. Update related architecture documents.
 5. Record blockers, owner and unblock condition.
 6. Treat new scope as a written change request.
+
+## Production reconciliation — 24 October 2026
+
+The live tracker still reports the markers above: 133 completed, 60 unchecked,
+and 7 partial (67 outstanding markers in total). These markers are not a count
+of production defects or missing software. The source is bundled at build time;
+the dashboard's “Synced/Updated” timestamp is snapshot-generation time.
+
+The existing [production reconciliation report](CURRENT_IMPLEMENTATION_RECONCILED_AUDIT.md)
+records read-only live checks, confirmed exceptions, release-provenance limits
+and the original-scope boundary. The existing
+[remaining-work register](ACTUAL_REMAINING_ISSUES_CHECKLIST.md) maps every one of
+these 200 records and gives the exact disposition of all 67 open markers.
+Use those dispositions to close stale markers only after owner acceptance;
+do not rebuild completed functionality or automatically check every item.
+
+No task marker or production configuration was changed by this documentation
+review. Headings/notes that contradict later delivery evidence are explicitly
+identified in the reconciliation report rather than silently treated as new
+implementation work.
