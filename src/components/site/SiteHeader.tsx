@@ -237,11 +237,7 @@ export function SiteHeader() {
                   Sign out
                 </Button>
               </>
-            ) : (
-              <Button asChild variant="pillOutline" size="pill" className="hidden lg:inline-flex">
-                <Link to="/login">Login</Link>
-              </Button>
-            )}
+            ) : null}
             <Button
               asChild
               variant="terracotta"
@@ -366,11 +362,7 @@ export function SiteHeader() {
                     Sign out
                   </Button>
                 </>
-              ) : (
-                <Button asChild variant="pillOutline" size="pill" className="h-12 w-full text-base">
-                  <Link to="/login">Login</Link>
-                </Button>
-              )}
+              ) : null}
             </div>
           </nav>
         </div>

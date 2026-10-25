@@ -25,6 +25,7 @@ import {
 
 import { SiteHeader } from "@/components/site/SiteHeader";
 import { SiteFooter } from "@/components/site/SiteFooter";
+import { GoogleReviewLink } from "@/components/site/GoogleReviewLink";
 import { PublicRouteSkeleton } from "@/components/site/PublicRouteSkeleton";
 import { claimAutomaticRouteRetry } from "@/lib/route-recovery";
 import { OptimizedImage } from "@/components/site/OptimizedImage";
@@ -987,7 +988,11 @@ function Reviews({
   googleReviews: GoogleReviewSettings;
   copy: HomepageSectionCopy;
 }) {
-  const slides =
+  const slides: Array<{
+    review: { name: string; quote: string; role: string };
+    avatar?: string;
+    reviewUrl?: string;
+  }> =
     googleReviews.reviews.length > 0
       ? googleReviews.reviews.map((review) => ({
           review: {
@@ -996,6 +1001,7 @@ function Reviews({
             role: review.location ?? "Happy Client",
           },
           avatar: review.avatarUrl,
+          reviewUrl: googleReviews.reviewUrl,
         }))
       : testimonials.length > 0
         ? testimonials.map((testimonial) => ({
@@ -1005,6 +1011,7 @@ function Reviews({
               role: testimonial.authorRole ?? "Happy Client",
             },
             avatar: testimonial.avatarUrl ?? undefined,
+            reviewUrl: undefined,
           }))
         : REVIEWS.map((review) => ({
             review: {
@@ -1013,6 +1020,7 @@ function Reviews({
               role: "Happy Client",
             },
             avatar: undefined,
+            reviewUrl: undefined,
           }));
   const [groupSize, setGroupSize] = useState(1);
   const [activeGroup, setActiveGroup] = useState(0);
@@ -1147,6 +1155,9 @@ function Reviews({
                           {slide.review.name}
                         </p>
                         <p className="mt-1 text-sm text-muted-foreground">{slide.review.role}</p>
+                        {slide.reviewUrl ? (
+                          <GoogleReviewLink url={slide.reviewUrl} name={slide.review.name} />
+                        ) : null}
                       </figcaption>
                     </figure>
                   </div>
