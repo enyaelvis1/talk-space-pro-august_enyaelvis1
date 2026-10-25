@@ -17,6 +17,7 @@
     "prepare": "node scripts/setup-git-hooks.mjs",
     "audit:deps": "npm audit --omit=dev --audit-level=high",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "node scripts/run-tests-sequentially.mjs",
     "db:seed:clients": "node scripts/seed-demo-clients.mjs",
@@ -97,7 +98,7 @@
     "tw-animate-css": "^1.3.4",
     "vaul": "^1.1.2",
     "vite-tsconfig-paths": "^6.0.2",
-    "zod": "^4"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

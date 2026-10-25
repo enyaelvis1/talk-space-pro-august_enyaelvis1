@@ -37,6 +37,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { useBrowserAuthState } from "@/hooks/use-browser-auth-state";
 import { hasProgressAccess } from "@/lib/progress-access";
 import { PUBLIC_PAGE_CONFIG } from "@/lib/public-pages";
+import { isNavigationPending } from "@/lib/router-feedback";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 
 const primaryNavigation = [
@@ -490,7 +491,7 @@ function SidebarContent({
 
 function AdminLoadingOverlay() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const isLoading = useRouterState({ select: (state) => state.isLoading || state.isTransitioning });
+  const isLoading = useRouterState({ select: isNavigationPending });
 
   if (!isLoading) return null;
 
