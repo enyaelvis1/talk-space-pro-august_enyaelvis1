@@ -23,9 +23,11 @@ export function formatSlotLabel(slot: BookingSlot) {
 }
 
 export function formatSlotTime(slot: Pick<BookingSlot, "startsAt">) {
-  return new Intl.DateTimeFormat("en-NG", {
+  const time = new Intl.DateTimeFormat("en-NG", {
     hour: "numeric",
     minute: "2-digit",
     timeZone: "Africa/Lagos",
   }).format(new Date(slot.startsAt));
+
+  return `${time} WAT`;
 }

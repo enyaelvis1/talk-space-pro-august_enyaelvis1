@@ -39,6 +39,7 @@ import {
 import { fallbackInPersonPriceNgn, isMissingInPersonPriceColumn } from "@/lib/service-pricing";
 import { requireRequestRole } from "@/lib/server-auth";
 import { isPendingPaymentForAdminDashboard } from "@/lib/payment-booking-review";
+import { parseFaqCategoryOrder } from "@/lib/faq-category-order";
 
 function getConfiguredClient() {
   const bag = createRequestSupabase(getRequest());
@@ -3519,6 +3520,35 @@ export const listAdminFaqs = createServerFn({ method: "GET" }).handler(
     return (data ?? []).map((r) => mapFaq(r as Record<string, unknown>));
   },
 );
+
+export const getAdminFaqCategoryOrder = createServerFn({ method: "GET" }).handler(
+  async (): Promise<string[]> => {
+    const bag = await requireAdmin();
+    const { data, error } = await bag.client
+      .from("site_settings")
+      .select("value")
+      .eq("key", "faq_category_order")
+      .maybeSingle();
+    bag.commitCookies();
+    if (error) throw error;
+    return parseFaqCategoryOrder(data?.value);
+  },
+);
+
+export const updateAdminFaqCategoryOrder = createServerFn({ method: "POST" })
+  .validator((data: unknown) =>
+    z.object({ categories: z.array(z.string().trim().min(1).max(120)).max(200) }).parse(data),
+  )
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const categories = [...new Set(data.categories)];
+    const bag = await requireAdmin();
+    const { error } = await bag.client
+      .from("site_settings")
+      .upsert({ key: "faq_category_order", value: categories }, { onConflict: "key" });
+    bag.commitCookies();
+    if (error) throw error;
+    return { ok: true };
+  });
 
 const faqInputSchema = z.object({
   category: z.string().min(1).max(120),

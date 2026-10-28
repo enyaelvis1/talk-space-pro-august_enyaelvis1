@@ -18,12 +18,15 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { canonicalUrl } from "@/lib/seo";
+import { orderFaqCategories } from "@/lib/faq-category-order";
 import { RevisionHistoryButton } from "@/components/admin/RevisionHistoryButton";
 import {
   createFaq,
   deleteFaq,
+  getAdminFaqCategoryOrder,
   listAdminFaqs,
   reorderFaqs,
+  updateAdminFaqCategoryOrder,
   updateFaq,
   type AdminFaqRow,
 } from "@/lib/admin.functions";
@@ -31,7 +34,11 @@ import {
 export const Route = createFileRoute("/_authenticated/admin/faqs")({
   loader: async () => {
     try {
-      return await listAdminFaqs();
+      const [faqs, categoryOrder] = await Promise.all([
+        listAdminFaqs(),
+        getAdminFaqCategoryOrder(),
+      ]);
+      return { faqs, categoryOrder };
     } catch {
       throw redirect({ href: "/account?error=forbidden" });
     }
@@ -68,7 +75,9 @@ const EMPTY: FormState = {
 
 function FaqsAdminRoute() {
   const initial = Route.useLoaderData();
-  const [rows, setRows] = useState<AdminFaqRow[]>(initial);
+  const [rows, setRows] = useState<AdminFaqRow[]>(initial.faqs);
+  const [categoryOrder, setCategoryOrder] = useState<string[]>(initial.categoryOrder);
+  const [savingCategoryOrder, setSavingCategoryOrder] = useState(false);
   const [form, setForm] = useState<FormState | null>(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -85,10 +94,32 @@ function FaqsAdminRoute() {
         k,
         [...arr].sort((a, b) => a.displayOrder - b.displayOrder),
       );
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [rows]);
+    const orderedCategories = orderFaqCategories(Array.from(map.keys()), categoryOrder);
+    return orderedCategories.map(
+      (category) => [category, map.get(category)!] as [string, AdminFaqRow[]],
+    );
+  }, [rows, categoryOrder]);
 
   const categories = useMemo(() => Array.from(new Set(rows.map((r) => r.category))).sort(), [rows]);
+
+  async function moveCategory(index: number, dir: -1 | 1) {
+    const target = index + dir;
+    if (target < 0 || target >= grouped.length || savingCategoryOrder) return;
+    const previous = grouped.map(([category]) => category);
+    const next = [...previous];
+    [next[index], next[target]] = [next[target], next[index]];
+    setCategoryOrder(next);
+    setSavingCategoryOrder(true);
+    try {
+      await updateAdminFaqCategoryOrder({ data: { categories: next } });
+      toast.success("FAQ category order saved.");
+    } catch (err) {
+      setCategoryOrder(previous);
+      toast.error(err instanceof Error ? err.message : "Category reorder failed.");
+    } finally {
+      setSavingCategoryOrder(false);
+    }
+  }
 
   function openNew(category?: string) {
     setForm({ ...EMPTY, category: category ?? categories[0] ?? "General" });
@@ -195,7 +226,7 @@ function FaqsAdminRoute() {
           <div>
             <h1 className="text-2xl font-semibold text-brand-deep">FAQs</h1>
             <p className="text-sm text-muted-foreground">
-              Grouped by category. Reorder within a category with the arrows.
+              Reorder FAQ categories with the arrows; reorder questions within each category.
             </p>
           </div>
           <Button onClick={() => openNew()}>
@@ -209,12 +240,32 @@ function FaqsAdminRoute() {
               No FAQs yet.
             </p>
           ) : null}
-          {grouped.map(([category, items]) => (
+          {grouped.map(([category, items], categoryIndex) => (
             <section key={category}>
               <div className="mb-2 flex items-center justify-between">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-brand-deep/70">
-                  {category}
-                </h2>
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label={`Move ${category} up`}
+                    onClick={() => moveCategory(categoryIndex, -1)}
+                    disabled={categoryIndex === 0 || savingCategoryOrder}
+                  >
+                    <ArrowUp className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label={`Move ${category} down`}
+                    onClick={() => moveCategory(categoryIndex, 1)}
+                    disabled={categoryIndex === grouped.length - 1 || savingCategoryOrder}
+                  >
+                    <ArrowDown className="h-4 w-4" />
+                  </Button>
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-brand-deep/70">
+                    {category}
+                  </h2>
+                </div>
                 <Button size="sm" variant="ghost" onClick={() => openNew(category)}>
                   <Plus className="mr-1 h-3.5 w-3.5" /> Add to {category}
                 </Button>
