@@ -1171,12 +1171,14 @@ export function SectionRenderer({
             spacing={
               isEmergencySection(section.id)
                 ? "none"
-                : section.id === "about-values" ||
-                    section.id === "about-story" ||
-                    isContactGrid(section.id) ||
-                    isPricingFaq(section.id)
+                : section.type === "faqList"
                   ? "none"
-                  : spacingMap[section.spacing]
+                  : section.id === "about-values" ||
+                      section.id === "about-story" ||
+                      isContactGrid(section.id) ||
+                      isPricingFaq(section.id)
+                    ? "none"
+                    : spacingMap[section.spacing]
             }
             surface={
               isEmergencySection(section.id)
