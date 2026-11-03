@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerFn } from "@tanstack/react-start";
+import { orderFaqCategories, parseFaqCategoryOrder } from "@/lib/faq-category-order";
 import { setResponseHeader } from "@tanstack/react-start/server";
 import { createPublicReadCache } from "@/lib/public-read-cache";
 import { parseSpecialtyCards, type SpecialtyCard } from "@/lib/specialty-cards";
@@ -1409,14 +1410,26 @@ export const listPublicFaqs = createServerFn({ method: "GET" }).handler(
     const config = await getPublicClient();
     if (!config) return [];
     setResponseHeader("Cache-Control", "no-store");
-    const { data, error } = await config.client
-      .from("faqs")
-      .select("id, category, question, answer")
-      .eq("is_published", true)
-      .order("category", { ascending: true })
-      .order("display_order", { ascending: true });
+    const [{ data, error }, { data: settingsData, error: settingsError }] = await Promise.all([
+      config.client
+        .from("faqs")
+        .select("id, category, question, answer")
+        .eq("is_published", true)
+        .order("category", { ascending: true })
+        .order("display_order", { ascending: true }),
+      config.client
+        .from("site_settings")
+        .select("value")
+        .eq("key", "faq_category_order")
+        .maybeSingle(),
+    ]);
     if (error) throw error;
-    return uniquePublicFaqs((data ?? []) as PublicFaq[]);
+    const rows = uniquePublicFaqs((data ?? []) as PublicFaq[]);
+    const categories = [...new Set(rows.map((row) => row.category))];
+    const preferredOrder = settingsError ? [] : parseFaqCategoryOrder(settingsData?.value);
+    const orderedCategories = orderFaqCategories(categories, preferredOrder);
+    const rank = new Map(orderedCategories.map((category, index) => [category, index]));
+    return rows.sort((a, b) => (rank.get(a.category) ?? 0) - (rank.get(b.category) ?? 0));
   },
 );
 

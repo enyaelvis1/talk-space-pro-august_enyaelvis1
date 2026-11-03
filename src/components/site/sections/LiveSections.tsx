@@ -74,7 +74,8 @@ function FaqGroups() {
   const { data } = useSuspenseQuery({
     queryKey: ["public-faqs"],
     queryFn: () => listPublicFaqs(),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   const groups = new Map<string, { question: string; answer: string }[]>();
@@ -89,7 +90,7 @@ function FaqGroups() {
   }
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-8">
       {Array.from(groups.entries()).map(([title, items]) => (
         <section key={title} id={anchorFor(title)} className="scroll-mt-24">
           <h2 className="text-brand-deep">{title}</h2>

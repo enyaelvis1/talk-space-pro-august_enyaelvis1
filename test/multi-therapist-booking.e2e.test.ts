@@ -50,7 +50,7 @@ test("10:30 WAT retains one slot per therapist and mode", () => {
       mode: "online" as const,
     },
   ];
-  assert.match(formatSlotTime(slots[0]), /10:30/);
+  assert.match(formatSlotTime(slots[0]), /10:30 WAT/);
   assert.equal(uniqueBookingSlots(slots).length, 2);
 });
 
@@ -68,8 +68,21 @@ test("public availability labels do not expose therapist names", () => {
 
 test("booking time options show the time without repeating the date", () => {
   const time = formatSlotTime({ startsAt: "2030-10-01T09:00:00+01:00" });
-  assert.match(time, /^9:00$/);
+  assert.match(time, /^9:00 WAT$/);
   assert.doesNotMatch(time, /2030|Oct|Oct\.|01/);
+});
+
+test("booking times are explicitly WAT across the UK daylight-saving transition", () => {
+  const startsAt = "2026-10-27T15:00:00Z";
+  const bookingTime = formatSlotTime({ startsAt });
+  const ukTime = new Intl.DateTimeFormat("en-GB", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Europe/London",
+  }).format(new Date(startsAt));
+
+  assert.match(bookingTime, /^16:00 WAT$/);
+  assert.equal(ukTime, "15:00");
 });
 
 test(
@@ -84,7 +97,7 @@ test(
         await page.goto(harness.url);
         for (const optionIndex of [0, 1]) {
           await page.getByRole("combobox").click();
-          const options = page.getByRole("option", { name: /^10:00$/ });
+          const options = page.getByRole("option", { name: /^10:00 WAT$/ });
           assert.equal(await options.count(), 2);
           await options.nth(optionIndex).click();
           await page.getByRole("button", { name: "Add session" }).click();
