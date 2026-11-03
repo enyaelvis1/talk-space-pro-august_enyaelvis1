@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
 import { setResponseHeader } from "@tanstack/react-start/server";
 
-import { getPublishedPages, getPublishedPosts } from "@/lib/content.functions";
+import { getPublicSitemapContent } from "@/lib/content.functions";
 import { PUBLIC_PAGE_CONFIG } from "@/lib/public-pages";
 import { SITE_URL } from "@/lib/seo";
 import { buildSitemapXml, type SitemapEntry } from "@/lib/sitemap";
@@ -39,23 +39,28 @@ export const Route = createFileRoute("/sitemap.xml")({
   server: {
     handlers: {
       GET: async () => {
-        const [posts, pages] = await Promise.all([getPublishedPosts(), getPublishedPages()]);
-        const publishedPages = new Map(pages.map((page) => [page.slug, page]));
+        const content = await getPublicSitemapContent();
+        const publishedPages = new Map(
+          content.filter((entry) => entry.kind === "page").map((page) => [page.slug, page]),
+        );
         const configuredPageSlugs = new Set(PUBLIC_PAGE_CONFIG.map((page) => page.contentSlug));
         const staticEntries = PUBLIC_SITEMAP_ENTRIES.filter(
-          (entry) => !entry.contentSlug || !publishedPages.get(entry.contentSlug)?.seo.noindex,
+          (entry) => !entry.contentSlug || !publishedPages.get(entry.contentSlug)?.noindex,
         ).map(({ contentSlug: _contentSlug, ...entry }) => entry);
         const entries: SitemapEntry[] = [
           ...staticEntries,
-          ...posts
-            .filter((post) => !post.seo.noindex)
+          ...content
+            .filter((entry) => entry.kind === "post" && !entry.noindex)
             .map((post) => ({
               path: `/blog/${post.slug}`,
               changefreq: "monthly" as const,
               priority: "0.6",
             })),
-          ...pages
-            .filter((page) => !configuredPageSlugs.has(page.slug) && !page.seo.noindex)
+          ...content
+            .filter(
+              (page) =>
+                page.kind === "page" && !configuredPageSlugs.has(page.slug) && !page.noindex,
+            )
             .map((page) => ({
               path: `/content/pages/${page.slug}`,
               changefreq: "yearly" as const,
