@@ -17,10 +17,21 @@ test("builds valid escaped XML and removes duplicate locations", () => {
 
 test("sitemap keeps canonical public paths and filters non-indexable CMS content", async () => {
   const source = await readFile(new URL("../src/routes/sitemap[.]xml.ts", import.meta.url), "utf8");
+  const contentSource = await readFile(
+    new URL("../src/lib/content.functions.ts", import.meta.url),
+    "utf8",
+  );
 
   assert.match(source, /PUBLIC_PAGE_CONFIG/);
-  assert.match(source, /!publishedPages\.get\(entry\.contentSlug\)\?\.seo\.noindex/);
-  assert.match(source, /!configuredPageSlugs\.has\(page\.slug\) && !page\.seo\.noindex/);
+  assert.match(source, /!publishedPages\.get\(entry\.contentSlug\)\?\.noindex/);
+  assert.match(source, /!configuredPageSlugs\.has\(page\.slug\)/);
+  assert.match(source, /!page\.noindex/);
+  assert.match(source, /getPublicSitemapContent\(\)/);
+  assert.match(contentSource, /\.select\("kind, slug, metadata"\)/);
+  assert.match(contentSource, /\.in\("kind", \["page", "post"\]\)/);
+  assert.match(contentSource, /\.is\("archived_at", null\)/);
+  assert.doesNotMatch(contentSource, /getPublishedPosts = createServerFn/);
+  assert.doesNotMatch(contentSource, /getPublishedPages = createServerFn/);
 });
 
 test("robots.txt advertises the submitted sitemap URL", async () => {

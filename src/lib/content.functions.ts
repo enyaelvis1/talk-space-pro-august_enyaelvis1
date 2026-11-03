@@ -1239,28 +1239,62 @@ export function renderContentEntry(
   };
 }
 
-export const getPublishedPosts = createServerFn({ method: "GET" }).handler(async () => {
-  const config = await getPublicClient();
-  if (!config) return [];
+export type PublicSitemapContentEntry = {
+  kind: "page" | "post";
+  slug: string;
+  noindex: boolean;
+};
 
-  setResponseHeader("Cache-Control", "no-store");
+export const getPublicSitemapContent = createServerFn({ method: "GET" }).handler(
+  async (): Promise<PublicSitemapContentEntry[]> => {
+    const config = await getPublicClient();
+    if (!config) return [];
 
-  const [{ data, error }, categories] = await Promise.all([
-    config.client
+    setResponseHeader("Cache-Control", "no-store");
+    const { data, error } = await config.client
       .from("content_entries")
-      .select(
-        "id, kind, slug, title, excerpt_html, body_html, author_name, published_at, featured_media_path, metadata",
-      )
-      .eq("kind", "post")
+      .select("kind, slug, metadata")
+      .in("kind", ["page", "post"])
       .eq("source_status", "publish")
-      .is("archived_at", null)
-      .order("published_at", { ascending: false }),
-    getCategories(config.client),
-  ]);
-  if (error) throw error;
+      .is("archived_at", null);
+    if (error) throw error;
 
-  return data.map((entry) => renderContentEntry(entry, categories, config.url));
-});
+    return (data ?? []).flatMap((entry) => {
+      if (entry.kind !== "page" && entry.kind !== "post") return [];
+      const seo = entry.metadata?.seo;
+      const noindex =
+        seo && typeof seo === "object" && !Array.isArray(seo)
+          ? (seo as Record<string, unknown>).noindex === true
+          : false;
+      return [{ kind: entry.kind, slug: entry.slug, noindex }];
+    });
+  },
+);
+
+export const getRelatedPublishedPosts = createServerFn({ method: "GET" })
+  .validator((data: { excludeSlug: string }) => data)
+  .handler(async ({ data }) => {
+    const config = await getPublicClient();
+    if (!config) return [];
+
+    setResponseHeader("Cache-Control", "no-store");
+    const [{ data: entries, error }, categories] = await Promise.all([
+      config.client
+        .from("content_entries")
+        .select(
+          "id, kind, slug, title, excerpt_html, author_name, published_at, featured_media_path, metadata",
+        )
+        .eq("kind", "post")
+        .eq("source_status", "publish")
+        .is("archived_at", null)
+        .neq("slug", data.excludeSlug)
+        .order("published_at", { ascending: false })
+        .limit(2),
+      getCategories(config.client),
+    ]);
+    if (error) throw error;
+    return entries.map((entry) => renderContentEntry(entry, categories, config.url));
+  });
 
 export const getPublishedPostsPage = createServerFn({ method: "GET" })
   .validator((data: { page: number }) => data)
@@ -1277,7 +1311,7 @@ export const getPublishedPostsPage = createServerFn({ method: "GET" })
       config.client
         .from("content_entries")
         .select(
-          "id, kind, slug, title, excerpt_html, body_html, author_name, published_at, featured_media_path, metadata, updated_at",
+          "id, kind, slug, title, excerpt_html, author_name, published_at, featured_media_path, metadata, updated_at",
           { count: "exact" },
         )
         .eq("kind", "post")
@@ -1298,26 +1332,6 @@ export const getPublishedPostsPage = createServerFn({ method: "GET" })
       total,
     } satisfies PublishedPostsPage;
   });
-
-export const getPublishedPages = createServerFn({ method: "GET" }).handler(async () => {
-  const config = await getPublicClient();
-  if (!config) return [];
-
-  setResponseHeader("Cache-Control", "no-store");
-
-  const { data, error } = await config.client
-    .from("content_entries")
-    .select(
-      "id, kind, slug, title, excerpt_html, author_name, published_at, featured_media_path, metadata",
-    )
-    .eq("kind", "page")
-    .eq("source_status", "publish")
-    .is("archived_at", null)
-    .order("title");
-  if (error) throw error;
-
-  return data.map((entry) => renderContentEntry(entry, new Map<number, string>(), config.url));
-});
 
 export const getPublishedPost = createServerFn({ method: "GET" })
   .validator((data: { slug: string }) => data)
@@ -1542,7 +1556,7 @@ export const getPublicHomepageData = createServerFn({ method: "GET" }).handler(
             config.client
               .from("content_entries")
               .select(
-                "id, kind, slug, title, excerpt_html, body_html, author_name, published_at, featured_media_path, metadata",
+                "id, kind, slug, title, excerpt_html, author_name, published_at, featured_media_path, metadata",
               )
               .eq("kind", "post")
               .eq("source_status", "publish")
