@@ -8,16 +8,16 @@ import { SiteBreadcrumbs } from "@/components/site/SiteBreadcrumbs";
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { articleJsonLd, canonicalUrl, OG_IMAGE_URL } from "@/lib/seo";
 import { Button } from "@/components/ui/button";
-import { getPublishedPost, getPublishedPosts } from "@/lib/content.functions";
+import { getPublishedPost, getRelatedPublishedPosts } from "@/lib/content.functions";
 
 export const Route = createFileRoute("/blog/$slug")({
   loader: async ({ params }) => {
-    const [post, posts] = await Promise.all([
+    const [post, others] = await Promise.all([
       getPublishedPost({ data: { slug: params.slug } }),
-      getPublishedPosts(),
+      getRelatedPublishedPosts({ data: { excludeSlug: params.slug } }),
     ]);
     if (!post) throw notFound();
-    return { post, others: posts.filter((item) => item.slug !== post.slug).slice(0, 2) };
+    return { post, others };
   },
   pendingComponent: ContentEntryPending,
   head: ({ loaderData }) => {

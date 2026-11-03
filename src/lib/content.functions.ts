@@ -1261,6 +1261,31 @@ export const getPublishedPosts = createServerFn({ method: "GET" }).handler(async
   return data.map((entry) => renderContentEntry(entry, categories, config.url));
 });
 
+export const getRelatedPublishedPosts = createServerFn({ method: "GET" })
+  .validator((data: { excludeSlug: string }) => data)
+  .handler(async ({ data }) => {
+    const config = await getPublicClient();
+    if (!config) return [];
+
+    setResponseHeader("Cache-Control", "no-store");
+    const [{ data: entries, error }, categories] = await Promise.all([
+      config.client
+        .from("content_entries")
+        .select(
+          "id, kind, slug, title, excerpt_html, author_name, published_at, featured_media_path, metadata",
+        )
+        .eq("kind", "post")
+        .eq("source_status", "publish")
+        .is("archived_at", null)
+        .neq("slug", data.excludeSlug)
+        .order("published_at", { ascending: false })
+        .limit(2),
+      getCategories(config.client),
+    ]);
+    if (error) throw error;
+    return entries.map((entry) => renderContentEntry(entry, categories, config.url));
+  });
+
 export const getPublishedPostsPage = createServerFn({ method: "GET" })
   .validator((data: { page: number }) => data)
   .handler(async ({ data }) => {
