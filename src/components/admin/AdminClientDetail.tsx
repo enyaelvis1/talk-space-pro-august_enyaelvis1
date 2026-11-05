@@ -16,7 +16,7 @@ import {
   Pencil,
   Save,
 } from "lucide-react";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
 
 import { AdminAssessmentCapture } from "@/components/admin/AdminAssessmentCapture";
 import { AdminWorkspaceShell } from "@/components/progress/AdminSidebar";
@@ -103,6 +103,7 @@ export function AdminClientDetail({
   assessmentTemplates: FormTemplateDefinition[];
   therapists: Array<{ id: string; fullName: string }>;
 }) {
+  const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -157,6 +158,7 @@ export function AdminClientDetail({
       });
       toast.success("Client profile updated.");
       setEditing(false);
+      await router.invalidate();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Couldn't update client.");
     } finally {

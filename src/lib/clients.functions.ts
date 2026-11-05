@@ -634,14 +634,15 @@ export const updateAdminClient = createServerFn({ method: "POST" })
       }
     }
 
-    const { error } = await client
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: updatedClient, error } = await supabaseAdmin
       .from("clients")
       .update({
         surname: data.surname || null,
         other_names: data.otherNames || null,
-        full_name: data.fullName || null,
-        email: data.email || null,
-        phone: data.phone || null,
+        full_name: data.fullName,
+        email: data.email.toLowerCase(),
+        phone: data.phone,
         address: data.address || null,
         date_of_birth: data.dateOfBirth || null,
         wedding_anniversary_date: data.weddingAnniversaryDate || null,
@@ -649,8 +650,11 @@ export const updateAdminClient = createServerFn({ method: "POST" })
         preferred_mode: data.preferredMode,
         assigned_therapist_id: data.assignedTherapistId,
       })
-      .eq("id", data.clientId);
+      .eq("id", data.clientId)
+      .select("id")
+      .maybeSingle();
     if (error) throw error;
+    if (!updatedClient) throw new Error("Client record was not updated. Refresh and try again.");
     return { ok: true };
   });
 
