@@ -7,6 +7,7 @@ import {
   Home,
   Loader2,
   Mail,
+  Pencil,
   Plus,
   Search,
   SlidersHorizontal,
@@ -21,6 +22,7 @@ import { AdminWorkspaceShell } from "@/components/progress/AdminSidebar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -41,6 +43,7 @@ import {
 import {
   createAdminLegacyClient,
   deleteAdminClient,
+  updateAdminClient,
   createAdminExportAllClients,
   getAdminClientsPage,
   importAdminClients,
@@ -93,11 +96,15 @@ function ClientModeBadge({ mode }: { mode: ClientSessionMode | null }) {
 
 function ClientRow({
   client,
+  onEdit,
   onDelete,
+  editing,
   deleting,
 }: {
   client: AdminClientRecord;
+  onEdit: (client: AdminClientRecord) => void;
   onDelete: (client: AdminClientRecord) => void;
+  editing: boolean;
   deleting: boolean;
 }) {
   return (
@@ -129,6 +136,9 @@ function ClientRow({
         {client.occupation || client.assignedTherapistName || "Unassigned"}
       </td>
       <td className="px-4 py-4 text-right">
+        <Button size="sm" variant="ghost" disabled={editing} onClick={() => onEdit(client)}>
+          <Pencil className="h-4 w-4" aria-hidden /> Edit
+        </Button>
         <Button
           size="sm"
           variant="ghost"
@@ -146,11 +156,15 @@ function ClientRow({
 
 function ClientCard({
   client,
+  onEdit,
   onDelete,
+  editing,
   deleting,
 }: {
   client: AdminClientRecord;
+  onEdit: (client: AdminClientRecord) => void;
   onDelete: (client: AdminClientRecord) => void;
+  editing: boolean;
   deleting: boolean;
 }) {
   return (
@@ -184,7 +198,10 @@ function ClientCard({
           </div>
         </dl>
       </Link>
-      <div className="mt-3 border-t border-border/70 pt-3 text-right">
+      <div className="mt-3 flex justify-end gap-2 border-t border-border/70 pt-3">
+        <Button size="sm" variant="ghost" disabled={editing} onClick={() => onEdit(client)}>
+          <Pencil className="h-4 w-4" aria-hidden /> Edit
+        </Button>
         <Button
           size="sm"
           variant="ghost"
@@ -210,6 +227,20 @@ export function AdminClients({ clients }: { clients: AdminClientRecord[] }) {
   const [mode, setMode] = useState<ClientModeFilter>("all");
   const [therapist, setTherapist] = useState("all");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingClient, setEditingClient] = useState<AdminClientRecord | null>(null);
+  const [savingClient, setSavingClient] = useState(false);
+  const [editForm, setEditForm] = useState({
+    surname: "",
+    otherNames: "",
+    fullName: "",
+    email: "",
+    phone: "",
+    address: "",
+    dateOfBirth: "",
+    weddingAnniversaryDate: "",
+    occupation: "",
+    preferredMode: "" as ClientSessionMode | "",
+  });
   const [creating, setCreating] = useState(false);
   const [legacyForm, setLegacyForm] = useState({
     surname: "",
@@ -363,6 +394,77 @@ export function AdminClients({ clients }: { clients: AdminClientRecord[] }) {
     }
   }
 
+  function startEditing(client: AdminClientRecord) {
+    setEditingClient(client);
+    setEditForm({
+      surname: client.surname ?? "",
+      otherNames: client.otherNames ?? "",
+      fullName: client.fullName ?? "",
+      email: client.email ?? "",
+      phone: client.phone ?? "",
+      address: client.address ?? "",
+      dateOfBirth: client.dateOfBirth ?? "",
+      weddingAnniversaryDate: client.weddingAnniversaryDate ?? "",
+      occupation: client.occupation ?? "",
+      preferredMode: client.preferredMode ?? "",
+    });
+  }
+
+  const updateEditForm =
+    (key: keyof typeof editForm) =>
+    (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setEditForm((current) => ({ ...current, [key]: event.target.value }));
+    };
+
+  async function saveClient(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingClient) return;
+    setSavingClient(true);
+    try {
+      await updateAdminClient({
+        data: {
+          clientId: editingClient.id,
+          surname: editForm.surname || null,
+          otherNames: editForm.otherNames || null,
+          fullName: editForm.fullName,
+          email: editForm.email,
+          phone: editForm.phone,
+          address: editForm.address || null,
+          dateOfBirth: editForm.dateOfBirth || null,
+          weddingAnniversaryDate: editForm.weddingAnniversaryDate || null,
+          occupation: editForm.occupation || null,
+          preferredMode: editForm.preferredMode || null,
+        },
+      });
+      setLoadedClients((current) =>
+        current.map((client) =>
+          client.id === editingClient.id
+            ? {
+                ...client,
+                surname: editForm.surname || null,
+                otherNames: editForm.otherNames || null,
+                fullName: editForm.fullName.trim(),
+                email: editForm.email.trim().toLowerCase(),
+                phone: editForm.phone.trim(),
+                address: editForm.address || null,
+                dateOfBirth: editForm.dateOfBirth || null,
+                weddingAnniversaryDate: editForm.weddingAnniversaryDate || null,
+                occupation: editForm.occupation || null,
+                preferredMode: editForm.preferredMode || null,
+              }
+            : client,
+        ),
+      );
+      toast.success("Client record updated.");
+      setEditingClient(null);
+      await router.invalidate();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update client record.");
+    } finally {
+      setSavingClient(false);
+    }
+  }
+
   const therapistOptions = useMemo(
     () =>
       Array.from(
@@ -505,6 +607,111 @@ export function AdminClients({ clients }: { clients: AdminClientRecord[] }) {
               Import profiles
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={Boolean(editingClient)}
+        onOpenChange={(open) => {
+          if (!open && !savingClient) setEditingClient(null);
+        }}
+      >
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit client record</DialogTitle>
+            <DialogDescription>
+              Update contact details and care preferences for{" "}
+              {editingClient?.fullName || "this client"}.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={saveClient} className="space-y-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="space-y-2 text-sm font-medium text-brand-deep">
+                Surname
+                <Input value={editForm.surname} onChange={updateEditForm("surname")} />
+              </label>
+              <label className="space-y-2 text-sm font-medium text-brand-deep">
+                Other names
+                <Input value={editForm.otherNames} onChange={updateEditForm("otherNames")} />
+              </label>
+              <label className="space-y-2 text-sm font-medium text-brand-deep">
+                Full name *
+                <Input value={editForm.fullName} onChange={updateEditForm("fullName")} required />
+              </label>
+              <label className="space-y-2 text-sm font-medium text-brand-deep">
+                Email *
+                <Input
+                  type="email"
+                  value={editForm.email}
+                  onChange={updateEditForm("email")}
+                  required
+                />
+              </label>
+              <label className="space-y-2 text-sm font-medium text-brand-deep">
+                Phone *
+                <Input value={editForm.phone} onChange={updateEditForm("phone")} required />
+              </label>
+              <label className="space-y-2 text-sm font-medium text-brand-deep">
+                Preferred mode
+                <Select
+                  value={editForm.preferredMode || "not_set"}
+                  onValueChange={(value) =>
+                    setEditForm((current) => ({
+                      ...current,
+                      preferredMode: value === "not_set" ? "" : (value as ClientSessionMode),
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="not_set">Not set</SelectItem>
+                    <SelectItem value="online">Online</SelectItem>
+                    <SelectItem value="in_person">In person</SelectItem>
+                    <SelectItem value="phone">Phone</SelectItem>
+                  </SelectContent>
+                </Select>
+              </label>
+              <label className="space-y-2 text-sm font-medium text-brand-deep">
+                Date of birth
+                <DateInput value={editForm.dateOfBirth} onChange={updateEditForm("dateOfBirth")} />
+              </label>
+              <label className="space-y-2 text-sm font-medium text-brand-deep">
+                Wedding anniversary
+                <DateInput
+                  value={editForm.weddingAnniversaryDate}
+                  onChange={updateEditForm("weddingAnniversaryDate")}
+                />
+              </label>
+              <label className="space-y-2 text-sm font-medium text-brand-deep sm:col-span-2">
+                Occupation
+                <Input value={editForm.occupation} onChange={updateEditForm("occupation")} />
+              </label>
+              <label className="space-y-2 text-sm font-medium text-brand-deep sm:col-span-2">
+                Address
+                <textarea
+                  value={editForm.address}
+                  onChange={updateEditForm("address")}
+                  rows={3}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring"
+                />
+              </label>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={savingClient}
+                onClick={() => setEditingClient(null)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={savingClient}>
+                {savingClient ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+                {savingClient ? "Saving…" : "Save changes"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
       <main id="main" className="min-h-screen bg-surface-page py-8 sm:py-10">
@@ -812,7 +1019,9 @@ export function AdminClients({ clients }: { clients: AdminClientRecord[] }) {
                         <ClientRow
                           key={client.id}
                           client={client}
+                          onEdit={startEditing}
                           onDelete={remove}
+                          editing={savingClient && editingClient?.id === client.id}
                           deleting={deletingId === client.id}
                         />
                       ))}
@@ -824,7 +1033,9 @@ export function AdminClients({ clients }: { clients: AdminClientRecord[] }) {
                     <ClientCard
                       key={client.id}
                       client={client}
+                      onEdit={startEditing}
                       onDelete={remove}
+                      editing={savingClient && editingClient?.id === client.id}
                       deleting={deletingId === client.id}
                     />
                   ))}
