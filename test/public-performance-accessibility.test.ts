@@ -257,7 +257,10 @@ test("public FAQ data is deduped before rendering", () => {
     contentFunctions,
     /const orderedCategories = orderFaqCategories\(categories, preferredOrder\)/,
   );
-  assert.match(contentFunctions, /return rows\.sort\(/);
+  assert.match(
+    contentFunctions,
+    /return rows\.sort\(\(a, b\) => \(rank\.get\(a\.category\) \?\? 0\) - \(rank\.get\(b\.category\) \?\? 0\)\)/,
+  );
   assert.match(faqs, /listPublicFaqs/);
   assert.match(liveSections, /listPublicFaqs/);
 });
