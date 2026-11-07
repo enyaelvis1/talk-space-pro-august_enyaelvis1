@@ -1128,6 +1128,10 @@ function BookingForm({
                         : "Choose an available time")
                 }
               />
+              <p className="mt-2 text-xs text-muted-foreground">
+                Session times are shown in West Africa Time (WAT, UTC+1), regardless of your
+                location.
+              </p>
               {!packageAccess ? (
                 <div className="mt-3 space-y-3">
                   <div className="rounded-xl border border-border/70 bg-muted/20 p-3">

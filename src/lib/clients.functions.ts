@@ -24,6 +24,9 @@ export type AdminClientRecord = {
   phone: string | null;
   address: string | null;
   dateOfBirth: string | null;
+  gender: string | null;
+  religion: string | null;
+  maritalStatus: string | null;
   weddingAnniversaryDate: string | null;
   occupation: string | null;
   recordSource: string;
@@ -120,7 +123,7 @@ export type AdminClientPayment = {
 };
 
 const extendedClientSelect =
-  "id, email, surname, other_names, full_name, phone, address, date_of_birth, wedding_anniversary_date, occupation, record_source, preferred_mode, assigned_therapist_id, created_at, updated_at";
+  "id, email, surname, other_names, full_name, phone, address, date_of_birth, gender, religion, marital_status, wedding_anniversary_date, occupation, record_source, preferred_mode, assigned_therapist_id, created_at, updated_at";
 
 const legacyClientSelect =
   "id, full_name, phone, date_of_birth, preferred_mode, assigned_therapist_id, created_at, updated_at";
@@ -128,9 +131,17 @@ const legacyClientSelect =
 function isMissingExtendedClientColumnError(error: { message?: string } | null) {
   return Boolean(
     error?.message?.includes("clients") &&
-    ["email", "surname", "other_names", "address", "wedding_anniversary_date", "occupation"].some(
-      (column) => error.message?.includes(column),
-    ),
+    [
+      "email",
+      "surname",
+      "other_names",
+      "address",
+      "gender",
+      "religion",
+      "marital_status",
+      "wedding_anniversary_date",
+      "occupation",
+    ].some((column) => error.message?.includes(column)),
   );
 }
 
@@ -143,6 +154,9 @@ type ClientRowWithCrmFields = {
   phone: string | null;
   address?: string | null;
   date_of_birth: string | null;
+  gender?: string | null;
+  religion?: string | null;
+  marital_status?: string | null;
   wedding_anniversary_date?: string | null;
   occupation?: string | null;
   record_source?: string | null;
@@ -165,6 +179,9 @@ function mapClientRecord(
     phone: client.phone,
     address: client.address ?? null,
     dateOfBirth: client.date_of_birth,
+    gender: client.gender ?? null,
+    religion: client.religion ?? null,
+    maritalStatus: client.marital_status ?? null,
     weddingAnniversaryDate: client.wedding_anniversary_date ?? null,
     occupation: client.occupation ?? null,
     recordSource: client.record_source ?? "platform",
@@ -443,6 +460,9 @@ async function loadAdminClientDetail(
     phone: clientProfile.phone,
     address: clientProfile.address ?? null,
     dateOfBirth: clientProfile.date_of_birth,
+    gender: clientProfile.gender ?? null,
+    religion: clientProfile.religion ?? null,
+    maritalStatus: clientProfile.marital_status ?? null,
     weddingAnniversaryDate: clientProfile.wedding_anniversary_date ?? null,
     occupation: clientProfile.occupation ?? null,
     recordSource: clientProfile.record_source ?? "platform",
@@ -607,6 +627,9 @@ const clientUpdateInput = z.object({
   phone: clientPhoneSchema,
   address: z.string().trim().max(500).nullable().optional(),
   dateOfBirth: z.string().trim().max(10).nullable().optional(),
+  gender: z.string().trim().max(100).nullable().optional(),
+  religion: z.string().trim().max(100).nullable().optional(),
+  maritalStatus: z.string().trim().max(100).nullable().optional(),
   weddingAnniversaryDate: z.string().trim().max(10).nullable().optional(),
   occupation: z.string().trim().max(150).nullable().optional(),
   preferredMode: z.enum(["online", "in_person", "phone"]).nullable().optional(),
@@ -634,23 +657,30 @@ export const updateAdminClient = createServerFn({ method: "POST" })
       }
     }
 
-    const { error } = await client
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: updatedClient, error } = await supabaseAdmin
       .from("clients")
       .update({
         surname: data.surname || null,
         other_names: data.otherNames || null,
-        full_name: data.fullName || null,
-        email: data.email || null,
-        phone: data.phone || null,
+        full_name: data.fullName,
+        email: data.email.toLowerCase(),
+        phone: data.phone,
         address: data.address || null,
         date_of_birth: data.dateOfBirth || null,
+        gender: data.gender || null,
+        religion: data.religion || null,
+        marital_status: data.maritalStatus || null,
         wedding_anniversary_date: data.weddingAnniversaryDate || null,
         occupation: data.occupation || null,
         preferred_mode: data.preferredMode,
         assigned_therapist_id: data.assignedTherapistId,
       })
-      .eq("id", data.clientId);
+      .eq("id", data.clientId)
+      .select("id")
+      .maybeSingle();
     if (error) throw error;
+    if (!updatedClient) throw new Error("Client record was not updated. Refresh and try again.");
     return { ok: true };
   });
 
@@ -661,6 +691,9 @@ const legacyClientInput = z.object({
   phone: clientPhoneSchema,
   address: z.string().trim().max(500).nullable(),
   birthday: z.string().trim().max(10).nullable(),
+  gender: z.string().trim().max(100).nullable(),
+  religion: z.string().trim().max(100).nullable(),
+  maritalStatus: z.string().trim().max(100).nullable(),
   weddingAnniversaryDate: z.string().trim().max(10).nullable(),
   occupation: z.string().trim().max(150).nullable(),
 });
@@ -706,6 +739,9 @@ export const createAdminLegacyClient = createServerFn({ method: "POST" })
           phone: data.phone || null,
           address: data.address || null,
           date_of_birth: data.birthday || null,
+          gender: data.gender || null,
+          religion: data.religion || null,
+          marital_status: data.maritalStatus || null,
           wedding_anniversary_date: data.weddingAnniversaryDate || null,
           occupation: data.occupation || null,
           record_source: "admin_legacy",
@@ -738,6 +774,9 @@ export const exportAdminClientData = createServerFn({ method: "POST" })
         "other_names",
         "address",
         "birthday",
+        "gender",
+        "religion",
+        "marital_status",
         "wedding_anniversary_date",
         "occupation",
         "preferred_mode",
@@ -752,6 +791,9 @@ export const exportAdminClientData = createServerFn({ method: "POST" })
         detail.otherNames,
         detail.address,
         detail.dateOfBirth,
+        detail.gender,
+        detail.religion,
+        detail.maritalStatus,
         detail.weddingAnniversaryDate,
         detail.occupation,
         detail.preferredMode,
@@ -917,6 +959,9 @@ export const importAdminClients = createServerFn({ method: "POST" })
           phone: snapshot.phone,
           address: snapshot.address,
           date_of_birth: snapshot.date_of_birth,
+          gender: snapshot.gender,
+          religion: snapshot.religion,
+          marital_status: snapshot.marital_status,
           wedding_anniversary_date: snapshot.wedding_anniversary_date,
           occupation: snapshot.occupation,
           record_source: snapshot.record_source,

@@ -3,10 +3,13 @@ import { z } from "zod";
 export const clientPhoneSchema = z
   .string()
   .trim()
-  .min(7)
-  .max(20)
-  .regex(/^\+?[\d\s().-]+$/, "Enter a valid phone number.")
-  .refine((value) => value.replace(/\D/g, "").length >= 7, "Enter a valid phone number.");
+  .superRefine((value, context) => {
+    const phonePattern = /^\+?[\d\s().\-\x2f]+(?:\s*(?:ext\.?|x)\s*\d{1,6})?$/i;
+    const digitCount = value.replace(/\D/g, "").length;
+    if (value.length > 40 || !phonePattern.test(value) || digitCount < 7 || digitCount > 20) {
+      context.addIssue({ code: "custom", message: "Enter a valid phone number (7–20 digits)." });
+    }
+  });
 
 export const clientContactSchema = z.object({
   fullName: z.string().trim().min(2).max(250),

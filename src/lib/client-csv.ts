@@ -13,6 +13,9 @@ export const CLIENT_CSV_COLUMNS = [
   "other_names",
   "address",
   "date_of_birth",
+  "gender",
+  "religion",
+  "marital_status",
   "wedding_anniversary_date",
   "occupation",
   "record_source",
@@ -26,6 +29,9 @@ const optionalFields = z.object({
   surname: z.string().trim().max(100).optional(),
   other_names: z.string().trim().max(150).optional(),
   address: z.string().trim().max(500).optional(),
+  gender: z.string().trim().max(100).optional(),
+  religion: z.string().trim().max(100).optional(),
+  marital_status: z.string().trim().max(100).optional(),
   occupation: z.string().trim().max(150).optional(),
   date_of_birth: optionalDate.optional(),
   wedding_anniversary_date: optionalDate.optional(),
@@ -47,6 +53,33 @@ type ClientCsvProfile = {
 
 // eslint-disable-next-line no-control-regex -- Spreadsheet importers can ignore leading control bytes.
 const spreadsheetFormula = /^[\s\u0000-\u001f]*[=+@-]/;
+
+const headerAliases: Record<string, string> = {
+  name: "full_name",
+  client_name: "full_name",
+  email_address: "email",
+  phone_number: "phone",
+  contact_number: "phone",
+  whatsapp_number: "phone",
+  contact_phone_number: "phone",
+  contact_phone_number_preferably_whatsapp_no: "phone",
+  dob: "date_of_birth",
+  birthday: "date_of_birth",
+  family_name: "surname",
+  given_names: "other_names",
+  other_name: "other_names",
+  marital_status: "marital_status",
+};
+
+function normalizeHeader(value: string) {
+  const normalized = value
+    .replace(/^\uFEFF/, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return headerAliases[normalized] ?? normalized;
+}
 
 // Escape literal apostrophes too, so our export can be imported without data loss.
 function spreadsheetText(value: unknown) {
@@ -71,13 +104,22 @@ export function parseClientCsv(csv: string) {
     trim: true,
     max_record_size: 16000,
     columns: (headers: string[]) => {
-      if (new Set(headers).size !== headers.length) throw new Error("Duplicate CSV columns.");
-      for (const column of ["full_name", "email", "phone"]) {
-        if (!headers.includes(column)) throw new Error(`Missing required column: ${column}`);
+      const normalizedHeaders = headers.map(normalizeHeader);
+      if (new Set(normalizedHeaders).size !== normalizedHeaders.length)
+        throw new Error("Duplicate CSV columns after header normalization.");
+      for (const column of ["email", "phone"]) {
+        if (!normalizedHeaders.includes(column))
+          throw new Error(`Missing required column: ${column}`);
       }
-      const unknown = headers.filter((column) => !CLIENT_CSV_COLUMNS.includes(column));
+      if (
+        !normalizedHeaders.includes("full_name") &&
+        !(normalizedHeaders.includes("surname") && normalizedHeaders.includes("other_names"))
+      ) {
+        throw new Error("Include full_name or both surname and other_names columns.");
+      }
+      const unknown = normalizedHeaders.filter((column) => !CLIENT_CSV_COLUMNS.includes(column));
       if (unknown.length) throw new Error(`Unsupported columns: ${unknown.join(", ")}`);
-      return headers;
+      return normalizedHeaders;
     },
   }) as Record<string, string>[];
   if (!rows.length || rows.length > 2000)
@@ -89,8 +131,10 @@ export function parseClientCsv(csv: string) {
     const row = Object.fromEntries(
       Object.entries(rawRow).map(([key, value]) => [key, importText(value)]),
     );
+    const fullName =
+      row.full_name?.trim() || [row.surname, row.other_names].filter(Boolean).join(" ");
     const contact = clientContactSchema.safeParse({
-      fullName: row.full_name,
+      fullName,
       email: row.email,
       phone: row.phone,
     });

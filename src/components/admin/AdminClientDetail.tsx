@@ -16,7 +16,7 @@ import {
   Pencil,
   Save,
 } from "lucide-react";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
 
 import { AdminAssessmentCapture } from "@/components/admin/AdminAssessmentCapture";
 import { AdminWorkspaceShell } from "@/components/progress/AdminSidebar";
@@ -103,6 +103,7 @@ export function AdminClientDetail({
   assessmentTemplates: FormTemplateDefinition[];
   therapists: Array<{ id: string; fullName: string }>;
 }) {
+  const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -113,6 +114,9 @@ export function AdminClientDetail({
     phone: client.phone ?? "",
     address: client.address ?? "",
     dateOfBirth: client.dateOfBirth ?? "",
+    gender: client.gender ?? "",
+    religion: client.religion ?? "",
+    maritalStatus: client.maritalStatus ?? "",
     weddingAnniversaryDate: client.weddingAnniversaryDate ?? "",
     occupation: client.occupation ?? "",
     preferredMode: client.preferredMode ?? "",
@@ -149,6 +153,9 @@ export function AdminClientDetail({
           phone: form.phone,
           address: form.address || null,
           dateOfBirth: form.dateOfBirth || null,
+          gender: form.gender || null,
+          religion: form.religion || null,
+          maritalStatus: form.maritalStatus || null,
           weddingAnniversaryDate: form.weddingAnniversaryDate || null,
           occupation: form.occupation || null,
           preferredMode: (form.preferredMode || null) as ClientSessionMode | null,
@@ -157,6 +164,7 @@ export function AdminClientDetail({
       });
       toast.success("Client profile updated.");
       setEditing(false);
+      await router.invalidate();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Couldn't update client.");
     } finally {
@@ -274,7 +282,7 @@ export function AdminClientDetail({
                       />
                     </label>
                     <label className="space-y-2 text-sm font-medium text-brand-deep">
-                      Phone *
+                      Contact phone (WhatsApp preferred) *
                       <Input
                         value={form.phone}
                         onChange={(event) =>
@@ -299,6 +307,33 @@ export function AdminClientDetail({
                         value={form.dateOfBirth}
                         onChange={(event) =>
                           setForm((current) => ({ ...current, dateOfBirth: event.target.value }))
+                        }
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm font-medium text-brand-deep">
+                      Gender
+                      <Input
+                        value={form.gender}
+                        onChange={(event) =>
+                          setForm((current) => ({ ...current, gender: event.target.value }))
+                        }
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm font-medium text-brand-deep">
+                      Religion
+                      <Input
+                        value={form.religion}
+                        onChange={(event) =>
+                          setForm((current) => ({ ...current, religion: event.target.value }))
+                        }
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm font-medium text-brand-deep">
+                      Marital status
+                      <Input
+                        value={form.maritalStatus}
+                        onChange={(event) =>
+                          setForm((current) => ({ ...current, maritalStatus: event.target.value }))
                         }
                       />
                     </label>
@@ -370,7 +405,11 @@ export function AdminClientDetail({
                   </>
                 ) : null}
                 {!editing ? (
-                  <DetailItem icon={Phone} label="Phone" value={client.phone || "Not provided"} />
+                  <DetailItem
+                    icon={Phone}
+                    label="Contact phone (WhatsApp preferred)"
+                    value={client.phone || "Not provided"}
+                  />
                 ) : null}
                 {!editing ? (
                   <DetailItem icon={Mail} label="Email" value={client.email || "Not provided"} />
@@ -394,6 +433,27 @@ export function AdminClientDetail({
                     icon={Cake}
                     label="Date of birth"
                     value={formatDate(client.dateOfBirth)}
+                  />
+                ) : null}
+                {!editing ? (
+                  <DetailItem
+                    icon={UserRound}
+                    label="Gender"
+                    value={client.gender || "Not provided"}
+                  />
+                ) : null}
+                {!editing ? (
+                  <DetailItem
+                    icon={Heart}
+                    label="Religion"
+                    value={client.religion || "Not provided"}
+                  />
+                ) : null}
+                {!editing ? (
+                  <DetailItem
+                    icon={UserRound}
+                    label="Marital status"
+                    value={client.maritalStatus || "Not provided"}
                   />
                 ) : null}
                 {!editing ? (
