@@ -249,7 +249,14 @@ test("public FAQ data is deduped before rendering", () => {
 
   assert.match(contentFunctions, /function uniquePublicFaqs/);
   assert.match(contentFunctions, /normalizeFaqKey/);
-  assert.match(contentFunctions, /return uniquePublicFaqs\(\(data \?\? \[\]\) as PublicFaq\[\]\)/);
+  assert.match(
+    contentFunctions,
+    /const rows = uniquePublicFaqs\(\(data \?\? \[\]\) as PublicFaq\[\]\)/,
+  );
+  assert.match(
+    contentFunctions,
+    /return rows\.sort\(\(a, b\) => \(rank\.get\(a\.category\) \?\? 0\) - \(rank\.get\(b\.category\) \?\? 0\)\)/,
+  );
   assert.match(faqs, /listPublicFaqs/);
   assert.match(liveSections, /listPublicFaqs/);
 });
