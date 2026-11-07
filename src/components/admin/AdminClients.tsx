@@ -237,6 +237,9 @@ export function AdminClients({ clients }: { clients: AdminClientRecord[] }) {
     phone: "",
     address: "",
     dateOfBirth: "",
+    gender: "",
+    religion: "",
+    maritalStatus: "",
     weddingAnniversaryDate: "",
     occupation: "",
     preferredMode: "" as ClientSessionMode | "",
@@ -249,6 +252,9 @@ export function AdminClients({ clients }: { clients: AdminClientRecord[] }) {
     phone: "",
     address: "",
     birthday: "",
+    gender: "",
+    religion: "",
+    maritalStatus: "",
     weddingAnniversaryDate: "",
     occupation: "",
   });
@@ -356,6 +362,9 @@ export function AdminClients({ clients }: { clients: AdminClientRecord[] }) {
           phone: legacyForm.phone,
           address: legacyForm.address || null,
           birthday: legacyForm.birthday || null,
+          gender: legacyForm.gender || null,
+          religion: legacyForm.religion || null,
+          maritalStatus: legacyForm.maritalStatus || null,
           weddingAnniversaryDate: legacyForm.weddingAnniversaryDate || null,
           occupation: legacyForm.occupation || null,
         },
@@ -370,6 +379,9 @@ export function AdminClients({ clients }: { clients: AdminClientRecord[] }) {
         phone: "",
         address: "",
         birthday: "",
+        gender: "",
+        religion: "",
+        maritalStatus: "",
         weddingAnniversaryDate: "",
         occupation: "",
       });
@@ -404,6 +416,9 @@ export function AdminClients({ clients }: { clients: AdminClientRecord[] }) {
       phone: client.phone ?? "",
       address: client.address ?? "",
       dateOfBirth: client.dateOfBirth ?? "",
+      gender: client.gender ?? "",
+      religion: client.religion ?? "",
+      maritalStatus: client.maritalStatus ?? "",
       weddingAnniversaryDate: client.weddingAnniversaryDate ?? "",
       occupation: client.occupation ?? "",
       preferredMode: client.preferredMode ?? "",
@@ -431,6 +446,9 @@ export function AdminClients({ clients }: { clients: AdminClientRecord[] }) {
           phone: editForm.phone,
           address: editForm.address || null,
           dateOfBirth: editForm.dateOfBirth || null,
+          gender: editForm.gender || null,
+          religion: editForm.religion || null,
+          maritalStatus: editForm.maritalStatus || null,
           weddingAnniversaryDate: editForm.weddingAnniversaryDate || null,
           occupation: editForm.occupation || null,
           preferredMode: editForm.preferredMode || null,
@@ -448,6 +466,9 @@ export function AdminClients({ clients }: { clients: AdminClientRecord[] }) {
                 phone: editForm.phone.trim(),
                 address: editForm.address || null,
                 dateOfBirth: editForm.dateOfBirth || null,
+                gender: editForm.gender || null,
+                religion: editForm.religion || null,
+                maritalStatus: editForm.maritalStatus || null,
                 weddingAnniversaryDate: editForm.weddingAnniversaryDate || null,
                 occupation: editForm.occupation || null,
                 preferredMode: editForm.preferredMode || null,
@@ -573,17 +594,29 @@ export function AdminClients({ clients }: { clients: AdminClientRecord[] }) {
                 <table className="w-full text-left text-sm">
                   <thead>
                     <tr>
-                      <th className="p-2">Name</th>
+                      <th className="p-2">Surname</th>
+                      <th className="p-2">Other names</th>
                       <th className="p-2">Email</th>
-                      <th className="p-2">Phone</th>
+                      <th className="p-2">Contact phone</th>
+                      <th className="p-2">Date of birth</th>
+                      <th className="p-2">Address</th>
+                      <th className="p-2">Gender</th>
+                      <th className="p-2">Religion</th>
+                      <th className="p-2">Marital status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {importResult.sample.map((profile) => (
                       <tr key={profile.email} className="border-t">
-                        <td className="p-2">{profile.full_name}</td>
+                        <td className="p-2">{profile.surname || "—"}</td>
+                        <td className="p-2">{profile.other_names || profile.full_name}</td>
                         <td className="break-all p-2">{profile.email}</td>
                         <td className="p-2">{profile.phone}</td>
+                        <td className="p-2">{profile.date_of_birth || "—"}</td>
+                        <td className="p-2">{profile.address || "—"}</td>
+                        <td className="p-2">{profile.gender || "—"}</td>
+                        <td className="p-2">{profile.religion || "—"}</td>
+                        <td className="p-2">{profile.marital_status || "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -647,8 +680,20 @@ export function AdminClients({ clients }: { clients: AdminClientRecord[] }) {
                 />
               </label>
               <label className="space-y-2 text-sm font-medium text-brand-deep">
-                Phone *
+                Contact phone (WhatsApp preferred) *
                 <Input value={editForm.phone} onChange={updateEditForm("phone")} required />
+              </label>
+              <label className="space-y-2 text-sm font-medium text-brand-deep">
+                Gender
+                <Input value={editForm.gender} onChange={updateEditForm("gender")} />
+              </label>
+              <label className="space-y-2 text-sm font-medium text-brand-deep">
+                Religion
+                <Input value={editForm.religion} onChange={updateEditForm("religion")} />
+              </label>
+              <label className="space-y-2 text-sm font-medium text-brand-deep">
+                Marital status
+                <Input value={editForm.maritalStatus} onChange={updateEditForm("maritalStatus")} />
               </label>
               <label className="space-y-2 text-sm font-medium text-brand-deep">
                 Preferred mode
@@ -777,8 +822,8 @@ export function AdminClients({ clients }: { clients: AdminClientRecord[] }) {
                     <span className="font-medium text-brand-deep">Export CSV</span> to download a
                     backup of the current data and{" "}
                     <span className="font-medium text-brand-deep">Import CSV</span> to bring in
-                    existing client records. Required fields in any uploaded record are full name,
-                    email, and phone.
+                    existing client records. Include email and phone, plus either full name or both
+                    surname and other names. Demographic fields are optional.
                   </p>
                 </div>
               </div>
@@ -832,11 +877,27 @@ export function AdminClients({ clients }: { clients: AdminClientRecord[] }) {
                   </div>
                 </label>
                 <label className="space-y-2 text-sm font-medium text-brand-deep">
-                  Phone
+                  Contact phone (WhatsApp preferred)
                   <Input
                     value={legacyForm.phone}
                     onChange={updateLegacyForm("phone")}
                     autoComplete="tel"
+                    required
+                  />
+                </label>
+                <label className="space-y-2 text-sm font-medium text-brand-deep">
+                  Gender
+                  <Input value={legacyForm.gender} onChange={updateLegacyForm("gender")} />
+                </label>
+                <label className="space-y-2 text-sm font-medium text-brand-deep">
+                  Religion
+                  <Input value={legacyForm.religion} onChange={updateLegacyForm("religion")} />
+                </label>
+                <label className="space-y-2 text-sm font-medium text-brand-deep">
+                  Marital status
+                  <Input
+                    value={legacyForm.maritalStatus}
+                    onChange={updateLegacyForm("maritalStatus")}
                   />
                 </label>
                 <label className="space-y-2 text-sm font-medium text-brand-deep lg:col-span-2">
